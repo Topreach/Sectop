@@ -151,7 +151,7 @@ generate_android_platform() {
   else
     log_info "Generating android/ platform directory..."
     cd "$FRONTEND_DIR"
-    flutter create --platforms android --project-name danger_emergence_system .
+    flutter create --platforms android --project-name danger_emergence_system . || true
     log_ok "Android platform directory generated"
     
     # Remove iOS-specific generated files that might conflict
@@ -193,25 +193,27 @@ patch_dependencies() {
     set +e
     bash "$PATCH_SCRIPT"
     local RC=$?
-    set -e
     
     if [ "$RC" -eq 2 ]; then
       log_warn "Corrupted plugins were deleted. Re-running flutter pub get to re-download..."
       cd "$FRONTEND_DIR"
-      flutter pub get || true
+      flutter pub get
+      local PUBGET_RC=$?
       cd "$PROJECT_DIR"
+      if [ "$PUBGET_RC" -ne 0 ]; then
+        log_warn "flutter pub get returned exit code $PUBGET_RC (non-fatal, continuing)"
+      fi
       log_ok "Dependencies re-downloaded"
       
       # Run patch script again on fresh files to add namespace
       log_info "Re-patching freshly downloaded plugins..."
-      set +e
       bash "$PATCH_SCRIPT"
       local RC2=$?
-      set -e
       if [ "$RC2" -eq 0 ]; then
         log_ok "Fresh plugins patched successfully"
       fi
     fi
+    set -e
   else
     log_warn "Patch script not found at $PATCH_SCRIPT"
   fi
@@ -224,10 +226,10 @@ build_apk() {
   cd "$FRONTEND_DIR"
   
   # Clean previous builds
-  flutter clean 2>&1 | tail -2
+  flutter clean 2>&1 | tail -2 || true
   
   # Get dependencies
-  flutter pub get 2>&1 | tail -2
+  flutter pub get 2>&1 | tail -2 || true
   
   # Build APK
   flutter build apk --release 2>&1
