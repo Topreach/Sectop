@@ -202,21 +202,21 @@ class OfflineStorageService {
   /// Insert a record into the specified table.
   Future<int> insert(String table, Map<String, dynamic> data) async {
     final db = _database;
-    if (db == null) throw Exception('Database not initialized');
+    if (db == null) return 0; // Web: SQLite not available
     return await db.insert(table, data, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   /// Update records matching the where clause.
   Future<int> update(String table, Map<String, dynamic> data, {required String where, List<dynamic>? whereArgs}) async {
     final db = _database;
-    if (db == null) throw Exception('Database not initialized');
+    if (db == null) return 0; // Web: SQLite not available
     return await db.update(table, data, where: where, whereArgs: whereArgs);
   }
 
   /// Delete records matching the where clause.
   Future<int> delete(String table, {required String where, List<dynamic>? whereArgs}) async {
     final db = _database;
-    if (db == null) throw Exception('Database not initialized');
+    if (db == null) return 0; // Web: SQLite not available
     return await db.delete(table, where: where, whereArgs: whereArgs);
   }
 
@@ -224,7 +224,7 @@ class OfflineStorageService {
   Future<List<Map<String, dynamic>>> query(String table,
       {String? where, List<dynamic>? whereArgs, String? orderBy, int? limit, int? offset}) async {
     final db = _database;
-    if (db == null) throw Exception('Database not initialized');
+    if (db == null) return []; // Web: SQLite not available, return empty results
     return await db.query(table,
         where: where, whereArgs: whereArgs, orderBy: orderBy, limit: limit, offset: offset);
   }
@@ -232,7 +232,7 @@ class OfflineStorageService {
   /// Get a single record by id.
   Future<Map<String, dynamic>?> getById(String table, String id) async {
     final db = _database;
-    if (db == null) throw Exception('Database not initialized');
+    if (db == null) return null; // Web: SQLite not available
     final results = await db.query(table, where: 'id = ?', whereArgs: [id]);
     return results.isNotEmpty ? results.first : null;
   }
