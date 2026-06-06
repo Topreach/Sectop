@@ -198,8 +198,8 @@ main() {
   local CORRUPTED=0
   
   while IFS= read -r -d '' BUILD_GRADLE; do
-    patch_namespace "$BUILD_GRADLE"
-    local RC=$?
+    local RC=0
+    patch_namespace "$BUILD_GRADLE" || RC=$?
     if [ "$RC" -eq 0 ]; then
       PATCHED_NS=$((PATCHED_NS + 1))
     elif [ "$RC" -eq 2 ]; then
