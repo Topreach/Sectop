@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -316,9 +317,9 @@ class OfflineStorageService {
           'active'
         ]);
   }
-double _cosDegrees(double degrees) {
-  return cos(_degreesToRadians(degrees));
-}
+
+  double _cosDegrees(double degrees) {
+    return cos(_degreesToRadians(degrees));
   }
 
   double _degreesToRadians(double degrees) {
