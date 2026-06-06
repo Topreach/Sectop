@@ -64,10 +64,10 @@ class LocationUtils {
   static double _toRadians(double degrees) => degrees * (3.141592653589793 / 180);
   static double _toDegrees(double radians) => radians * (180 / 3.141592653589793);
   static double _sinSquared(double x) {
-    final s = x.sin;
+    final s = math.sin(x);
     return s * s;
   }
-  static double _cos(double degrees) => _toRadians(degrees).cos;
-  static double _atan2(double y, double x) => y.atan2(x);
-  static double _sqrt(double x) => x.sqrt();
+  static double _cos(double degrees) => math.cos(_toRadians(degrees));
+  static double _atan2(double y, double x) => math.atan2(y, x);
+  static double _sqrt(double x) => math.sqrt(x);
 }

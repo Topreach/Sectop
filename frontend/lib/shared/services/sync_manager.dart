@@ -22,8 +22,8 @@ class SyncManager {
   /// Initialize the sync manager and start listening for connectivity changes.
   Future<void> initialize() async {
     // Listen for connectivity changes
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
-      if (results.any((result) => result != ConnectivityResult.none)) {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+      if (result != ConnectivityResult.none) {
         _performSync();
       }
     });
@@ -49,7 +49,7 @@ class SyncManager {
     try {
       // Check connectivity
       final connectivityResult = await _connectivity.checkConnectivity();
-      final hasInternet = connectivityResult.any((r) => r != ConnectivityResult.none);
+      final hasInternet = connectivityResult != ConnectivityResult.none;
 
       if (!hasInternet) {
         return SyncResult(synced: false, reason: 'No internet connection');
@@ -216,7 +216,7 @@ class SyncManager {
     final pendingCount = (await _storage.getPendingSyncItems()).length;
     final lastSync = await _storage.getSetting(AppConstants.keyLastSync);
     final connectivityResult = await _connectivity.checkConnectivity();
-    final isOnline = connectivityResult.any((r) => r != ConnectivityResult.none);
+    final isOnline = connectivityResult != ConnectivityResult.none;
 
     return SyncStatus(
       isOnline: isOnline,

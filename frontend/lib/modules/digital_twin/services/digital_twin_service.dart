@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -168,15 +169,8 @@ class DigitalTwinService extends ChangeNotifier {
         timesteps: timesteps,
       );
 
-      // Convert SimulationOutput to SimulationResult
-      final result = SimulationResult(
-        propagationPath: output.hotspots,
-        safeCorridors: output.safeCorridors,
-        estimatedArrivalTimes: output.estimatedArrivalTimes,
-        confidence: output.confidence,
-        timestamp: DateTime.now(),
-        simulationDuration: Duration.zero, // Set by engine
-      );
+      // SimulationResult is returned directly from the engine
+      final result = output;
 
       _latestSimulation = result;
       _simulationHistory.add(result);
@@ -298,7 +292,7 @@ class DigitalTwinService extends ChangeNotifier {
         final center = corridor.polygon.first;
         final dx = center.x - building.latitude;
         final dy = center.y - building.longitude;
-        final dist = (dx * dx + dy * dy).sqrt();
+        final dist = math.sqrt(dx * dx + dy * dy);
         if (dist < minDistance) {
           minDistance = dist;
           nearestCorridor = corridor;

@@ -272,11 +272,13 @@ class CoverageGap {
   final Location center;
   final double radius;
   final String reason;
+  final double severity;
 
   const CoverageGap({
     required this.center,
     required this.radius,
-    required this.reason,
+    this.reason = 'Coverage gap detected',
+    this.severity = 1.0,
   });
 }
 

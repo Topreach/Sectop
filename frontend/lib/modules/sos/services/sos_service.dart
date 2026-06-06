@@ -227,7 +227,7 @@ class SOSService extends ChangeNotifier {
         'alert_id': alertId,
         'resolved_at': DateTime.now().millisecondsSinceEpoch,
       },
-      priority: MessagePriority.medium,
+      priority: MessagePriority.normal,
     );
 
     _activeAlerts.removeWhere((a) => a.id == alertId);

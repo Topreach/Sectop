@@ -135,7 +135,7 @@ class SecureEnclaveService {
     if (_deviceKey != null) {
       final hmac = Hmac(sha256, _deviceKey!);
       final digest = hmac.convert(data);
-      return digest.bytes;
+      return Uint8List.fromList(digest.bytes);
     }
 
     throw StateError('No signing key available');

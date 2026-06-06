@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
 import '../../../core/constants.dart';
 import '../../../shared/models/location.dart';
 import '../models/drone_models.dart';
@@ -24,7 +23,6 @@ class DroneService extends ChangeNotifier {
   final MAVLinkService _mavlink = MAVLinkService();
   final Map<String, Drone> _drones = {};
   final List<String> _deployedRelays = [];
-  Interpreter? _visionModel;
   bool _visionModelLoaded = false;
   Timer? _fleetUpdateTimer;
 
@@ -43,19 +41,10 @@ class DroneService extends ChangeNotifier {
     final url = mavlinkUrl ?? AppConstants.defaultMavlinkUrl;
     await _mavlink.connect(url);
 
-    // Load on-device vision model for damage assessment
-    try {
-      final options = InterpreterOptions()..threads = 4;
-      _visionModel = await Interpreter.fromAsset(
-        'models/damage_assessment.tflite',
-        options: options,
-      );
-      _visionModelLoaded = true;
-      debugPrint('Drone vision model loaded');
-    } catch (e) {
-      debugPrint('Drone vision model not available: $e');
-      // Continue without vision — fall back to telemetry-only assessment
-    }
+    // Vision model loading is handled by the ML service backend
+    // For web, we use telemetry-only assessment
+    _visionModelLoaded = false;
+    debugPrint('Drone vision model: using telemetry-only assessment for web');
 
     // Periodic fleet status update
     _fleetUpdateTimer = Timer.periodic(
@@ -473,7 +462,7 @@ class DroneService extends ChangeNotifier {
     final gaps = <CoverageGap>[];
     if (drones.length < 2) {
       gaps.add(CoverageGap(
-        location: zone.center,
+        center: zone.center,
         radius: zone.radius,
         severity: 1.0,
       ));
@@ -491,7 +480,7 @@ class DroneService extends ChangeNotifier {
         final midLat = (a.location.latitude + b.location.latitude) / 2;
         final midLon = (a.location.longitude + b.location.longitude) / 2;
         gaps.add(CoverageGap(
-          location: Location(midLat, midLon),
+          center: Location(midLat, midLon),
           radius: distance / 2,
           severity: (distance - 300) / 300, // 0 = minimal, >1 = critical
         ));
@@ -509,7 +498,6 @@ class DroneService extends ChangeNotifier {
   @override
   void dispose() {
     _fleetUpdateTimer?.cancel();
-    _visionModel?.close();
     _mavlink.disconnect();
     super.dispose();
   }

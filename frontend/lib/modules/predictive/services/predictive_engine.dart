@@ -284,7 +284,7 @@ class PredictiveEngine {
 
     final latestZScore = std > 0 ? (values.last - mean) / std : 0;
 
-    _recentAnomalyScores.putIfAbsent(zoneId, () => []);
+    _recentAnomalyScores.putIfAbsent(zoneId, () => <double>[]);
     _recentAnomalyScores[zoneId]!.add(latestZScore);
     if (_recentAnomalyScores[zoneId]!.length > 20) {
       _recentAnomalyScores[zoneId]!.removeAt(0);

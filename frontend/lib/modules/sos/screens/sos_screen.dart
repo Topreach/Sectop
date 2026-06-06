@@ -61,13 +61,11 @@ class _SOSScreenState extends State<SOSScreen>
     setState(() => _isSending = true);
 
     final sosService = context.read<SOSService>();
-    final meshManager = context.read<MeshManager>();
 
     try {
       await sosService.sendSOS(
         alertType: _selectedAlertType ?? 'General Emergency',
         description: _descriptionController.text.trim(),
-        meshManager: meshManager,
       );
 
       setState(() {

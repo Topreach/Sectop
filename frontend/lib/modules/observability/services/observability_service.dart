@@ -404,9 +404,12 @@ class ObservabilityService extends ChangeNotifier {
 
   String _generateTraceId() {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
-    final random1 = (math.Random().nextDouble() * 0xFFFFFFFFFFFFFFFF).toInt();
-    final random2 = (math.Random().nextDouble() * 0xFFFFFFFFFFFFFFFF).toInt();
-    return '${timestamp.toRadixString(16)}${random1.toRadixString(16).padLeft(16, '0')}${random2.toRadixString(16).padLeft(16, '0')}';
+    // Use 32-bit values for JS compatibility (0xFFFFFFFFFFFFFFFF cannot be represented in JS)
+    final random1 = (math.Random().nextDouble() * 0xFFFFFFFF).toInt();
+    final random2 = (math.Random().nextDouble() * 0xFFFFFFFF).toInt();
+    final random3 = (math.Random().nextDouble() * 0xFFFFFFFF).toInt();
+    final random4 = (math.Random().nextDouble() * 0xFFFFFFFF).toInt();
+    return '${timestamp.toRadixString(16)}${random1.toRadixString(16).padLeft(8, '0')}${random2.toRadixString(16).padLeft(8, '0')}${random3.toRadixString(16).padLeft(8, '0')}${random4.toRadixString(16).padLeft(8, '0')}';
   }
 
   double _estimateMemoryUsage() {

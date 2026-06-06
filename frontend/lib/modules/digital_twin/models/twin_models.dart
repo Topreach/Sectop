@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 /// Data models for the Digital Twin module.
@@ -111,7 +112,7 @@ class WeatherData {
     required this.windDirection,
     this.precipitation = 0.0,
     this.visibility = 10000.0,
-    this.windVector = Vector3.zero(),
+    this.windVector = const Vector3(0, 0, 0),
   });
 
   factory WeatherData.fromMap(Map<String, dynamic> map) {
@@ -127,8 +128,8 @@ class WeatherData {
       precipitation: (map['precipitation'] as num?)?.toDouble() ?? 0.0,
       visibility: (map['visibility'] as num?)?.toDouble() ?? 10000.0,
       windVector: Vector3(
-        windSpeed * -1.0 * radians.sin,
-        windSpeed * -1.0 * radians.cos,
+        windSpeed * -1.0 * math.sin(radians),
+        windSpeed * -1.0 * math.cos(radians),
         0.0,
       ),
     );
@@ -268,7 +269,7 @@ class Vector3 {
   Vector3 operator *(double scalar) =>
       Vector3(x * scalar, y * scalar, z * scalar);
 
-  double get magnitude => (x * x + y * y + z * z).sqrt();
+  double get magnitude => math.sqrt(x * x + y * y + z * z);
 
   Vector3 normalized() {
     final mag = magnitude;
@@ -305,7 +306,7 @@ class Vector2 {
 
   factory Vector2.zero() => const Vector2(0, 0);
 
-  double get magnitude => (x * x + y * y).sqrt();
+  double get magnitude => math.sqrt(x * x + y * y);
 }
 
 /// Simplified quaternion for rotation representation.
@@ -321,12 +322,12 @@ class Quaternion {
 
   /// Create from Euler angles (in radians).
   factory Quaternion.fromEuler(double roll, double pitch, double yaw) {
-    final cy = (yaw * 0.5).cos();
-    final sy = (yaw * 0.5).sin();
-    final cp = (pitch * 0.5).cos();
-    final sp = (pitch * 0.5).sin();
-    final cr = (roll * 0.5).cos();
-    final sr = (roll * 0.5).sin();
+    final cy = math.cos(yaw * 0.5);
+    final sy = math.sin(yaw * 0.5);
+    final cp = math.cos(pitch * 0.5);
+    final sp = math.sin(pitch * 0.5);
+    final cr = math.cos(roll * 0.5);
+    final sr = math.sin(roll * 0.5);
 
     return Quaternion(
       sr * cp * cy - cr * sp * sy,

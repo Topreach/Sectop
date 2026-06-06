@@ -63,7 +63,7 @@ class EncryptionService {
     return EncryptedMessage(
       ciphertext: ciphertext,
       iv: iv,
-      hmac: digest.bytes,
+      hmac: Uint8List.fromList(digest.bytes),
     );
   }
 
@@ -161,20 +161,115 @@ class EncryptionService {
 
   /// Encode public key to Base64 string.
   String publicKeyToBase64(RSAPublicKey publicKey) {
-    final encoded = ASN1Encoder().encode(ASN1Sequence()
-      ..add(ASN1Integer(publicKey.modulus!))
-      ..add(ASN1Integer(publicKey.exponent!)));
+    final encoded = _encodeRSAPublicKey(publicKey);
     return base64.encode(encoded);
   }
 
   /// Decode public key from Base64 string.
   RSAPublicKey publicKeyFromBase64(String base64Str) {
     final decoded = base64.decode(base64Str);
-    final asn1Parser = ASN1Parser(Uint8List.fromList(decoded));
-    final sequence = asn1Parser.nextObject() as ASN1Sequence;
-    final modulus = (sequence.elements![0] as ASN1Integer).integer!;
-    final exponent = (sequence.elements![1] as ASN1Integer).integer!;
+    return _decodeRSAPublicKey(decoded);
+  }
+
+  /// Encode RSA public key to DER bytes using ASN.1.
+  Uint8List _encodeRSAPublicKey(RSAPublicKey publicKey) {
+    // Manual ASN.1 DER encoding for RSA public key
+    // SEQUENCE { INTEGER (modulus), INTEGER (exponent) }
+    final modulusBytes = _encodeBigInt(publicKey.modulus!);
+    final exponentBytes = _encodeBigInt(publicKey.exponent!);
+    final sequenceContent = Uint8List.fromList([...modulusBytes, ...exponentBytes]);
+    return _encodeSequence(sequenceContent);
+  }
+
+  /// Decode RSA public key from DER bytes.
+  RSAPublicKey _decodeRSAPublicKey(Uint8List derBytes) {
+    // Parse DER-encoded RSA public key
+    // Skip SEQUENCE tag and length, read two INTEGERs
+    int offset = 0;
+    if (derBytes[offset] != 0x30) throw FormatException('Expected SEQUENCE tag');
+    offset++;
+    offset = _skipDERLength(derBytes, offset);
+    
+    // Read modulus INTEGER
+    if (derBytes[offset] != 0x02) throw FormatException('Expected INTEGER tag for modulus');
+    offset++;
+    final modLen = _readDERLength(derBytes, offset);
+    offset += _derLengthSize(derBytes, offset);
+    final modulus = _bigIntFromBytes(derBytes, offset, modLen);
+    offset += modLen;
+    
+    // Read exponent INTEGER
+    if (derBytes[offset] != 0x02) throw FormatException('Expected INTEGER tag for exponent');
+    offset++;
+    final expLen = _readDERLength(derBytes, offset);
+    offset += _derLengthSize(derBytes, offset);
+    final exponent = _bigIntFromBytes(derBytes, offset, expLen);
+    
     return RSAPublicKey(modulus, exponent);
+  }
+
+  /// Encode a BigInt as DER INTEGER.
+  Uint8List _encodeBigInt(BigInt value) {
+    final bytes = <int>[];
+    var v = value;
+    while (v > BigInt.zero) {
+      bytes.insert(0, (v % BigInt.from(256)).toInt());
+      v = v >> 8;
+    }
+    // Add leading zero if high bit is set
+    if (bytes.isNotEmpty && bytes[0] & 0x80 != 0) {
+      bytes.insert(0, 0);
+    }
+    final intBytes = Uint8List.fromList(bytes);
+    return Uint8List.fromList([0x02, intBytes.length, ...intBytes]);
+  }
+
+  /// Encode content as DER SEQUENCE.
+  Uint8List _encodeSequence(Uint8List content) {
+    if (content.length < 128) {
+      return Uint8List.fromList([0x30, content.length, ...content]);
+    }
+    // For longer content, use multi-byte length
+    final lenBytes = <int>[];
+    var len = content.length;
+    while (len > 0) {
+      lenBytes.insert(0, len & 0xFF);
+      len >>= 8;
+    }
+    return Uint8List.fromList([0x30, 0x80 | lenBytes.length, ...lenBytes, ...content]);
+  }
+
+  /// Skip DER length bytes and return offset after length.
+  int _skipDERLength(Uint8List data, int offset) {
+    if (data[offset] < 0x80) return offset + 1;
+    final numBytes = data[offset] & 0x7F;
+    return offset + 1 + numBytes;
+  }
+
+  /// Read DER length value.
+  int _readDERLength(Uint8List data, int offset) {
+    if (data[offset] < 0x80) return data[offset];
+    final numBytes = data[offset] & 0x7F;
+    int length = 0;
+    for (int i = 0; i < numBytes; i++) {
+      length = (length << 8) | data[offset + 1 + i];
+    }
+    return length;
+  }
+
+  /// Get the number of bytes used for DER length encoding.
+  int _derLengthSize(Uint8List data, int offset) {
+    if (data[offset] < 0x80) return 1;
+    return 1 + (data[offset] & 0x7F);
+  }
+
+  /// Convert DER bytes to BigInt.
+  BigInt _bigIntFromBytes(Uint8List data, int offset, int length) {
+    var result = BigInt.zero;
+    for (int i = 0; i < length; i++) {
+      result = (result << 8) | BigInt.from(data[offset + i]);
+    }
+    return result;
   }
 }
 

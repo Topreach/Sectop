@@ -71,18 +71,18 @@ class DangerEmergenceApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // Core Services
-        ChangeNotifierProvider(create: (_) => OfflineStorageService()..initialize()),
-        ChangeNotifierProvider(create: (_) => SyncManager()..initialize()),
+        Provider(create: (_) => OfflineStorageService()..initialize()),
+        Provider(create: (_) => SyncManager()..initialize()),
         
         // Module Services
         ChangeNotifierProvider(create: (_) => AuthService()..initialize()),
         ChangeNotifierProvider(create: (_) => SOSService()..initialize()),
-        ChangeNotifierProvider(create: (_) => MeshManager()..initialize()),
-        ChangeNotifierProvider(create: (_) => AdaptiveMeshRouter()..initialize()),
-        ChangeNotifierProvider(create: (_) => MapService()..initialize()),
+        Provider(create: (_) => MeshManager()..initialize()),
+        Provider(create: (_) => AdaptiveMeshRouter()..initialize()),
+        Provider(create: (_) => MapService()..initialize()),
         ChangeNotifierProvider(create: (_) => DistressDetector()..loadModel()),
-        ChangeNotifierProvider(create: (_) => PowerAwareInference()..initialize()),
-        ChangeNotifierProvider(create: (_) => PredictiveEngine()..initialize()),
+        Provider(create: (_) => PowerAwareInference()..initialize()),
+        Provider(create: (_) => PredictiveEngine()..initialize()),
         ChangeNotifierProvider(create: (_) => DigitalTwinService()..initialize()),
         ChangeNotifierProvider(create: (_) => DroneService.instance..initialize()),
         ChangeNotifierProvider(create: (_) => SecurityManager.instance..initialize()),

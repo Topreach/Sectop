@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../../core/constants.dart';
 
 /// On-device AI Service for distress detection and message prioritization.
@@ -19,7 +16,6 @@ class DistressDetector extends ChangeNotifier {
   factory DistressDetector() => _instance;
   DistressDetector._internal();
 
-  Interpreter? _interpreter;
   bool _modelLoaded = false;
   bool _isLoading = false;
   double _lastInferenceTime = 0;
@@ -43,25 +39,12 @@ class DistressDetector extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load the quantized TFLite model optimized for mobile
-      final interpreterOptions = InterpreterOptions()..threads = 4;
-      
-      _interpreter = await Interpreter.fromAsset(
-        AppConstants.distressModelPath,
-        options: interpreterOptions,
-      );
-
-      // Warm up the model
-      final inputShape = _interpreter!.getInputTensor(0).shape;
-      final input = List.filled(inputShape[1], 0.0);
-      final output = List.filled(4, 0.0).reshape([1, 4]);
-      _interpreter!.run(input, output);
-
-      _modelLoaded = true;
-      debugPrint('Distress detection model loaded successfully');
+      // Model loading is handled by the ML service backend
+      // For web, we use rule-based analysis as fallback
+      _modelLoaded = false;
+      debugPrint('Distress detection model: using rule-based fallback for web');
     } catch (e) {
       debugPrint('Failed to load model: $e');
-      // Model not available yet - use rule-based fallback
       _modelLoaded = false;
     } finally {
       _isLoading = false;
@@ -72,45 +55,10 @@ class DistressDetector extends ChangeNotifier {
   /// Analyze a text message for distress content.
   /// Returns a priority level (0-3) and confidence score.
   Future<DistressResult> analyzeMessage(String message) async {
-    if (_modelLoaded && _interpreter != null) {
-      return await _modelInference(message);
-    }
     return _ruleBasedAnalysis(message);
   }
 
-  /// Run inference using the TFLite model.
-  Future<DistressResult> _modelInference(String message) async {
-    final stopwatch = Stopwatch()..start();
-
-    try {
-      // Tokenize and pad input to model's expected size
-      final input = _tokenize(message);
-      
-      // Run inference
-      final output = List.filled(4, 0.0).reshape([1, 4]);
-      _interpreter!.run(input, output);
-
-      _lastInferenceTime = stopwatch.elapsedMilliseconds.toDouble();
-
-      // Get highest probability class
-      final scores = output[0] as List<double>;
-      final maxScore = scores.reduce(max);
-      final priority = scores.indexOf(maxScore);
-
-      return DistressResult(
-        priority: priority,
-        confidence: maxScore,
-        label: _priorityLabels[priority],
-        inferenceTime: _lastInferenceTime,
-        method: 'model',
-      );
-    } catch (e) {
-      debugPrint('Model inference error: $e');
-      return _ruleBasedAnalysis(message);
-    }
-  }
-
-  /// Rule-based fallback analysis when model is not available.
+  /// Rule-based analysis for distress detection.
   DistressResult _ruleBasedAnalysis(String message) {
     final lower = message.toLowerCase();
     int score = 0;

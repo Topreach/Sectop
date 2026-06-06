@@ -70,7 +70,7 @@ class SimulationEngine extends ChangeNotifier {
   }
 
   /// Run hazard propagation simulation.
-  Future<SimulationOutput> run({
+  Future<SimulationResult> run({
     required HazardType hazard,
     required Vector3 origin,
     required WeatherData weather,
