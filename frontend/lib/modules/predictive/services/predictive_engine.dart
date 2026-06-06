@@ -297,6 +297,7 @@ class PredictiveEngine {
         'SOS count ${values.last} (z-score: ${latestZScore.toStringAsFixed(2)})'
       );
     }
+  }
 
   /// Hungarian algorithm for optimal resource allocation.
   Future<ResourcePlan> optimizeResourceDeployment({
