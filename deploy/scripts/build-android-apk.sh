@@ -190,7 +190,18 @@ patch_dependencies() {
   
   local PATCH_SCRIPT="$SCRIPT_DIR/patch-jcenter-dependencies.sh"
   if [ -f "$PATCH_SCRIPT" ]; then
+    set +e
     bash "$PATCH_SCRIPT"
+    local RC=$?
+    set -e
+    
+    if [ "$RC" -eq 2 ]; then
+      log_warn "Corrupted plugins were deleted. Re-running flutter pub get to re-download..."
+      cd "$FRONTEND_DIR"
+      flutter pub get
+      cd "$PROJECT_DIR"
+      log_ok "Dependencies re-downloaded"
+    fi
   else
     log_warn "Patch script not found at $PATCH_SCRIPT"
   fi

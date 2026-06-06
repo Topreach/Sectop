@@ -90,6 +90,18 @@ patch_namespace() {
     return 1
   fi
   
+  # ── Check if the file is corrupted by previous bad patches ───────────────
+  # A corrupted file will have "namespace" appearing many times (on every line)
+  local NAMESPACE_COUNT
+  NAMESPACE_COUNT=$(grep -c "namespace " "$BUILD_GRADLE" 2>/dev/null || echo 0)
+  
+  if [ "$NAMESPACE_COUNT" -gt 3 ]; then
+    log_warn "File appears corrupted (namespace on $NAMESPACE_COUNT lines): $BUILD_GRADLE"
+    log_info "Deleting corrupted plugin directory so it can be re-downloaded fresh..."
+    rm -rf "$DIR"
+    return 2
+  fi
+  
   # ── Find the buildscript { } end line ────────────────────────────────────
   # Count braces inside buildscript to find where it closes
   local BUILDSCRIPT_END_LINE
@@ -119,7 +131,7 @@ patch_namespace() {
   # This handles the case where a previous broken run inserted it in the wrong spot
   local TEMP_FILE
   TEMP_FILE=$(mktemp)
-  grep -v "namespace '" "$BUILD_GRADLE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$BUILD_GRADLE"
+  grep -v "namespace " "$BUILD_GRADLE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$BUILD_GRADLE"
   
   # ── Find the android { } block (after buildscript ends) ──────────────────
   local ANDROID_BLOCK_LINE
@@ -176,20 +188,34 @@ main() {
   echo ""
   log_info "Scanning for library modules missing namespace..."
   local PATCHED_NS=0
+  local CORRUPTED=0
   
   while IFS= read -r -d '' BUILD_GRADLE; do
-    if patch_namespace "$BUILD_GRADLE"; then
+    patch_namespace "$BUILD_GRADLE"
+    local RC=$?
+    if [ "$RC" -eq 0 ]; then
       PATCHED_NS=$((PATCHED_NS + 1))
+    elif [ "$RC" -eq 2 ]; then
+      CORRUPTED=$((CORRUPTED + 1))
     fi
   done < <(find "$HOSTED_DIR" -name "build.gradle" -print0 2>/dev/null)
   
   if [ "$PATCHED_NS" -gt 0 ]; then
     log_ok "Added namespace to $PATCHED_NS build.gradle file(s)"
-  else
+  fi
+  if [ "$CORRUPTED" -gt 0 ]; then
+    log_warn "Deleted $CORRUPTED corrupted plugin(s) — they will be re-downloaded during build"
+  fi
+  if [ "$PATCHED_NS" -eq 0 ] && [ "$CORRUPTED" -eq 0 ]; then
     log_info "No library modules missing namespace found"
   fi
   
   echo ""
+  
+  # Return 2 if any corrupted files were deleted (caller should re-run pub get)
+  if [ "$CORRUPTED" -gt 0 ]; then
+    return 2
+  fi
 }
 
 main "$@"
