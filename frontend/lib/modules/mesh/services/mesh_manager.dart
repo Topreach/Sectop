@@ -58,14 +58,16 @@ class MeshManager extends ChangeNotifier {
       await _storage.saveSetting('device_id', _deviceId!);
     }
 
-    // Initialize Bluetooth
-    _bluetooth = FlutterBluetoothSerial.instance;
-    _bluetooth!.onStateChanged().listen((state) {
-      _bluetoothState = state;
-      notifyListeners();
-    });
+    // Initialize Bluetooth (mobile only)
+    if (!kIsWeb) {
+      _bluetooth = FlutterBluetoothSerial.instance;
+      _bluetooth!.onStateChanged().listen((state) {
+        _bluetoothState = state;
+        notifyListeners();
+      });
 
-    _bluetoothState = await _bluetooth!.state;
+      _bluetoothState = await _bluetooth!.state;
+    }
     notifyListeners();
   }
 

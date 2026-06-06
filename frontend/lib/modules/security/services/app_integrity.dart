@@ -38,6 +38,16 @@ class AppIntegrity {
 
   /// Run a comprehensive integrity check.
   Future<IntegrityResult> checkIntegrity() async {
+    // On web, integrity checks are not applicable — skip all native checks
+    if (kIsWeb) {
+      return IntegrityResult(
+        passed: true,
+        checks: [],
+        severity: SecurityEventSeverity.info,
+        timestamp: DateTime.now(),
+      );
+    }
+
     final checks = <IntegrityCheck>[];
 
     // Run all checks in parallel
