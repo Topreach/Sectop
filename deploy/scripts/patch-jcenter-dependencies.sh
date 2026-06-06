@@ -92,6 +92,7 @@ patch_namespace() {
   
   # ── Check if the file is corrupted by previous bad patches ───────────────
   # A corrupted file will have "namespace" appearing many times (on every line)
+  # due to a previous broken sed command that appended after every line.
   local NAMESPACE_COUNT
   NAMESPACE_COUNT=$(grep -c "namespace " "$BUILD_GRADLE" 2>/dev/null || echo 0)
   
@@ -103,24 +104,30 @@ patch_namespace() {
   fi
   
   # ── Find the buildscript { } end line ────────────────────────────────────
-  # Count braces inside buildscript to find where it closes
+  # Count braces inside buildscript to find where it closes.
+  # If buildscript is not found or braces are unbalanced, bs_end stays 0
+  # and we treat the whole file as "after buildscript" for namespace checks.
   local BUILDSCRIPT_END_LINE
   BUILDSCRIPT_END_LINE=$(awk '
     /buildscript \{/ { bs=1 }
     bs==1 && /\{/ { brace_count++ }
     bs==1 && /\}/ { brace_count--; if (brace_count == 0) { print NR; exit } }
-  ' "$BUILD_GRADLE")
+  ' "$BUILD_GRADLE" 2>/dev/null || echo "")
   
   if [ -z "$BUILDSCRIPT_END_LINE" ]; then
     BUILDSCRIPT_END_LINE=0
   fi
   
   # ── Check if namespace already exists in the correct location ────────────
-  # "Correct" means: the namespace line appears AFTER buildscript ends
-  local NAMESPACE_LINE
-  NAMESPACE_LINE=$(awk -v bs_end="$BUILDSCRIPT_END_LINE" '
-    NR > bs_end && /namespace / { print NR; exit }
-  ' "$BUILD_GRADLE")
+  # "Correct" means: the namespace line appears AFTER buildscript ends.
+  # If BUILDSCRIPT_END_LINE is 0 (no buildscript found), we check if namespace
+  # appears in a valid android { } context instead.
+  local NAMESPACE_LINE=""
+  if [ "$BUILDSCRIPT_END_LINE" -gt 0 ]; then
+    NAMESPACE_LINE=$(awk -v bs_end="$BUILDSCRIPT_END_LINE" '
+      NR > bs_end && /namespace / { print NR; exit }
+    ' "$BUILD_GRADLE" 2>/dev/null || echo "")
+  fi
   
   if [ -n "$NAMESPACE_LINE" ]; then
     # Namespace already exists in the correct location — skip
@@ -138,7 +145,7 @@ patch_namespace() {
   ANDROID_BLOCK_LINE=$(awk -v bs_end="$BUILDSCRIPT_END_LINE" '
     NR > bs_end && /^android \{/ { print NR; exit }
     NR > bs_end && /^android$/ { print NR; exit }
-  ' "$BUILD_GRADLE")
+  ' "$BUILD_GRADLE" 2>/dev/null || echo "")
   
   if [ -z "$ANDROID_BLOCK_LINE" ]; then
     log_warn "Cannot find android block after buildscript in: $BUILD_GRADLE"
