@@ -184,7 +184,19 @@ EOF
   fi
 }
 
-# ── Step 5: Build Release APK ───────────────────────────────────────────────
+# ── Step 5: Patch JCenter Dependencies ──────────────────────────────────────
+patch_dependencies() {
+  log_info "Patching deprecated jcenter() references in plugin dependencies..."
+  
+  local PATCH_SCRIPT="$SCRIPT_DIR/patch-jcenter-dependencies.sh"
+  if [ -f "$PATCH_SCRIPT" ]; then
+    bash "$PATCH_SCRIPT"
+  else
+    log_warn "Patch script not found at $PATCH_SCRIPT"
+  fi
+}
+
+# ── Step 6: Build Release APK ───────────────────────────────────────────────
 build_apk() {
   log_info "Building release APK..."
   
@@ -244,6 +256,9 @@ main() {
   echo ""
   
   configure_gradle
+  echo ""
+  
+  patch_dependencies
   echo ""
   
   build_apk
