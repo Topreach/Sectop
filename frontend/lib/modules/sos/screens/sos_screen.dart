@@ -352,4 +352,3 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
 }
-}

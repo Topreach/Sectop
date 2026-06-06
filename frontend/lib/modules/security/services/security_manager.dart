@@ -191,7 +191,7 @@ class SecurityManager extends ChangeNotifier {
   /// Encrypt data according to its classification level.
   Future<Uint8List> encryptData({
     required Uint8List data,
-    required SecurityConfig.DataClassification classification,
+    required DataClassification classification,
     String? context,
   }) async {
     final policy = SecurityConfig.storagePolicies[classification]!;
@@ -234,7 +234,7 @@ class SecurityManager extends ChangeNotifier {
   /// Decrypt data according to its classification level.
   Future<Uint8List> decryptData({
     required Uint8List ciphertext,
-    required SecurityConfig.DataClassification classification,
+    required DataClassification classification,
     String? context,
   }) async {
     final policy = SecurityConfig.storagePolicies[classification]!;
@@ -295,8 +295,8 @@ class SecurityManager extends ChangeNotifier {
 
   /// Log a security event to the audit trail.
   void _logEvent(
-    SecurityConfig.SecurityEventType type,
-    SecurityConfig.SecurityEventSeverity severity,
+    SecurityEventType type,
+    SecurityEventSeverity severity,
     String message, {
     Map<String, dynamic>? metadata,
   }) {
@@ -433,7 +433,7 @@ class SecurityManager extends ChangeNotifier {
 
   /// Derive a classification-specific encryption key.
   Future<Uint8List> _deriveClassificationKey(
-    SecurityConfig.DataClassification classification,
+    DataClassification classification,
   ) async {
     final salt = 'danger_emergence_${classification.name}';
     return _encryption.pbkdf2(
@@ -486,8 +486,8 @@ class SecurityManager extends ChangeNotifier {
 /// A security event in the audit log.
 class SecurityEvent {
   final String id;
-  final SecurityConfig.SecurityEventType type;
-  final SecurityConfig.SecurityEventSeverity severity;
+  final SecurityEventType type;
+  final SecurityEventSeverity severity;
   final String message;
   final DateTime timestamp;
   final Map<String, dynamic>? metadata;

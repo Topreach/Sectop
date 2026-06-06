@@ -510,4 +510,3 @@ class Zone {
 
   const Zone({required this.center, required this.radius});
 }
-}

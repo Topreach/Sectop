@@ -185,14 +185,14 @@ class DigitalTwinService extends ChangeNotifier {
 
       // Trigger callbacks
       onSimulationComplete?.call(result);
-// Check for critical hazards based on estimated arrival times
-final affectedBuildings = result.estimatedArrivalTimes.length;
-if (affectedBuildings > 10) {
-  onHazardAlert?.call(
-    '⚠️ $affectedBuildings buildings at risk '
-    'from ${hazard.name}',
-  );
-}
+
+      // Check for critical hazards based on estimated arrival times
+      final affectedBuildings = result.estimatedArrivalTimes.length;
+      if (affectedBuildings > 10) {
+        onHazardAlert?.call(
+          '⚠️ $affectedBuildings buildings at risk '
+          'from ${hazard.name}',
+        );
       }
 
       // Update AR overlay with simulation results

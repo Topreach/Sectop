@@ -150,9 +150,8 @@ class _UpdatesTab extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  Icon(
-                    syncManager.isOnline ? Icons.cloud_done : Icons.cloud_off,
-                    color: syncManager.isOnline ? Colors.green : Colors.orange,
+                  syncManager.isOnline ? Icons.cloud_done : Icons.cloud_off,
+                  color: syncManager.isOnline ? Colors.green : Colors.orange,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

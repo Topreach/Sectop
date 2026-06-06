@@ -514,4 +514,3 @@ class ResponderInfo {
     required this.location,
   });
 }
-}

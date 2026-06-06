@@ -316,9 +316,9 @@ class OfflineStorageService {
           'active'
         ]);
   }
-
-  double _cosDegrees(double degrees) {
-    return math.cos(_degreesToRadians(degrees));
+double _cosDegrees(double degrees) {
+  return cos(_degreesToRadians(degrees));
+}
   }
 
   double _degreesToRadians(double degrees) {
