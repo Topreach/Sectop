@@ -198,9 +198,19 @@ patch_dependencies() {
     if [ "$RC" -eq 2 ]; then
       log_warn "Corrupted plugins were deleted. Re-running flutter pub get to re-download..."
       cd "$FRONTEND_DIR"
-      flutter pub get
+      flutter pub get || true
       cd "$PROJECT_DIR"
       log_ok "Dependencies re-downloaded"
+      
+      # Run patch script again on fresh files to add namespace
+      log_info "Re-patching freshly downloaded plugins..."
+      set +e
+      bash "$PATCH_SCRIPT"
+      local RC2=$?
+      set -e
+      if [ "$RC2" -eq 0 ]; then
+        log_ok "Fresh plugins patched successfully"
+      fi
     fi
   else
     log_warn "Patch script not found at $PATCH_SCRIPT"
