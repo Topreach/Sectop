@@ -34,26 +34,29 @@ fi
 echo "Patching $JS_FILE ..."
 
 # =============================================================================
-# Helper: count grep matches safely (handles BusyBox grep -c newline issue)
+# Helper: count grep matches safely
 # =============================================================================
+# Uses grep piped to wc -l instead of grep -c to avoid newline issues.
+# The || true prevents set -e from killing the script when grep finds nothing.
 count_matches() {
   local pattern="$1"
   local file="$2"
-  # Use grep piped to wc -l instead of grep -c to avoid newline issues
-  grep "$pattern" "$file" 2>/dev/null | wc -l | tr -d ' '
+  grep "$pattern" "$file" 2>/dev/null | wc -l | tr -d ' ' || true
 }
 
 # =============================================================================
 # Step 1: Find all functions that throw UnimplementedError
 # =============================================================================
 # The UnimplementedError throw pattern in compiled Flutter JS varies:
-#   funcname(a){throw A.h(A.e6(null))}   (some builds)
-#   funcname(a){throw A.h(A.ej(null))}   (other builds)
-# We search for the generic pattern: throw A.h(A.XX(null))
+#   funcname(a){throw A.h(A.e6(null))},   (some builds)
+#   funcname(a){throw A.h(A.ej(null))},   (other builds)
+# Note the trailing }, which is part of the object literal syntax.
 
 echo "  Searching for UnimplementedError throw patterns..."
 
 # Try multiple patterns - the minified constructor name varies
+# We search for the pattern: funcname(a){throw A.h(A.XX(null))},
+# The trailing }, is optional (some lines may not have it)
 THROW_PATTERNS=(
   'throw A.h(A.e6(null))'
   'throw A.h(A.ej(null))'
@@ -92,8 +95,15 @@ fi
 # =============================================================================
 # Step 2: Patch all functions that throw UnimplementedError
 # =============================================================================
-# We use sed to find patterns like: funcname(a){throw A.h(A.XX(null))}
+# We use sed to find patterns like:
+#   funcname(a){throw A.h(A.XX(null))},
 # and replace the throw with a return of empty array.
+#
+# The actual lines look like:
+#   b4a(a){throw A.h(A.ej(null))},
+#   b49(a){throw A.h(A.ej(null))},
+#
+# Note: there may or may not be a trailing comma after the closing brace.
 
 echo ""
 echo "  Patching functions..."
@@ -102,10 +112,18 @@ echo "  Patching functions..."
 cp "$JS_FILE" "${JS_FILE}.bak"
 
 # Use sed with capture group to replace any function that throws UnimplementedError
-# Pattern: identifier(a){throw A.h(A.XX(null))}
+# Pattern: identifier(a){throw A.h(A.XX(null))}  (with optional trailing comma)
 # Replacement: identifier(a){return[]}
-# We use a regex that matches any two-letter minified name after A.
-sed -i 's/\([a-zA-Z_$][a-zA-Z0-9_$]*\)(a){throw A\.h(A\.[a-zA-Z_$][a-zA-Z0-9_$]*(null))}/\1(a){return[]}/g' "$JS_FILE"
+#
+# The regex matches:
+#   ([a-zA-Z_$][a-zA-Z0-9_$]*)  - function name (captured)
+#   \(a\)                        - parameter (a)
+#   \{throw A\.h\(               - {throw A.h(
+#   A\.[a-zA-Z_$][a-zA-Z0-9_$]* - minified constructor name (e.g., ej)
+#   \(null\)\)                   - (null))
+#   \}                           - closing brace
+#   ,?                           - optional trailing comma
+sed -i 's/\([a-zA-Z_$][a-zA-Z0-9_$]*\)(a){throw A\.h(A\.[a-zA-Z_$][a-zA-Z0-9_$]*(null))},*/\1(a){return[]}/g' "$JS_FILE"
 
 # Count how many were patched
 PATCHED_COUNT=$(count_matches 'return\[\]' "$JS_FILE")
@@ -117,14 +135,14 @@ echo "    Patched $PATCHED_COUNT function(s) to return empty array"
 # Some of the patched functions are called from deserialization and need
 # to return a callable function, not an empty array.
 #
-# We identify these by looking for calls like: A.<funcname>(new A.a8Q(...))
+# We identify these by looking for calls like: A.<funcname>(new A.XX(...))
 # or similar patterns in the original JS file, then fix the patch.
 
 echo ""
 echo "  Checking for factory functions (called from deserialization)..."
 
-# Search for functions called with new A.XXQ argument (deserialization pattern)
-# The class name for the type descriptor varies (a8Q, etc.)
+# Search for functions called with new A.XX argument (deserialization pattern)
+# The class name for the type descriptor varies (a8Q, KZ, etc.)
 FACTORY_CALLS=$(grep -o 'A\.[a-zA-Z_$][a-zA-Z0-9_$]*(new A\.[a-zA-Z_$][a-zA-Z0-9_$]*(' "${JS_FILE}.bak" 2>/dev/null | grep -v 'A\.h(' | sort -u || true)
 
 if [ -n "$FACTORY_CALLS" ]; then
