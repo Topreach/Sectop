@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
+import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/sync_manager.dart';
 
@@ -32,7 +33,7 @@ class _InboxScreenState extends State<InboxScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inbox'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,

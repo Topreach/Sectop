@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
+import '../../../core/themes.dart';
 import '../../../shared/services/sync_manager.dart';
 import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
@@ -35,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppConstants.emergencyRed,
+        selectedItemColor: AppTheme.primaryColor,
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
@@ -76,7 +77,7 @@ class _DashboardHome extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Danger Emergence'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -119,7 +120,7 @@ class _DashboardHome extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppConstants.emergencyRed.withOpacity(0.4),
+                        color: AppTheme.primaryColor.withOpacity(0.4),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -385,7 +386,7 @@ class _MapView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Map'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
       body: const Center(
@@ -403,7 +404,7 @@ class _InboxView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inbox'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
       body: const Center(
@@ -423,7 +424,7 @@ class _ProfileView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -443,7 +444,7 @@ class _ProfileView extends StatelessWidget {
           children: [
             const CircleAvatar(
               radius: 48,
-              backgroundColor: AppConstants.emergencyRed,
+              backgroundColor: AppTheme.primaryColor,
               child: Icon(Icons.person, size: 48, color: Colors.white),
             ),
             const SizedBox(height: 16),
@@ -480,7 +481,7 @@ class _ProfileOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: AppConstants.emergencyRed),
+      leading: Icon(icon, color: AppTheme.primaryColor),
       title: Text(title),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,

@@ -115,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: AppConstants.emergencyRed,
+                      color: AppTheme.primaryColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Icon(
@@ -269,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppConstants.emergencyRed,
+                        backgroundColor: AppTheme.primaryColor,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -335,8 +335,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       icon: const Icon(Icons.warning_amber_rounded),
                       label: const Text('Emergency Access (No Login)'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppConstants.emergencyRed,
-                        side: const BorderSide(color: AppConstants.emergencyRed),
+                        foregroundColor: AppTheme.primaryColor,
+                        side: const BorderSide(color: AppTheme.primaryColor),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),

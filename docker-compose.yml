@@ -45,9 +45,9 @@ services:
       - "1883:1883"
       - "8883:8883"
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
     networks:
       - danger-emergence-network
     restart: unless-stopped
@@ -97,13 +97,6 @@ services:
     networks:
       - danger-emergence-network
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   # Nginx Reverse Proxy
   nginx:
@@ -113,8 +106,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./deploy/nginx/ssl:/etc/nginx/ssl
       - ./frontend/build/web:/usr/share/nginx/html
     depends_on:
       - backend
@@ -130,3 +123,5 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  mosquitto_data:
+  mosquitto_log:

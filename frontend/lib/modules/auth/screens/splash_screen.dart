@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
+import '../../../core/themes.dart';
 import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -56,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.emergencyRed,
+      backgroundColor: AppTheme.primaryColor,
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,

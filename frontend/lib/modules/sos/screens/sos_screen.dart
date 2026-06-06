@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
+import '../../../core/themes.dart';
 import '../services/sos_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 
@@ -119,7 +120,7 @@ class _SOSScreenState extends State<SOSScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Send SOS Alert'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -152,7 +153,7 @@ class _SOSScreenState extends State<SOSScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppConstants.emergencyRed.withOpacity(0.5),
+                              color: AppTheme.primaryColor.withOpacity(0.5),
                               blurRadius: 30,
                               spreadRadius: 5,
                             ),
@@ -302,7 +303,7 @@ class _SOSScreenState extends State<SOSScreen>
 
   Widget _buildSentView() {
     return Scaffold(
-      backgroundColor: AppConstants.emergencyRed,
+      backgroundColor: AppTheme.primaryColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -353,18 +354,4 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
 }
-
-class AnimatedBuilder extends AnimatedWidget {
-  final Widget Function(BuildContext context, Widget? child) builder;
-
-  const AnimatedBuilder({
-    Key? key,
-    required Animation<double> animation,
-    required this.builder,
-  }) : super(key: key, listenable: animation);
-
-  @override
-  Widget build(BuildContext context) {
-    return builder(context, null);
-  }
 }

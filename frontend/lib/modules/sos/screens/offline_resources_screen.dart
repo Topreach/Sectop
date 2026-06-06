@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/themes.dart';
 
 class OfflineResourcesScreen extends StatelessWidget {
   const OfflineResourcesScreen({Key? key}) : super(key: key);
@@ -9,7 +10,7 @@ class OfflineResourcesScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Offline Resources'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
       body: ListView(

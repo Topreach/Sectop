@@ -7,6 +7,7 @@ import 'core/themes.dart';
 import 'core/routes.dart';
 import 'shared/services/offline_storage.dart';
 import 'shared/services/sync_manager.dart';
+import 'shared/widgets/responsive_layout.dart';
 import 'modules/auth/services/auth_service.dart';
 import 'modules/sos/services/sos_service.dart';
 import 'modules/mesh/services/mesh_manager.dart';
@@ -50,13 +51,7 @@ void main() async {
     ),
   );
 
-  // Lock orientation to portrait
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Set system UI overlay style
+  // Set system UI overlay style (orientation is not locked to support tablets/desktop)
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
@@ -114,14 +109,14 @@ class DangerEmergenceApp extends StatelessWidget {
           Locale('fr', 'FR'),
         ],
         
-        // Performance
+        // Performance & Responsive Layout
         builder: (context, child) {
           return MediaQuery(
             // Prevent font scaling in emergency context
             data: MediaQuery.of(context).copyWith(
               textScaler: TextScaler.noScaling,
             ),
-            child: child!,
+            child: ResponsiveWrapper(child: child!),
           );
         },
       ),

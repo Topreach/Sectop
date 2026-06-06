@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
+import '../../../core/themes.dart';
 import '../services/map_service.dart';
 
 class MapScreen extends StatefulWidget {
@@ -18,7 +19,7 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Emergency Map'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
           // Location tracking toggle
@@ -140,7 +141,7 @@ class _MapScreenState extends State<MapScreen> {
                     Row(
                       children: [
                         Icon(Icons.info_outline,
-                            color: AppConstants.emergencyRed, size: 20),
+                            color: AppTheme.primaryColor, size: 20),
                         const SizedBox(width: 8),
                         const Text(
                           'Zone Information',
@@ -218,7 +219,7 @@ class _MapScreenState extends State<MapScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.emergencyRed,
+              backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
             ),
             child: const Text('Report'),
@@ -250,7 +251,7 @@ class _MapControlButton extends StatelessWidget {
         FloatingActionButton.small(
           heroTag: label,
           onPressed: onTap,
-          backgroundColor: color ?? AppConstants.emergencyRed,
+          backgroundColor: color ?? AppTheme.primaryColor,
           child: Icon(icon, color: Colors.white),
         ),
         const SizedBox(height: 4),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
+import '../../../core/themes.dart';
 import '../services/mesh_manager.dart';
 
 class MeshStatusScreen extends StatefulWidget {
@@ -26,7 +27,7 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mesh Network'),
-        backgroundColor: AppConstants.emergencyRed,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -40,7 +41,7 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
           // Network overview
           Container(
             padding: const EdgeInsets.all(16),
-            color: AppConstants.emergencyRed.withOpacity(0.1),
+            color: AppTheme.primaryColor.withOpacity(0.1),
             child: Row(
               children: [
                 Expanded(

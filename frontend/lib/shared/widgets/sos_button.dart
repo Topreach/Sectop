@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
+import '../../core/themes.dart';
 
 /// A reusable SOS emergency button widget.
 class SOSButton extends StatefulWidget {
@@ -66,7 +67,7 @@ class _SOSButtonState extends State<SOSButton>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppConstants.emergencyRed.withOpacity(0.5),
+                    color: AppTheme.primaryColor.withOpacity(0.5),
                     blurRadius: 20,
                     spreadRadius: 3,
                   ),
@@ -110,18 +111,4 @@ class _SOSButtonState extends State<SOSButton>
     );
   }
 }
-
-class AnimatedBuilder extends AnimatedWidget {
-  final Widget Function(BuildContext context, Widget? child) builder;
-
-  const AnimatedBuilder({
-    Key? key,
-    required Animation<double> animation,
-    required this.builder,
-  }) : super(key: key, listenable: animation);
-
-  @override
-  Widget build(BuildContext context) {
-    return builder(context, null);
-  }
 }
