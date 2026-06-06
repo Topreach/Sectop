@@ -285,7 +285,7 @@ class PredictiveEngine {
     final latestZScore = std > 0 ? (values.last - mean) / std : 0;
 
     _recentAnomalyScores.putIfAbsent(zoneId, () => <double>[]);
-    _recentAnomalyScores[zoneId]!.add(latestZScore);
+    _recentAnomalyScores[zoneId]!.add(latestZScore.toDouble());
     if (_recentAnomalyScores[zoneId]!.length > 20) {
       _recentAnomalyScores[zoneId]!.removeAt(0);
     }
@@ -297,7 +297,6 @@ class PredictiveEngine {
         'SOS count ${values.last} (z-score: ${latestZScore.toStringAsFixed(2)})'
       );
     }
-  }
 
   /// Hungarian algorithm for optimal resource allocation.
   Future<ResourcePlan> optimizeResourceDeployment({

@@ -19,11 +19,30 @@ class SyncManager {
   bool _isSyncing = false;
   StreamSubscription? _connectivitySubscription;
 
+  // Cached sync status for synchronous access in build methods
+  bool _cachedIsOnline = false;
+  int _cachedPendingCount = 0;
+
+  /// Whether the device is currently online (cached value).
+  bool get isOnline => _cachedIsOnline;
+
+  /// Whether a sync is currently in progress.
+  bool get isSyncing => _isSyncing;
+
+  /// Number of items pending sync (cached value).
+  int get pendingCount => _cachedPendingCount;
+
   /// Initialize the sync manager and start listening for connectivity changes.
   Future<void> initialize() async {
+    // Cache initial connectivity state
+    final initialResult = await _connectivity.checkConnectivity();
+    _cachedIsOnline = initialResult != ConnectivityResult.none;
+    _cachedPendingCount = (await _storage.getPendingSyncItems()).length;
+
     // Listen for connectivity changes
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
+      _cachedIsOnline = result != ConnectivityResult.none;
+      if (_cachedIsOnline) {
         _performSync();
       }
     });
@@ -45,6 +64,8 @@ class SyncManager {
   Future<SyncResult> _performSync() async {
     if (_isSyncing) return SyncResult(isSyncing: true);
     _isSyncing = true;
+    // Refresh cached pending count
+    _cachedPendingCount = (await _storage.getPendingSyncItems()).length;
 
     try {
       // Check connectivity
@@ -73,6 +94,10 @@ class SyncManager {
       return SyncResult(synced: false, reason: e.toString());
     } finally {
       _isSyncing = false;
+      // Refresh cached values after sync completes
+      _cachedPendingCount = (await _storage.getPendingSyncItems()).length;
+      final connectivityResult = await _connectivity.checkConnectivity();
+      _cachedIsOnline = connectivityResult != ConnectivityResult.none;
     }
   }
 
@@ -217,6 +242,10 @@ class SyncManager {
     final lastSync = await _storage.getSetting(AppConstants.keyLastSync);
     final connectivityResult = await _connectivity.checkConnectivity();
     final isOnline = connectivityResult != ConnectivityResult.none;
+
+    // Update cached values
+    _cachedIsOnline = isOnline;
+    _cachedPendingCount = pendingCount;
 
     return SyncStatus(
       isOnline: isOnline,

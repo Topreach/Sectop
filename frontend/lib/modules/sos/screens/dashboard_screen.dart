@@ -93,7 +93,7 @@ class _DashboardHome extends StatelessWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => syncManager.performSync(),
+        onRefresh: () => syncManager.triggerSync(),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
@@ -230,8 +230,8 @@ class _DashboardHome extends StatelessWidget {
               _StatusCard(
                 icon: Icons.wifi_tethering,
                 title: 'Mesh Network',
-                subtitle: '${meshManager.peers.length} peers connected',
-                color: meshManager.peers.isNotEmpty ? Colors.blue : Colors.grey,
+                subtitle: '${meshManager.discoveredPeers.length} peers connected',
+                color: meshManager.discoveredPeers.isNotEmpty ? Colors.blue : Colors.grey,
               ),
               const SizedBox(height: 8),
 

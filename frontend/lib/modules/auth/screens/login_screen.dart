@@ -51,12 +51,15 @@ class _LoginScreenState extends State<LoginScreen> {
           _passwordController.text,
         );
       } else {
-        result = await authService.register(
-          _nameController.text.trim(),
-          _emailController.text.trim(),
-          _phoneController.text.trim(),
-          _passwordController.text,
+        final profile = UserProfile(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          phone: _phoneController.text.trim(),
+          role: AppConstants.roleCitizen,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
         );
+        result = await authService.register(profile, _passwordController.text);
       }
 
       if (!mounted) return;
@@ -65,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
       } else {
         setState(() {
-          _errorMessage = result.message ?? 'Authentication failed';
+          _errorMessage = result.error ?? 'Authentication failed';
         });
       }
     } catch (e) {

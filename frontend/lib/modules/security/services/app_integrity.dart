@@ -81,7 +81,7 @@ class AppIntegrity {
           return IntegrityCheck(
             name: 'APK Signature',
             passed: false,
-            severity: SecurityConfig.SecurityEventSeverity.critical,
+            severity: SecurityEventSeverity.critical,
             details: 'APK signature mismatch — app may be repackaged',
           );
         }
@@ -93,7 +93,7 @@ class AppIntegrity {
           return IntegrityCheck(
             name: 'Bundle Signature',
             passed: false,
-            severity: SecurityConfig.SecurityEventSeverity.critical,
+            severity: SecurityEventSeverity.critical,
             details: 'iOS bundle signature verification failed',
           );
         }
@@ -102,14 +102,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'App Signature',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Application signature verified',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'App Signature',
         passed: false,
-        severity: SecurityConfig.SecurityEventSeverity.error,
+        severity: SecurityEventSeverity.error,
         details: 'Signature verification error: $e',
       );
     }
@@ -121,7 +121,7 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Root/Jailbreak Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Root detection disabled by configuration',
       );
     }
@@ -215,7 +215,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Root/Jailbreak Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.critical,
+          severity: SecurityEventSeverity.critical,
           details: indicators.join('; '),
         );
       }
@@ -223,14 +223,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Root/Jailbreak Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Device appears secure',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'Root/Jailbreak Detection',
         passed: false,
-        severity: SecurityConfig.SecurityEventSeverity.error,
+        severity: SecurityEventSeverity.error,
         details: 'Root detection error: $e',
       );
     }
@@ -242,7 +242,7 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Debugger Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Debugger detection disabled by configuration',
       );
     }
@@ -260,7 +260,7 @@ class AppIntegrity {
                   return IntegrityCheck(
                     name: 'Debugger Detection',
                     passed: false,
-                    severity: SecurityConfig.SecurityEventSeverity.critical,
+                    severity: SecurityEventSeverity.critical,
                     details: 'Debugger attached (TracerPid=$pid)',
                   );
                 }
@@ -276,7 +276,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Debugger Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.warning,
+          severity: SecurityEventSeverity.warning,
           details: 'Debug environment detected',
         );
       }
@@ -286,7 +286,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Debugger Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.warning,
+          severity: SecurityEventSeverity.warning,
           details: 'App running in debug mode',
         );
       }
@@ -294,14 +294,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Debugger Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'No debugger detected',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'Debugger Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.warning,
+        severity: SecurityEventSeverity.warning,
         details: 'Debugger check error (non-fatal): $e',
       );
     }
@@ -313,7 +313,7 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Emulator Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Emulator detection disabled by configuration',
       );
     }
@@ -373,7 +373,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Emulator Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.warning,
+          severity: SecurityEventSeverity.warning,
           details: indicators.join('; '),
         );
       }
@@ -381,14 +381,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Emulator Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Running on physical device',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'Emulator Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.warning,
+        severity: SecurityEventSeverity.warning,
         details: 'Emulator check error (non-fatal): $e',
       );
     }
@@ -440,7 +440,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Hooking Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.critical,
+          severity: SecurityEventSeverity.critical,
           details: indicators.join('; '),
         );
       }
@@ -448,14 +448,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Hooking Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'No hooking frameworks detected',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'Hooking Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.warning,
+        severity: SecurityEventSeverity.warning,
         details: 'Hook check error (non-fatal): $e',
       );
     }
@@ -472,7 +472,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Repackage Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.critical,
+          severity: SecurityEventSeverity.critical,
           details: 'Application hash mismatch — possible repackage attack',
         );
       }
@@ -483,7 +483,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Repackage Detection',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.critical,
+          severity: SecurityEventSeverity.critical,
           details: 'Asset integrity check failed — assets may have been modified',
         );
       }
@@ -491,14 +491,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Repackage Detection',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Application integrity verified',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'Repackage Detection',
         passed: false,
-        severity: SecurityConfig.SecurityEventSeverity.error,
+        severity: SecurityEventSeverity.error,
         details: 'Repackage check error: $e',
       );
     }
@@ -528,7 +528,7 @@ class AppIntegrity {
         return IntegrityCheck(
           name: 'Permission Check',
           passed: false,
-          severity: SecurityConfig.SecurityEventSeverity.warning,
+          severity: SecurityEventSeverity.warning,
           details: 'Unexpected dangerous permissions: ${unexpected.join(', ')}',
         );
       }
@@ -536,14 +536,14 @@ class AppIntegrity {
       return IntegrityCheck(
         name: 'Permission Check',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.info,
+        severity: SecurityEventSeverity.info,
         details: 'Permissions are in expected state',
       );
     } catch (e) {
       return IntegrityCheck(
         name: 'Permission Check',
         passed: true,
-        severity: SecurityConfig.SecurityEventSeverity.warning,
+        severity: SecurityEventSeverity.warning,
         details: 'Permission check error (non-fatal): $e',
       );
     }
@@ -553,24 +553,24 @@ class AppIntegrity {
   // Helper Methods
   // ──────────────────────────────────────────────
 
-  SecurityConfig.SecurityEventSeverity _calculateSeverity(
+  SecurityEventSeverity _calculateSeverity(
       List<IntegrityCheck> checks) {
     for (final check in checks) {
-      if (!check.passed && check.severity == SecurityConfig.SecurityEventSeverity.critical) {
-        return SecurityConfig.SecurityEventSeverity.critical;
+      if (!check.passed && check.severity == SecurityEventSeverity.critical) {
+        return SecurityEventSeverity.critical;
       }
     }
     for (final check in checks) {
-      if (!check.passed && check.severity == SecurityConfig.SecurityEventSeverity.error) {
-        return SecurityConfig.SecurityEventSeverity.error;
+      if (!check.passed && check.severity == SecurityEventSeverity.error) {
+        return SecurityEventSeverity.error;
       }
     }
     for (final check in checks) {
       if (!check.passed) {
-        return SecurityConfig.SecurityEventSeverity.warning;
+        return SecurityEventSeverity.warning;
       }
     }
-    return SecurityConfig.SecurityEventSeverity.info;
+    return SecurityEventSeverity.info;
   }
 
   Future<String?> _getAndroidSignatureHash() async {
@@ -686,7 +686,7 @@ class AppIntegrity {
 class IntegrityResult {
   final bool passed;
   final List<IntegrityCheck> checks;
-  final SecurityConfig.SecurityEventSeverity severity;
+  final SecurityEventSeverity severity;
   final DateTime timestamp;
 
   const IntegrityResult({
@@ -711,7 +711,7 @@ class IntegrityResult {
 class IntegrityCheck {
   final String name;
   final bool passed;
-  final SecurityConfig.SecurityEventSeverity severity;
+  final SecurityEventSeverity severity;
   final String details;
 
   const IntegrityCheck({

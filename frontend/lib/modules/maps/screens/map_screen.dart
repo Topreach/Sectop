@@ -65,7 +65,7 @@ class _MapScreenState extends State<MapScreen> {
                     style: TextStyle(color: Colors.grey[500]),
                   ),
                   const SizedBox(height: 24),
-                  if (mapService.currentLocation != null) ...[
+                  if (mapService.currentPosition != null) ...[
                     Text(
                       'Current Location:',
                       style: TextStyle(
@@ -75,8 +75,8 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${mapService.currentLocation!.latitude.toStringAsFixed(6)}, '
-                      '${mapService.currentLocation!.longitude.toStringAsFixed(6)}',
+                      '${mapService.currentPosition!.latitude.toStringAsFixed(6)}, '
+                      '${mapService.currentPosition!.longitude.toStringAsFixed(6)}',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],

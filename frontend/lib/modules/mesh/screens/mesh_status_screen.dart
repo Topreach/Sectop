@@ -48,15 +48,15 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
                   child: _NetworkStat(
                     icon: Icons.wifi_tethering,
                     label: 'Peers',
-                    value: '${meshManager.peers.length}',
-                    color: meshManager.peers.isNotEmpty ? Colors.green : Colors.grey,
+                    value: '${meshManager.discoveredPeers.length}',
+                    color: meshManager.discoveredPeers.isNotEmpty ? Colors.green : Colors.grey,
                   ),
                 ),
                 Expanded(
                   child: _NetworkStat(
                     icon: Icons.bluetooth,
                     label: 'Bluetooth',
-                    value: '${meshManager.peers.where((p) => p.connectionType == ConnectionType.bluetooth).length}',
+                    value: '${meshManager.discoveredPeers.where((p) => p.connectionType == ConnectionType.bluetooth).length}',
                     color: Colors.blue,
                   ),
                 ),
@@ -64,7 +64,7 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
                   child: _NetworkStat(
                     icon: Icons.wifi,
                     label: 'Wi-Fi Direct',
-                    value: '${meshManager.peers.where((p) => p.connectionType == ConnectionType.wifiDirect).length}',
+                    value: '${meshManager.discoveredPeers.where((p) => p.connectionType == ConnectionType.wifiDirect).length}',
                     color: Colors.purple,
                   ),
                 ),
@@ -72,7 +72,7 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
                   child: _NetworkStat(
                     icon: Icons.satellite,
                     label: 'LoRa',
-                    value: '${meshManager.peers.where((p) => p.connectionType == ConnectionType.lora).length}',
+                    value: '${meshManager.discoveredPeers.where((p) => p.connectionType == ConnectionType.lora).length}',
                     color: Colors.orange,
                   ),
                 ),
@@ -100,7 +100,7 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
 
           // Peer list
           Expanded(
-            child: meshManager.peers.isEmpty
+            child: meshManager.discoveredPeers.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -124,9 +124,9 @@ class _MeshStatusScreenState extends State<MeshStatusScreen> {
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.all(8),
-                    itemCount: meshManager.peers.length,
+                    itemCount: meshManager.discoveredPeers.length,
                     itemBuilder: (context, index) {
-                      final peer = meshManager.peers[index];
+                      final peer = meshManager.discoveredPeers[index];
                       return _PeerCard(peer: peer);
                     },
                   ),
@@ -193,8 +193,9 @@ class _PeerCard extends StatelessWidget {
   }
 
   Color _getSignalColor() {
-    if (peer.signalStrength >= -50) return Colors.green;
-    if (peer.signalStrength >= -70) return Colors.orange;
+    final strength = peer.signalStrength ?? 0;
+    if (strength >= -50) return Colors.green;
+    if (strength >= -70) return Colors.orange;
     return Colors.red;
   }
 
@@ -212,7 +213,7 @@ class _PeerCard extends StatelessWidget {
         ),
         title: Text(peer.name ?? peer.deviceId),
         subtitle: Text(
-          '${peer.connectionType.name} | Signal: ${peer.signalStrength} dBm${peer.isGateway ? ' | Gateway' : ''}',
+          '${peer.connectionType.name} | Signal: ${peer.signalStrength ?? 0} dBm${peer.isGateway ? ' | Gateway' : ''}',
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -222,7 +223,7 @@ class _PeerCard extends StatelessWidget {
               color: _getSignalColor(),
             ),
             Text(
-              '${peer.signalStrength} dBm',
+              '${peer.signalStrength ?? 0} dBm',
               style: TextStyle(
                 fontSize: 10,
                 color: Colors.grey[500],

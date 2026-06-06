@@ -150,9 +150,9 @@ class _UpdatesTab extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  syncManager.isOnline ? Icons.cloud_done : Icons.cloud_off,
-                  color: syncManager.isOnline ? Colors.green : Colors.orange,
-                  size: 32,
+                  Icon(
+                    syncManager.isOnline ? Icons.cloud_done : Icons.cloud_off,
+                    color: syncManager.isOnline ? Colors.green : Colors.orange,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -177,7 +177,7 @@ class _UpdatesTab extends StatelessWidget {
                 ),
                 if (syncManager.pendingCount > 0)
                   TextButton(
-                    onPressed: () => syncManager.performSync(),
+                    onPressed: () => syncManager.triggerSync(),
                     child: const Text('Sync Now'),
                   ),
               ],

@@ -40,7 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     final authService = context.read<AuthService>();
-    final isLoggedIn = await authService.isLoggedIn();
+    final isLoggedIn = authService.isAuthenticated;
 
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(

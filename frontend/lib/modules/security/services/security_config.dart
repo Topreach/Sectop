@@ -87,24 +87,6 @@ class SecurityConfig {
   // Secure Storage Policies
   // ──────────────────────────────────────────────
 
-  /// Data classification levels for secure storage.
-  enum DataClassification {
-    /// Public data — no encryption required
-    public,
-
-    /// Internal data — encrypted at rest
-    internal,
-
-    /// Sensitive data — encrypted at rest + in transit
-    sensitive,
-
-    /// Critical data — encrypted at rest + in transit + access logging
-    critical,
-
-    /// Regulatory data — FIPS 140-2 encryption + audit trail
-    regulatory,
-  }
-
   /// Storage policy for each classification level.
   static const Map<DataClassification, StoragePolicy> storagePolicies = {
     DataClassification.public: StoragePolicy(
@@ -264,53 +246,72 @@ class SecurityConfig {
   /// Whether to trigger automatic incident response on critical events.
   static const bool enableAutoIncidentResponse = true;
 
-  /// Security event severity levels.
-  enum SecurityEventSeverity {
-    info,
-    warning,
-    error,
-    critical,
-  }
+}
 
-  /// Security event types for audit logging.
-  enum SecurityEventType {
-    // Authentication events
-    authSuccess,
-    authFailure,
-    authLockout,
-    emergencyAccess,
-    tokenRefresh,
+/// Data classification levels for secure storage.
+enum DataClassification {
+  /// Public data — no encryption required
+  public,
 
-    // Integrity events
-    integrityCheckPassed,
-    integrityCheckFailed,
-    tamperDetected,
-    debuggerDetected,
-    rootDetected,
-    emulatorDetected,
+  /// Internal data — encrypted at rest
+  internal,
 
-    // Encryption events
-    keyGenerated,
-    keyRotated,
-    keyCompromised,
-    encryptionFailure,
+  /// Sensitive data — encrypted at rest + in transit
+  sensitive,
 
-    // Network events
-    sslPinningFailed,
-    certificateMismatch,
-    tlsDowngradeDetected,
-    dnsSpoofDetected,
+  /// Critical data — encrypted at rest + in transit + access logging
+  critical,
 
-    // Data events
-    dataAccessViolation,
-    dataExfiltrationAttempt,
-    retentionViolation,
+  /// Regulatory data — FIPS 140-2 encryption + audit trail
+  regulatory,
+}
 
-    // Runtime events
-    codeInjectionDetected,
-    hookDetected,
-    unexpectedRestart,
-  }
+/// Security event severity levels.
+enum SecurityEventSeverity {
+  info,
+  warning,
+  error,
+  critical,
+}
+
+/// Security event types for audit logging.
+enum SecurityEventType {
+  // Authentication events
+  authSuccess,
+  authFailure,
+  authLockout,
+  emergencyAccess,
+  tokenRefresh,
+
+  // Integrity events
+  integrityCheckPassed,
+  integrityCheckFailed,
+  tamperDetected,
+  debuggerDetected,
+  rootDetected,
+  emulatorDetected,
+
+  // Encryption events
+  keyGenerated,
+  keyRotated,
+  keyCompromised,
+  encryptionFailure,
+
+  // Network events
+  sslPinningFailed,
+  certificateMismatch,
+  tlsDowngradeDetected,
+  dnsSpoofDetected,
+
+  // Data events
+  dataAccessViolation,
+  dataExfiltrationAttempt,
+  retentionViolation,
+
+  // Runtime events
+  codeInjectionDetected,
+  hookDetected,
+  unexpectedRestart,
 }
 
 /// Storage policy for a data classification level.

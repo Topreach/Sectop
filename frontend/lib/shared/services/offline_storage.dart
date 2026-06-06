@@ -318,7 +318,7 @@ class OfflineStorageService {
   }
 
   double _cosDegrees(double degrees) {
-    return _degreesToRadians(degrees).cos;
+    return math.cos(_degreesToRadians(degrees));
   }
 
   double _degreesToRadians(double degrees) {

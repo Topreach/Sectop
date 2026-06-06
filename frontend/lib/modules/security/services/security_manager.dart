@@ -61,15 +61,15 @@ class SecurityManager extends ChangeNotifier {
 
     if (_isCompromised) {
       _logEvent(
-        SecurityConfig.SecurityEventType.integrityCheckFailed,
-        SecurityConfig.SecurityEventSeverity.critical,
+        SecurityEventType.integrityCheckFailed,
+        SecurityEventSeverity.critical,
         'Initial integrity check failed: ${integrityResult.failedChecks.length} checks failed',
       );
       _handleCompromise(integrityResult);
     } else {
       _logEvent(
-        SecurityConfig.SecurityEventType.integrityCheckPassed,
-        SecurityConfig.SecurityEventSeverity.info,
+        SecurityEventType.integrityCheckPassed,
+        SecurityEventSeverity.info,
         'Initial integrity check passed',
       );
     }
@@ -113,8 +113,8 @@ class SecurityManager extends ChangeNotifier {
 
     if (!SecurityConfig.pinnedCertificates.contains(fingerprint)) {
       _logEvent(
-        SecurityConfig.SecurityEventType.sslPinningFailed,
-        SecurityConfig.SecurityEventSeverity.critical,
+        SecurityEventType.sslPinningFailed,
+        SecurityEventSeverity.critical,
         'Certificate pinning failed for $hostname',
       );
       return false;
@@ -146,8 +146,8 @@ class SecurityManager extends ChangeNotifier {
       return response;
     } catch (e) {
       _logEvent(
-        SecurityConfig.SecurityEventType.sslPinningFailed,
-        SecurityConfig.SecurityEventSeverity.error,
+        SecurityEventType.sslPinningFailed,
+        SecurityEventSeverity.error,
         'Secure request failed: $e',
       );
       rethrow;
@@ -180,8 +180,8 @@ class SecurityManager extends ChangeNotifier {
       return response;
     } catch (e) {
       _logEvent(
-        SecurityConfig.SecurityEventType.sslPinningFailed,
-        SecurityConfig.SecurityEventSeverity.error,
+        SecurityEventType.sslPinningFailed,
+        SecurityEventSeverity.error,
         'Secure POST failed: $e',
       );
       rethrow;
@@ -222,8 +222,8 @@ class SecurityManager extends ChangeNotifier {
 
     if (policy.auditAccess) {
       _logEvent(
-        SecurityConfig.SecurityEventType.encryptionFailure,
-        SecurityConfig.SecurityEventSeverity.info,
+        SecurityEventType.encryptionFailure,
+        SecurityEventSeverity.info,
         'Data encrypted: classification=${classification.name} context=$context',
       );
     }
@@ -261,8 +261,8 @@ class SecurityManager extends ChangeNotifier {
 
     if (policy.auditAccess) {
       _logEvent(
-        SecurityConfig.SecurityEventType.encryptionFailure,
-        SecurityConfig.SecurityEventSeverity.info,
+        SecurityEventType.encryptionFailure,
+        SecurityEventSeverity.info,
         'Data decrypted: classification=${classification.name} context=$context',
       );
     }
@@ -278,10 +278,10 @@ class SecurityManager extends ChangeNotifier {
     SecurityConfig.fipsModeEnabled = enabled;
 
     _logEvent(
-      SecurityConfig.SecurityEventType.keyGenerated,
+      SecurityEventType.keyGenerated,
       enabled
-          ? SecurityConfig.SecurityEventSeverity.info
-          : SecurityConfig.SecurityEventSeverity.warning,
+          ? SecurityEventSeverity.info
+          : SecurityEventSeverity.warning,
       'FIPS 140-2 mode ${enabled ? 'enabled' : 'disabled'}',
     );
 
@@ -320,7 +320,7 @@ class SecurityManager extends ChangeNotifier {
 
     // Report to backend if enabled
     if (SecurityConfig.enableSecurityTelemetry &&
-        severity == SecurityConfig.SecurityEventSeverity.critical) {
+        severity == SecurityEventSeverity.critical) {
       _reportSecurityEvent(event);
     }
 
@@ -367,13 +367,13 @@ class SecurityManager extends ChangeNotifier {
     if (!result.passed) {
       _isCompromised = true;
       _logEvent(
-        SecurityConfig.SecurityEventType.integrityCheckFailed,
+        SecurityEventType.integrityCheckFailed,
         result.severity,
         'Periodic integrity check failed: ${result.failedChecks.length} checks failed',
         metadata: {'failed_checks': result.failedChecks.map((c) => c.name).toList()},
       );
 
-      if (result.severity == SecurityConfig.SecurityEventSeverity.critical) {
+      if (result.severity == SecurityEventSeverity.critical) {
         _handleCompromise(result);
       }
     }
@@ -387,8 +387,8 @@ class SecurityManager extends ChangeNotifier {
 
     try {
       // Rotate data encryption keys
-      for (final classification in SecurityConfig.DataClassification.values) {
-        if (classification == SecurityConfig.DataClassification.public) continue;
+      for (final classification in DataClassification.values) {
+        if (classification == DataClassification.public) continue;
 
         final oldAlias = 'data_key_${classification.name}';
         final newAlias = 'data_key_${classification.name}_${DateTime.now().millisecondsSinceEpoch}';
@@ -400,14 +400,14 @@ class SecurityManager extends ChangeNotifier {
       }
 
       _logEvent(
-        SecurityConfig.SecurityEventType.keyRotated,
-        SecurityConfig.SecurityEventSeverity.info,
+        SecurityEventType.keyRotated,
+        SecurityEventSeverity.info,
         'Encryption keys rotated successfully',
       );
     } catch (e) {
       _logEvent(
-        SecurityConfig.SecurityEventType.keyCompromised,
-        SecurityConfig.SecurityEventSeverity.error,
+        SecurityEventType.keyCompromised,
+        SecurityEventSeverity.error,
         'Key rotation failed: $e',
       );
     }

@@ -237,10 +237,9 @@ class DistressDetector extends ChangeNotifier {
     return results;
   }
 
-  /// Dispose of the interpreter.
+  /// Dispose of the detector.
   void dispose() {
-    _interpreter?.close();
-    super.dispose();
+    // Cleanup resources if needed
   }
 }
 

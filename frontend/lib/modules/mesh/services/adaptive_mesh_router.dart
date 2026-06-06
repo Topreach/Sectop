@@ -72,7 +72,7 @@ class AdaptiveMeshRouter {
     );
 
     // In production: broadcast via Bluetooth + Wi-Fi Direct + LoRa
-    _onLog?.call('OGM broadcast #$_ownSequenceNumber');
+    onLog?.call('OGM broadcast #$_ownSequenceNumber');
   }
 
   /// Process incoming OGM from neighbor.
@@ -91,14 +91,14 @@ class AdaptiveMeshRouter {
         nextHop: fromPeer,
         hops: ogm.hopCount + 1,
         rssi: rssi,
-        battery: ogm.batteryLevel,
+        batteryLevel: ogm.batteryLevel,
       );
 
       // Re-broadcast OGM (with incremented hop count)
       if (ogm.hopCount < _maxHops) {
         ogm.hopCount++;
         // Re-broadcast on other interfaces
-        _onLog?.call('Rebroadcasting OGM for ${ogm.originator} (hop ${ogm.hopCount})');
+        onLog?.call('Rebroadcasting OGM for ${ogm.originator} (hop ${ogm.hopCount})');
       }
     }
   }
@@ -150,7 +150,7 @@ class AdaptiveMeshRouter {
       minBattery: _getBatteryLevel(),
     );
 
-    _onLog?.call('RREQ broadcast for $destination (ID: $rreqId)');
+    onLog?.call('RREQ broadcast for $destination (ID: $rreqId)');
     // In production: broadcast on all interfaces
   }
 
@@ -180,7 +180,7 @@ class AdaptiveMeshRouter {
       rreq.pathCost += _calculateLinkCost(rssi, _getBatteryLevel());
       rreq.minBattery = min(rreq.minBattery, _getBatteryLevel());
       // Re-broadcast
-      _onLog?.call('Rebroadcasting RREQ for ${rreq.destination}');
+      onLog?.call('Rebroadcasting RREQ for ${rreq.destination}');
     }
   }
 
@@ -192,7 +192,7 @@ class AdaptiveMeshRouter {
       nextHop: nextHop,
     );
 
-    _onLog?.call('RREP sent to $destination via $nextHop (cost: $cost)');
+    onLog?.call('RREP sent to $destination via $nextHop (cost: $cost)');
     // In production: send unicast RREP
   }
 
@@ -203,7 +203,7 @@ class AdaptiveMeshRouter {
       nextHop: fromPeer,
       hops: 1,
       rssi: _neighbors[fromPeer]?.rssi ?? -90,
-      battery: _neighbors[fromPeer]?.batteryLevel ?? 50,
+      batteryLevel: _neighbors[fromPeer]?.batteryLevel ?? 50,
     );
 
     // Check if this completes a pending discovery
@@ -324,7 +324,7 @@ class AdaptiveMeshRouter {
     final predicted = _predictMovement(_movementHistory[peerId]!);
     if (predicted != null) {
       // Pre-compute routes toward predicted direction
-      _onLog?.call('Predictive routing: $peerId moving toward ($predicted)');
+      onLog?.call('Predictive routing: $peerId moving toward ($predicted)');
     }
   }
 
@@ -349,37 +349,7 @@ class AdaptiveMeshRouter {
   }
 
   /// LoRaWAN Class C continuous receive mode.
-  class LoRaClassCDevice {
-    bool _continuousRx = false;
-
-    void enableContinuousReceive() {
-      _continuousRx = true;
-      // Set radio to continuous receive mode
-      // This enables lower latency but higher power consumption
-      _onLog?.call('LoRa Class C: Continuous receive enabled');
-    }
-
-    void disableContinuousReceive() {
-      _continuousRx = false;
-      _onLog?.call('LoRa Class C: Continuous receive disabled');
-    }
-
-    /// Enforce regional duty cycle limits.
-    void enforceDutyCycle(String region) {
-      Duration gap;
-      switch (region.toUpperCase()) {
-        case 'EU868':
-          gap = const Duration(seconds: 100); // 1% duty cycle
-          break;
-        case 'US915':
-          gap = const Duration(seconds: 10);  // 0.1-10% depending on band
-          break;
-        default:
-          gap = const Duration(seconds: 60);
-      }
-      _onLog?.call('LoRa duty cycle enforced: ${gap.inSeconds}s gap');
-    }
-  }
+  /// Note: In production, this would be a separate service.
 
   /// Get routing table statistics.
   RoutingStats getStats() {

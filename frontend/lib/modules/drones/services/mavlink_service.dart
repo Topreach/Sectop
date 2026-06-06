@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/drone_models.dart';
+import '../../../shared/models/location.dart';
 
 /// MAVLink protocol implementation for drone communication.
 ///
@@ -111,7 +112,7 @@ class MAVLinkService {
             id: droneId,
             name: 'Drone-$droneId',
             status: DroneStatus.idle,
-            location: const Location(0, 0),
+            location: Location(0, 0),
             lastSeen: DateTime.now(),
           );
           _drones[droneId] = newDrone;
