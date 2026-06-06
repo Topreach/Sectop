@@ -51,7 +51,7 @@ patch_jcenter() {
 # ── Add namespace to plugin build.gradle ────────────────────────────────────
 # AGP 8+ requires a 'namespace' in build.gradle for library modules.
 # We extract the package from the corresponding AndroidManifest.xml
-# and add it inside the existing android { } block.
+# and add it inside the android { } block (NOT inside buildscript { }).
 patch_namespace() {
   local BUILD_GRADLE="$1"
   
@@ -95,16 +95,40 @@ patch_namespace() {
     return 1
   fi
   
-  # Add namespace inside the existing android { } block
-  # Look for the line with "android {" and add namespace right after it
-  if grep -q "android {" "$BUILD_GRADLE" 2>/dev/null; then
-    sed -i "0,/android {/a\    namespace '${PACKAGE}'" "$BUILD_GRADLE"
-    log_ok "Added namespace '${PACKAGE}' to: $BUILD_GRADLE"
-    return 0
+  # Use awk to find the android { } block that is NOT inside buildscript { }
+  # Strategy: find lines matching /^android {/ or /^android {/ after buildscript closes
+  # We look for the LAST occurrence of "android {" that is at the root level
+  # (not inside buildscript). A simple heuristic: find "android {" after "buildscript" block ends.
+  
+  # Count buildscript blocks to find where they end
+  local BUILDSCRIPT_END_LINE
+  BUILDSCRIPT_END_LINE=$(awk '
+    /buildscript \{/ { bs=1 }
+    bs==1 && /\{/ { brace_count++; if (brace_count==1) first_bs_line=NR }
+    bs==1 && /\}/ { brace_count--; if (brace_count==0) { print NR; exit } }
+  ' "$BUILD_GRADLE")
+  
+  if [ -z "$BUILDSCRIPT_END_LINE" ]; then
+    BUILDSCRIPT_END_LINE=0
   fi
   
-  log_warn "No android block found in: $BUILD_GRADLE"
-  return 1
+  # Now find the first "android {" after buildscript ends
+  local ANDROID_BLOCK_LINE
+  ANDROID_BLOCK_LINE=$(awk -v bs_end="$BUILDSCRIPT_END_LINE" '
+    NR > bs_end && /^android \{/ { print NR; exit }
+    NR > bs_end && /^android$/ { print NR; exit }
+  ' "$BUILD_GRADLE")
+  
+  if [ -z "$ANDROID_BLOCK_LINE" ]; then
+    log_warn "Cannot find android block after buildscript in: $BUILD_GRADLE"
+    return 1
+  fi
+  
+  # Insert namespace right after the android { line
+  sed -i "${ANDROID_BLOCK_LINE}a\\    namespace '${PACKAGE}'" "$BUILD_GRADLE"
+  
+  log_ok "Added namespace '${PACKAGE}' to: $BUILD_GRADLE (line $ANDROID_BLOCK_LINE)"
+  return 0
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────
