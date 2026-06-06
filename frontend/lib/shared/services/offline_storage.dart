@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,15 +20,19 @@ class OfflineStorageService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, AppConstants.dbName);
+    // SQLite is not available on web; skip database initialization.
+    // SharedPreferences-based methods (getSetting, saveSetting) still work.
+    if (!kIsWeb) {
+      final dbPath = await getDatabasesPath();
+      final path = join(dbPath, AppConstants.dbName);
 
-    _database = await openDatabase(
-      path,
-      version: AppConstants.dbVersion,
-      onCreate: _createTables,
-      onUpgrade: _upgradeTables,
-    );
+      _database = await openDatabase(
+        path,
+        version: AppConstants.dbVersion,
+        onCreate: _createTables,
+        onUpgrade: _upgradeTables,
+      );
+    }
 
     _initialized = true;
   }
