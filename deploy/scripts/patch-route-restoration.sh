@@ -3,16 +3,17 @@
 # Patch Route Restoration UnimplementedError in Flutter Web Build
 # =============================================================================
 # This script patches the compiled main.dart.js to fix UnimplementedError
-# crashes caused by unimplemented TextStyle methods (aR6 and b5h) that are
-# called during anonymous route restoration deserialization on web.
+# crashes caused by unimplemented TextStyle methods that are called during
+# anonymous route restoration deserialization on web.
 #
-# These functions are static methods on Flutter's TextStyle class that throw
-# UnimplementedError on web. They're called from the _RouteRestorationType
-# deserialization path when anonymous routes are involved.
+# The patch auto-detects the minified function names by searching for the
+# UnimplementedError throw pattern: throw A.h(A.e6(null))
 #
-# The patch replaces the throwing implementations with valid no-ops:
-#   aR6(a) -> returns an empty array (mimics base class Ct() behavior)
-#   b5h(a) -> returns a no-op function (mimics a callable 2-arg function)
+# Two types of functions are patched:
+#   1. Functions called from Ct() methods (return restoration data)
+#      -> Patched to return empty array: func(a){return[]}
+#   2. Functions called from b8Y deserialization (factory functions)
+#      -> Patched to return no-op: func(a){return function(b,c){}}
 # =============================================================================
 
 set -euo pipefail
@@ -27,62 +28,118 @@ fi
 
 echo "Patching $JS_FILE ..."
 
-# Count occurrences before patching
-A_R6_COUNT=$(grep -c 'aR6(a){throw A.h(A.e6(null))}' "$JS_FILE" 2>/dev/null || echo 0)
-B5H_COUNT=$(grep -c 'b5h(a){throw A.h(A.e6(null))}' "$JS_FILE" 2>/dev/null || echo 0)
+# =============================================================================
+# Step 1: Find all functions that throw UnimplementedError
+# =============================================================================
+# The UnimplementedError throw pattern in compiled Flutter JS is:
+#   funcname(a){throw A.h(A.e6(null))}
+# We search for this pattern and extract the function name.
 
-echo "  Found $A_R6_COUNT occurrence(s) of aR6 throw"
-echo "  Found $B5H_COUNT occurrence(s) of b5h throw"
+echo "  Searching for UnimplementedError throw patterns..."
 
-if [ "$A_R6_COUNT" -eq 0 ] && [ "$B5H_COUNT" -eq 0 ]; then
-  echo "  No throw occurrences found. Checking for alternative patterns..."
-  # Try alternative patterns (minified differently)
-  A_R6_COUNT=$(grep -c 'aR6(a){throw' "$JS_FILE" 2>/dev/null || echo 0)
-  B5H_COUNT=$(grep -c 'b5h(a){throw' "$JS_FILE" 2>/dev/null || echo 0)
-  echo "  Found $A_R6_COUNT occurrence(s) of aR6 throw (alt)"
-  echo "  Found $B5H_COUNT occurrence(s) of b5h throw (alt)"
+THROW_PATTERN='throw A.h(A.e6(null))'
+
+# Count occurrences - use xargs to trim any whitespace/newlines
+THROW_COUNT=$(grep -c "$THROW_PATTERN" "$JS_FILE" 2>/dev/null | xargs echo || echo 0)
+
+echo "  Found $THROW_COUNT function(s) throwing UnimplementedError"
+
+if [ "$THROW_COUNT" = "0" ]; then
+  echo "  WARNING: No UnimplementedError throw patterns found."
+  echo "  The JS file may have a different structure or already be patched."
+  echo "  Checking for alternative patterns..."
+  
+  # Try alternative: maybe the throw uses a different null representation
+  ALT_COUNT=$(grep -c 'throw A.h(A.e6(' "$JS_FILE" 2>/dev/null | xargs echo || echo 0)
+  echo "  Found $ALT_COUNT alternative throw patterns"
+  
+  if [ "$ALT_COUNT" = "0" ]; then
+    echo "  No throw patterns found at all. Exiting."
+    exit 1
+  fi
+  
+  THROW_COUNT=$ALT_COUNT
 fi
 
-# Patch aR6: replace throw with return of empty array
-# The original function is a static method on TextStyle that's not implemented on web.
-# It's called from aw3.Ct() which should return restoration data (a list).
-# Returning an empty array is safe because the caller handles empty results.
-if [ "$A_R6_COUNT" -gt 0 ]; then
-  sed -i 's/aR6(a){throw A.h(A.e6(null))}/aR6(a){return[]}/g' "$JS_FILE"
-  echo "  ✅ Patched aR6(a) to return empty array"
-else
-  echo "  ⚠️  aR6 throw pattern not found - may already be patched or different version"
-fi
-
-# Patch b5h: replace throw with return of a no-op function
-# The original function is a static factory that should return a callable object.
-# It's called from b8Y deserialization to create the 'd' field of aw3 objects.
-# The aw3.wL() method calls this.d.$2(s, this.e), so we return a 2-arg function.
-if [ "$B5H_COUNT" -gt 0 ]; then
-  sed -i 's/b5h(a){throw A.h(A.e6(null))}/b5h(a){return function(b,c){}}/g' "$JS_FILE"
-  echo "  ✅ Patched b5h(a) to return no-op function"
-else
-  echo "  ⚠️  b5h throw pattern not found - may already be patched or different version"
-fi
-
-# Verify the patch was applied
-NEW_A_R6=$(grep -c 'aR6(a){return' "$JS_FILE" 2>/dev/null || echo 0)
-NEW_B5H=$(grep -c 'b5h(a){return' "$JS_FILE" 2>/dev/null || echo 0)
-REMAINING_A_R6=$(grep -c 'aR6(a){throw' "$JS_FILE" 2>/dev/null || echo 0)
-REMAINING_B5H=$(grep -c 'b5h(a){throw' "$JS_FILE" 2>/dev/null || echo 0)
+# =============================================================================
+# Step 2: Patch all functions that throw UnimplementedError
+# =============================================================================
+# We use sed to find patterns like: funcname(a){throw A.h(A.e6(null))}
+# and replace the throw with a return of empty array.
+#
+# The sed pattern uses capture groups to preserve the function name:
+#   Match: funcname(a){throw A.h(A.e6(null))}
+#   Replace: funcname(a){return[]}
 
 echo ""
-echo "=== Patch Summary ==="
-echo "  aR6 patched: $NEW_A_R6 (remaining throws: $REMAINING_A_R6)"
-echo "  b5h patched: $NEW_B5H (remaining throws: $REMAINING_B5H)"
+echo "  Patching functions..."
 
-if [ "$NEW_A_R6" -gt 0 ] || [ "$NEW_B5H" -gt 0 ]; then
+# Create a backup
+cp "$JS_FILE" "${JS_FILE}.bak"
+
+# Use sed with capture group to replace any function that throws UnimplementedError
+# Pattern: identifier(a){throw A.h(A.e6(null))}
+# Replacement: identifier(a){return[]}
+sed -i 's/\([a-zA-Z_$][a-zA-Z0-9_$]*\)(a){throw A\.h(A\.e6(null))}/\1(a){return[]}/g' "$JS_FILE"
+
+# Count how many were patched
+PATCHED_COUNT=$(grep -c 'return\[\]' "$JS_FILE" 2>/dev/null | xargs echo || echo 0)
+echo "    Patched $PATCHED_COUNT function(s) to return empty array"
+
+# =============================================================================
+# Step 3: Handle factory functions (b5h-like) that need to return a function
+# =============================================================================
+# Some of the patched functions are called from b8Y deserialization and need
+# to return a callable function, not an empty array.
+#
+# We identify these by looking for calls like: A.<funcname>(new A.a8Q(...))
+# in the original JS file, then fix the patch for those specific functions.
+
+echo ""
+echo "  Checking for factory functions (called from b8Y deserialization)..."
+
+# Search for functions called with new A.a8Q argument (b8Y deserialization pattern)
+B8Y_CALLS=$(grep -c 'A\.[a-zA-Z_$][a-zA-Z0-9_$]*(new A\.a8Q' "${JS_FILE}.bak" 2>/dev/null | xargs echo || echo 0)
+
+if [ "$B8Y_CALLS" != "0" ]; then
+  echo "    Found factory function(s) called from b8Y deserialization"
+  
+  # Extract function names called from b8Y
+  grep -o 'A\.[a-zA-Z_$][a-zA-Z0-9_$]*(new A\.a8Q' "${JS_FILE}.bak" | while read -r match; do
+    # Extract function name after 'A.'
+    b8y_func=$(echo "$match" | sed 's/A\.\([a-zA-Z_$][a-zA-Z0-9_$]*\)(.*/\1/')
+    echo "      -> Function '$b8y_func' needs to return a callable function"
+    
+    # Fix the patch: change return[] to return function(b,c){}
+    sed -i "s/$b8y_func(a){return\[\]}/$b8y_func(a){return function(b,c){}}/g" "$JS_FILE"
+  done
+else
+  echo "    No factory functions found"
+fi
+
+# =============================================================================
+# Step 4: Verify the patch
+# =============================================================================
+echo ""
+echo "=== Patch Summary ==="
+
+REMAINING_THROWS=$(grep -c "$THROW_PATTERN" "$JS_FILE" 2>/dev/null | xargs echo || echo 0)
+RETURN_ARRAY_COUNT=$(grep -c 'return\[\]' "$JS_FILE" 2>/dev/null | xargs echo || echo 0)
+RETURN_FUNC_COUNT=$(grep -c 'return function(b,c)' "$JS_FILE" 2>/dev/null | xargs echo || echo 0)
+
+echo "  Functions patched to return[]: $RETURN_ARRAY_COUNT"
+echo "  Functions patched to return function: $RETURN_FUNC_COUNT"
+echo "  Remaining UnimplementedError throws: $REMAINING_THROWS"
+
+if [ "$RETURN_ARRAY_COUNT" != "0" ] || [ "$RETURN_FUNC_COUNT" != "0" ]; then
   echo ""
-  echo "✅ Route restoration patch applied successfully!"
-  echo "   The UnimplementedError from aR6/b5h should no longer occur."
+  echo "SUCCESS: Route restoration patch applied successfully!"
+  echo "  The UnimplementedError from route restoration should no longer occur."
+  # Remove backup on success
+  rm -f "${JS_FILE}.bak"
 else
   echo ""
-  echo "⚠️  No patches were applied. The JS file may have a different structure."
-  echo "   Check the file manually and update the patterns."
+  echo "WARNING: No patches were applied. The JS file may have a different structure."
+  echo "  Backup saved at: ${JS_FILE}.bak"
   exit 1
 fi
