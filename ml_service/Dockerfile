@@ -26,10 +26,9 @@ COPY --from=build /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY app/ ./app/
-COPY models/ ./models/
 
 # Create directories for runtime data
-RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
+RUN mkdir -p /app/models /app/logs && chown -R appuser:appgroup /app
 
 USER appuser
 
