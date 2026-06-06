@@ -1,0 +1,55 @@
+# deploy/k8s/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: danger-emergence
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - ml-service-deployment.yaml
+  - redis-deployment.yaml
+  - postgres-deployment.yaml
+  - mosquitto-deployment.yaml
+  - otel-collector-deployment.yaml
+  - prometheus-deployment.yaml
+  - grafana-deployment.yaml
+  - ingress.yaml
+  - service-monitor.yaml
+  - prometheus-rules.yaml
+  - network-policy.yaml
+
+images:
+  - name: backend
+    newName: ghcr.io/dangeremergence/backend
+    newTag: latest
+  - name: frontend
+    newName: ghcr.io/dangeremergence/frontend
+    newTag: latest
+  - name: ml-service
+    newName: ghcr.io/dangeremergence/ml-service
+    newTag: latest
+
+configMapGenerator:
+  - name: backend-config
+    files:
+      - configs/application-prod.yml
+  - name: otel-collector-config
+    files:
+      - configs/otel-collector-config.yaml
+
+secretGenerator:
+  - name: backend-secrets
+    env: secrets.env
+    type: Opaque
+
+patchesStrategicMerge:
+  - patches/production-resources.yaml
+  - patches/hpa.yaml
+
+commonLabels:
+  environment: production
+  managed-by: kustomize
