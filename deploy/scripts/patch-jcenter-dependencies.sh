@@ -59,11 +59,6 @@ patch_namespace() {
     return 1
   fi
   
-  # Skip if already has namespace
-  if grep -q "namespace " "$BUILD_GRADLE" 2>/dev/null; then
-    return 1
-  fi
-  
   # Only patch library modules
   if ! grep -q "com.android.library" "$BUILD_GRADLE" 2>/dev/null; then
     return 1
@@ -95,24 +90,38 @@ patch_namespace() {
     return 1
   fi
   
-  # Use awk to find the android { } block that is NOT inside buildscript { }
-  # Strategy: find lines matching /^android {/ or /^android {/ after buildscript closes
-  # We look for the LAST occurrence of "android {" that is at the root level
-  # (not inside buildscript). A simple heuristic: find "android {" after "buildscript" block ends.
-  
-  # Count buildscript blocks to find where they end
+  # ── Find the buildscript { } end line ────────────────────────────────────
+  # Count braces inside buildscript to find where it closes
   local BUILDSCRIPT_END_LINE
   BUILDSCRIPT_END_LINE=$(awk '
     /buildscript \{/ { bs=1 }
-    bs==1 && /\{/ { brace_count++; if (brace_count==1) first_bs_line=NR }
-    bs==1 && /\}/ { brace_count--; if (brace_count==0) { print NR; exit } }
+    bs==1 && /\{/ { brace_count++ }
+    bs==1 && /\}/ { brace_count--; if (brace_count == 0) { print NR; exit } }
   ' "$BUILD_GRADLE")
   
   if [ -z "$BUILDSCRIPT_END_LINE" ]; then
     BUILDSCRIPT_END_LINE=0
   fi
   
-  # Now find the first "android {" after buildscript ends
+  # ── Check if namespace already exists in the correct location ────────────
+  # "Correct" means: the namespace line appears AFTER buildscript ends
+  local NAMESPACE_LINE
+  NAMESPACE_LINE=$(awk -v bs_end="$BUILDSCRIPT_END_LINE" '
+    NR > bs_end && /namespace / { print NR; exit }
+  ' "$BUILD_GRADLE")
+  
+  if [ -n "$NAMESPACE_LINE" ]; then
+    # Namespace already exists in the correct location — skip
+    return 1
+  fi
+  
+  # ── Remove any misplaced namespace lines (e.g. inside buildscript) ───────
+  # This handles the case where a previous broken run inserted it in the wrong spot
+  local TEMP_FILE
+  TEMP_FILE=$(mktemp)
+  grep -v "namespace '" "$BUILD_GRADLE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$BUILD_GRADLE"
+  
+  # ── Find the android { } block (after buildscript ends) ──────────────────
   local ANDROID_BLOCK_LINE
   ANDROID_BLOCK_LINE=$(awk -v bs_end="$BUILDSCRIPT_END_LINE" '
     NR > bs_end && /^android \{/ { print NR; exit }
@@ -124,7 +133,7 @@ patch_namespace() {
     return 1
   fi
   
-  # Insert namespace right after the android { line
+  # ── Insert namespace right after the android { line ──────────────────────
   sed -i "${ANDROID_BLOCK_LINE}a\\    namespace '${PACKAGE}'" "$BUILD_GRADLE"
   
   log_ok "Added namespace '${PACKAGE}' to: $BUILD_GRADLE (line $ANDROID_BLOCK_LINE)"
