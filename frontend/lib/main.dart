@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -40,16 +41,18 @@ void callbackDispatcher() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize WorkManager for background tasks
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
-  await Workmanager().registerPeriodicTask(
-    backgroundSyncTask,
-    backgroundSyncTask,
-    frequency: Duration(minutes: AppConstants.syncIntervalMinutes),
-    constraints: Constraints(
-      networkType: NetworkType.connected,
-    ),
-  );
+  // Initialize WorkManager for background tasks (mobile only)
+  if (!kIsWeb) {
+    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    await Workmanager().registerPeriodicTask(
+      backgroundSyncTask,
+      backgroundSyncTask,
+      frequency: Duration(minutes: AppConstants.syncIntervalMinutes),
+      constraints: Constraints(
+        networkType: NetworkType.connected,
+      ),
+    );
+  }
 
   // Set system UI overlay style (orientation is not locked to support tablets/desktop)
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
