@@ -43,6 +43,35 @@ ANDROID_BUILD_TOOLS_VERSION="34.0.0"
 ANDROID_PLATFORM_VERSION="34"
 ANDROID_NDK_VERSION="25.2.9519653"
 
+# ── Step 0: Check Prerequisites ─────────────────────────────────────────────
+check_prerequisites() {
+  log_info "Checking system prerequisites..."
+
+  local MISSING_TOOLS=""
+
+  if ! command -v curl &>/dev/null; then
+    MISSING_TOOLS="$MISSING_TOOLS curl"
+  fi
+
+  if ! command -v unzip &>/dev/null; then
+    MISSING_TOOLS="$MISSING_TOOLS unzip"
+  fi
+
+  if ! command -v git &>/dev/null; then
+    MISSING_TOOLS="$MISSING_TOOLS git"
+  fi
+
+  if [ -n "$MISSING_TOOLS" ]; then
+    log_warn "Missing tools:$MISSING_TOOLS. Installing..."
+    apt-get update -qq
+    # shellcheck disable=SC2086
+    apt-get install -y -qq $MISSING_TOOLS
+    log_ok "Prerequisites installed"
+  else
+    log_ok "All system prerequisites are available"
+  fi
+}
+
 # ── Step 1: Check Java ──────────────────────────────────────────────────────
 check_java() {
   log_info "Checking Java installation..."
@@ -201,6 +230,9 @@ main() {
     log_warn "Consider running with: sudo bash $0"
     echo ""
   fi
+  
+  check_prerequisites
+  echo ""
   
   check_java
   echo ""
