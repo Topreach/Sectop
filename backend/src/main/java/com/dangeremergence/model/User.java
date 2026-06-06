@@ -49,7 +49,7 @@ public class User {
     private LocalDateTime lastSeen;
 
     @Column(name = "is_active")
-    private boolean isActive = true;
+    private boolean active = true;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

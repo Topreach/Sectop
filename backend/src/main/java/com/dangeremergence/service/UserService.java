@@ -27,7 +27,7 @@ public class UserService {
     public User registerUser(User user, String rawPassword) {
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setLastSeen(LocalDateTime.now());
-        user.setIsActive(true);
+        user.setActive(true);
         return userRepository.save(user);
     }
 
@@ -86,7 +86,7 @@ public class UserService {
 
     public void deactivateUser(String userId) {
         userRepository.findById(userId).ifPresent(user -> {
-            user.setIsActive(false);
+            user.setActive(false);
             userRepository.save(user);
         });
     }

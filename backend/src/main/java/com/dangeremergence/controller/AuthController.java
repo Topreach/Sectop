@@ -100,7 +100,7 @@ public class AuthController {
             response.put("email", user.getEmail());
             response.put("phone", user.getPhone());
             response.put("role", user.getRole());
-            response.put("isActive", user.getIsActive());
+            response.put("isActive", user.isActive());
             response.put("lastSeen", user.getLastSeen());
             return ResponseEntity.ok(response);
         }

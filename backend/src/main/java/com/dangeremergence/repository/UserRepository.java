@@ -22,7 +22,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("SELECT u FROM User u WHERE u.lastSeen > :since")
     List<User> findActiveUsersSince(@Param("since") LocalDateTime since);
 
-    @Query("SELECT u FROM User u WHERE u.isActive = true AND u.role IN :roles")
+    @Query("SELECT u FROM User u WHERE u.active = true AND u.role IN :roles")
     List<User> findActiveResponders(@Param("roles") List<User.UserRole> roles);
 
     @Query("SELECT u FROM User u WHERE u.id IN :ids")
