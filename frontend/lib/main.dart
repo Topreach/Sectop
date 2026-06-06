@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,30 +40,49 @@ void callbackDispatcher() {
 }
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Capture all unhandled errors globally so they don't crash the app silently.
+  runZonedGuarded(() async {
+    FlutterError.onError = (details) {
+      debugPrint('══════════════════════════════════════════════════');
+      debugPrint('🚨 FlutterError caught: ${details.exception}');
+      debugPrint('Stack: ${details.stack}');
+      debugPrint('══════════════════════════════════════════════════');
+    };
 
-  // Initialize WorkManager for background tasks (mobile only)
-  if (!kIsWeb) {
-    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
-    await Workmanager().registerPeriodicTask(
-      backgroundSyncTask,
-      backgroundSyncTask,
-      frequency: Duration(minutes: AppConstants.syncIntervalMinutes),
-      constraints: Constraints(
-        networkType: NetworkType.connected,
-      ),
-    );
-  }
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Set system UI overlay style (orientation is not locked to support tablets/desktop)
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.black,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
+    // Initialize WorkManager for background tasks (mobile only)
+    if (!kIsWeb) {
+      try {
+        await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+        await Workmanager().registerPeriodicTask(
+          backgroundSyncTask,
+          backgroundSyncTask,
+          frequency: Duration(minutes: AppConstants.syncIntervalMinutes),
+          constraints: Constraints(
+            networkType: NetworkType.connected,
+          ),
+        );
+      } catch (e, stack) {
+        debugPrint('WorkManager init error (non-fatal): $e\n$stack');
+      }
+    }
 
-  runApp(const DangerEmergenceApp());
+    // Set system UI overlay style (orientation is not locked to support tablets/desktop)
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.black,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ));
+
+    runApp(const DangerEmergenceApp());
+  }, (error, stack) {
+    debugPrint('══════════════════════════════════════════════════');
+    debugPrint('💥 Unhandled async error: $error');
+    debugPrint('Stack: $stack');
+    debugPrint('══════════════════════════════════════════════════');
+  });
 }
 
 /// Root application widget for the Danger Emergence System.
@@ -76,7 +96,7 @@ class DangerEmergenceApp extends StatelessWidget {
         // Core Services
         Provider(create: (_) => OfflineStorageService()..initialize()),
         Provider(create: (_) => SyncManager()..initialize()),
-        
+
         // Module Services
         ChangeNotifierProvider(create: (_) => AuthService()..initialize()),
         ChangeNotifierProvider(create: (_) => SOSService()..initialize()),
@@ -94,16 +114,16 @@ class DangerEmergenceApp extends StatelessWidget {
       child: MaterialApp(
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
-        
+
         // Theme
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,
-        
+
         // Routing
         initialRoute: AppRoutes.splash,
         onGenerateRoute: AppRoutes.generateRoute,
-        
+
         // Localization
         locale: const Locale('en', 'US'),
         supportedLocales: const [
@@ -111,7 +131,7 @@ class DangerEmergenceApp extends StatelessWidget {
           Locale('es', 'ES'),
           Locale('fr', 'FR'),
         ],
-        
+
         // Performance & Responsive Layout
         builder: (context, child) {
           return MediaQuery(
