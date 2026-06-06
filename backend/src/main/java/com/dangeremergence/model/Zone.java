@@ -23,7 +23,8 @@ public class Zone {
     private String name;
 
     @Column(nullable = false)
-    private String type;
+    @Enumerated(EnumType.STRING)
+    private ZoneType type;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -59,6 +60,10 @@ public class Zone {
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    public enum ZoneType {
+        safety, hazard, exclusion, monitoring, evacuation
+    }
 
     public enum ZoneStatus {
         active, inactive, expired
