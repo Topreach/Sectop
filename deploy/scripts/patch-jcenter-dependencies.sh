@@ -1,9 +1,10 @@
 #!/bin/bash
 # =============================================================================
-# Danger Emergence System - Patch JCenter Dependencies
+# Danger Emergence System - Patch Plugin Dependencies for AGP 8+
 # =============================================================================
-# This script patches Flutter plugin build.gradle files that still reference
-# the deprecated jcenter() repository, replacing it with mavenCentral().
+# This script patches Flutter plugin build.gradle files that:
+# 1. Still reference the deprecated jcenter() repository → mavenCentral()
+# 2. Are missing the required 'namespace' property for AGP 8+
 #
 # Usage:
 #   bash deploy/scripts/patch-jcenter-dependencies.sh
@@ -27,30 +28,82 @@ log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 PUB_CACHE_DIR="${PUB_CACHE:-$HOME/.pub-cache}"
 HOSTED_DIR="$PUB_CACHE_DIR/hosted/pub.dev"
 
-# ── Patch Function ───────────────────────────────────────────────────────────
-patch_build_gradle() {
+# ── Patch jcenter() → mavenCentral() ────────────────────────────────────────
+patch_jcenter() {
   local BUILD_GRADLE="$1"
   
   if [ ! -f "$BUILD_GRADLE" ]; then
     return 1
   fi
   
-  # Check if jcenter() is used
   if grep -q 'jcenter()' "$BUILD_GRADLE" 2>/dev/null; then
     log_warn "Found jcenter() in: $BUILD_GRADLE"
-    
-    # Replace jcenter() with mavenCentral()
     sed -i 's/jcenter()/mavenCentral()/g' "$BUILD_GRADLE"
-    
-    # Also add google() if not present (needed for AndroidX)
     if ! grep -q "google()" "$BUILD_GRADLE" 2>/dev/null; then
       sed -i '/repositories {/a\        google()' "$BUILD_GRADLE"
     fi
-    
-    log_ok "Patched: $BUILD_GRADLE"
+    log_ok "Patched jcenter() → mavenCentral(): $BUILD_GRADLE"
+    return 0
+  fi
+  return 1
+}
+
+# ── Add namespace to plugin build.gradle ────────────────────────────────────
+# AGP 8+ requires a 'namespace' in build.gradle for library modules.
+# We extract the package from the corresponding AndroidManifest.xml
+# and add it inside the existing android { } block.
+patch_namespace() {
+  local BUILD_GRADLE="$1"
+  
+  if [ ! -f "$BUILD_GRADLE" ]; then
+    return 1
+  fi
+  
+  # Skip if already has namespace
+  if grep -q "namespace " "$BUILD_GRADLE" 2>/dev/null; then
+    return 1
+  fi
+  
+  # Only patch library modules
+  if ! grep -q "com.android.library" "$BUILD_GRADLE" 2>/dev/null; then
+    return 1
+  fi
+  
+  # Find the corresponding AndroidManifest.xml
+  local DIR
+  DIR="$(dirname "$BUILD_GRADLE")"
+  local MANIFEST="$DIR/src/main/AndroidManifest.xml"
+  
+  if [ ! -f "$MANIFEST" ]; then
+    MANIFEST="$(dirname "$DIR")/src/main/AndroidManifest.xml"
+  fi
+  if [ ! -f "$MANIFEST" ]; then
+    MANIFEST="$DIR/AndroidManifest.xml"
+  fi
+  
+  if [ ! -f "$MANIFEST" ]; then
+    log_warn "Cannot find AndroidManifest.xml for: $BUILD_GRADLE"
+    return 1
+  fi
+  
+  # Extract package from manifest
+  local PACKAGE
+  PACKAGE=$(grep -o 'package="[^"]*"' "$MANIFEST" 2>/dev/null | head -1 | sed 's/package="//;s/"//')
+  
+  if [ -z "$PACKAGE" ]; then
+    log_warn "No package found in manifest for: $BUILD_GRADLE"
+    return 1
+  fi
+  
+  # Add namespace inside the existing android { } block
+  # Look for the line with "android {" and add namespace right after it
+  if grep -q "android {" "$BUILD_GRADLE" 2>/dev/null; then
+    sed -i "0,/android {/a\    namespace '${PACKAGE}'" "$BUILD_GRADLE"
+    log_ok "Added namespace '${PACKAGE}' to: $BUILD_GRADLE"
     return 0
   fi
   
+  log_warn "No android block found in: $BUILD_GRADLE"
   return 1
 }
 
@@ -58,7 +111,7 @@ patch_build_gradle() {
 main() {
   echo ""
   echo "=============================================="
-  echo "  Patch JCenter Dependencies"
+  echo "  Patch Plugin Dependencies"
   echo "=============================================="
   echo ""
   
@@ -68,22 +121,39 @@ main() {
     return 0
   fi
   
-  log_info "Scanning for build.gradle files with jcenter() references..."
-  
-  local PATCHED=0
+  # Step 1: Patch jcenter() references
+  log_info "Scanning for jcenter() references..."
+  local PATCHED_JCENTER=0
   local FOUND=0
   
   while IFS= read -r -d '' BUILD_GRADLE; do
     FOUND=$((FOUND + 1))
-    if patch_build_gradle "$BUILD_GRADLE"; then
-      PATCHED=$((PATCHED + 1))
+    if patch_jcenter "$BUILD_GRADLE"; then
+      PATCHED_JCENTER=$((PATCHED_JCENTER + 1))
     fi
   done < <(find "$HOSTED_DIR" -name "build.gradle" -print0 2>/dev/null)
   
-  if [ "$PATCHED" -gt 0 ]; then
-    log_ok "Patched $PATCHED build.gradle file(s)"
+  if [ "$PATCHED_JCENTER" -gt 0 ]; then
+    log_ok "Patched jcenter() in $PATCHED_JCENTER build.gradle file(s)"
   else
     log_info "No jcenter() references found in $FOUND build.gradle file(s)"
+  fi
+  
+  # Step 2: Add namespace to library modules missing it
+  echo ""
+  log_info "Scanning for library modules missing namespace..."
+  local PATCHED_NS=0
+  
+  while IFS= read -r -d '' BUILD_GRADLE; do
+    if patch_namespace "$BUILD_GRADLE"; then
+      PATCHED_NS=$((PATCHED_NS + 1))
+    fi
+  done < <(find "$HOSTED_DIR" -name "build.gradle" -print0 2>/dev/null)
+  
+  if [ "$PATCHED_NS" -gt 0 ]; then
+    log_ok "Added namespace to $PATCHED_NS build.gradle file(s)"
+  else
+    log_info "No library modules missing namespace found"
   fi
   
   echo ""
