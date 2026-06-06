@@ -90,7 +90,7 @@ public class AuthController {
     }
 
     @GetMapping("/users/{userId}")
-    public ResponseEntity<?> getUser(@PathVariable Long userId) {
+    public ResponseEntity<?> getUser(@PathVariable String userId) {
         Optional<User> userOpt = userService.getUserById(userId);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -110,7 +110,7 @@ public class AuthController {
     }
 
     @PutMapping("/users/{userId}")
-    public ResponseEntity<?> updateUser(@PathVariable Long userId, @RequestBody UpdateUserRequest request) {
+    public ResponseEntity<?> updateUser(@PathVariable String userId, @RequestBody UpdateUserRequest request) {
         Optional<User> userOpt = userService.getUserById(userId);
         if (userOpt.isPresent()) {
             User user = userOpt.get();

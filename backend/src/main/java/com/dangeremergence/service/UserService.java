@@ -44,7 +44,7 @@ public class UserService {
         return Optional.empty();
     }
 
-    public Optional<User> getUserById(Long id) {
+    public Optional<User> getUserById(String id) {
         return userRepository.findById(id);
     }
 
@@ -65,10 +65,10 @@ public class UserService {
     }
 
     public List<User> getActiveResponders() {
-        return userRepository.findActiveResponders();
+        return userRepository.findActiveResponders(List.of(User.UserRole.responder, User.UserRole.coordinator));
     }
 
-    public List<User> getUsersByIds(List<Long> ids) {
+    public List<User> getUsersByIds(List<String> ids) {
         return userRepository.findByIds(ids);
     }
 
@@ -77,14 +77,14 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public void updateLastSeen(Long userId) {
+    public void updateLastSeen(String userId) {
         userRepository.findById(userId).ifPresent(user -> {
             user.setLastSeen(LocalDateTime.now());
             userRepository.save(user);
         });
     }
 
-    public void deactivateUser(Long userId) {
+    public void deactivateUser(String userId) {
         userRepository.findById(userId).ifPresent(user -> {
             user.setIsActive(false);
             userRepository.save(user);

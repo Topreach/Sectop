@@ -27,25 +27,25 @@ public class ZoneService {
         return zoneRepository.save(zone);
     }
 
-    public Optional<Zone> getZoneById(Long id) {
+    public Optional<Zone> getZoneById(String id) {
         return zoneRepository.findById(id);
     }
 
     public List<Zone> getActiveZones() {
         return zoneRepository.findByTypeAndStatus(
-            Zone.ZoneType.safety, Zone.ZoneStatus.active);
+            Zone.ZoneType.safety.name(), Zone.ZoneStatus.active);
     }
 
     public List<Zone> getZonesByTypeAndStatus(Zone.ZoneType type, Zone.ZoneStatus status) {
-        return zoneRepository.findByTypeAndStatus(type, status);
+        return zoneRepository.findByTypeAndStatus(type.name(), status);
     }
 
     public List<Zone> getZonesInArea(double north, double south, double east, double west) {
-        return zoneRepository.findZonesInArea(north, south, east, west);
+        return zoneRepository.findZonesInArea(south, north, west, east, Zone.ZoneStatus.active);
     }
 
     public List<Zone> getZonesSince(LocalDateTime since) {
-        return zoneRepository.findZonesSince(since);
+        return zoneRepository.findZonesSince(since, Zone.ZoneStatus.active);
     }
 
     public Zone updateZone(Zone zone) {
@@ -53,7 +53,7 @@ public class ZoneService {
         return zoneRepository.save(zone);
     }
 
-    public void deactivateZone(Long zoneId) {
+    public void deactivateZone(String zoneId) {
         zoneRepository.findById(zoneId).ifPresent(zone -> {
             zone.setStatus(Zone.ZoneStatus.inactive);
             zone.setUpdatedAt(LocalDateTime.now());
@@ -61,7 +61,7 @@ public class ZoneService {
         });
     }
 
-    public void activateZone(Long zoneId) {
+    public void activateZone(String zoneId) {
         zoneRepository.findById(zoneId).ifPresent(zone -> {
             zone.setStatus(Zone.ZoneStatus.active);
             zone.setUpdatedAt(LocalDateTime.now());
@@ -69,7 +69,7 @@ public class ZoneService {
         });
     }
 
-    public void expireZone(Long zoneId) {
+    public void expireZone(String zoneId) {
         zoneRepository.findById(zoneId).ifPresent(zone -> {
             zone.setStatus(Zone.ZoneStatus.expired);
             zone.setUpdatedAt(LocalDateTime.now());
@@ -78,19 +78,19 @@ public class ZoneService {
     }
 
     public int cleanupExpiredZones() {
-        List<Zone> expiredZones = zoneRepository.findExpiredZones(LocalDateTime.now());
+        List<Zone> expiredZones = zoneRepository.findExpiredZones(LocalDateTime.now(), Zone.ZoneStatus.expired);
         zoneRepository.deleteAll(expiredZones);
         return expiredZones.size();
     }
 
     public List<Zone> getDangerZones() {
         return zoneRepository.findByTypeAndStatus(
-            Zone.ZoneType.danger, Zone.ZoneStatus.active);
+            Zone.ZoneType.hazard.name(), Zone.ZoneStatus.active);
     }
 
     public List<Zone> getRestrictedZones() {
         return zoneRepository.findByTypeAndStatus(
-            Zone.ZoneType.restricted, Zone.ZoneStatus.active);
+            Zone.ZoneType.exclusion.name(), Zone.ZoneStatus.active);
     }
 
     public long getActiveZoneCount() {

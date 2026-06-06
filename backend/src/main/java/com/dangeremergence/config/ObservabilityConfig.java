@@ -119,7 +119,7 @@ public class ObservabilityConfig {
 
     @Bean
     public PostgreSQLDatabaseMetrics postgresMetrics(DataSource dataSource) {
-        PostgreSQLDatabaseMetrics metrics = new PostgreSQLDatabaseMetrics(dataSource);
+        PostgreSQLDatabaseMetrics metrics = new PostgreSQLDatabaseMetrics(dataSource, "danger_emergence");
         metrics.bindTo(meterRegistry());
         return metrics;
     }

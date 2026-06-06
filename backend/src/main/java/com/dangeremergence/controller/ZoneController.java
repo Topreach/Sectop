@@ -31,7 +31,7 @@ public class ZoneController {
     }
 
     @GetMapping("/{zoneId}")
-    public ResponseEntity<?> getZone(@PathVariable Long zoneId) {
+    public ResponseEntity<?> getZone(@PathVariable String zoneId) {
         Optional<Zone> zoneOpt = zoneService.getZoneById(zoneId);
         if (zoneOpt.isPresent()) {
             return ResponseEntity.ok(zoneOpt.get());
@@ -80,7 +80,7 @@ public class ZoneController {
     }
 
     @PutMapping("/{zoneId}")
-    public ResponseEntity<?> updateZone(@PathVariable Long zoneId, @RequestBody Zone zone) {
+    public ResponseEntity<?> updateZone(@PathVariable String zoneId, @RequestBody Zone zone) {
         Optional<Zone> existingOpt = zoneService.getZoneById(zoneId);
         if (existingOpt.isPresent()) {
             Zone existing = existingOpt.get();
@@ -102,7 +102,7 @@ public class ZoneController {
     }
 
     @PostMapping("/{zoneId}/activate")
-    public ResponseEntity<?> activateZone(@PathVariable Long zoneId) {
+    public ResponseEntity<?> activateZone(@PathVariable String zoneId) {
         zoneService.activateZone(zoneId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Zone activated successfully");
@@ -110,7 +110,7 @@ public class ZoneController {
     }
 
     @PostMapping("/{zoneId}/deactivate")
-    public ResponseEntity<?> deactivateZone(@PathVariable Long zoneId) {
+    public ResponseEntity<?> deactivateZone(@PathVariable String zoneId) {
         zoneService.deactivateZone(zoneId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Zone deactivated successfully");
@@ -118,7 +118,7 @@ public class ZoneController {
     }
 
     @DeleteMapping("/{zoneId}")
-    public ResponseEntity<?> deleteZone(@PathVariable Long zoneId) {
+    public ResponseEntity<?> deleteZone(@PathVariable String zoneId) {
         zoneService.expireZone(zoneId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Zone expired successfully");
