@@ -219,11 +219,114 @@ patch_dependencies() {
   fi
 }
 
-# ── Step 6: Build Release APK ───────────────────────────────────────────────
+# ── Step 6: Fix flutter_bluetooth_serial plugin (missing Android native source) ─
+fix_bluetooth_serial_plugin() {
+  local PLUGIN_DIR="/root/.pub-cache/hosted/pub.dev/flutter_bluetooth_serial-0.4.0"
+  local JAVA_DIR="$PLUGIN_DIR/android/src/main/java/io/github/edufolly/flutterbluetoothserial"
+  local JAVA_FILE="$JAVA_DIR/FlutterBluetoothSerialPlugin.java"
+  
+  if [ -f "$JAVA_FILE" ]; then
+    log_ok "flutter_bluetooth_serial plugin already has Android native source"
+    return 0
+  fi
+  
+  log_warn "flutter_bluetooth_serial plugin is missing Android native source files"
+  log_info "Creating stub Java file for flutter_bluetooth_serial plugin..."
+  
+  mkdir -p "$JAVA_DIR"
+  
+  cat > "$JAVA_FILE" << 'EOF'
+package io.github.edufolly.flutterbluetoothserial;
+
+import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.content.Intent;
+import androidx.annotation.NonNull;
+import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.embedding.engine.plugins.activity.ActivityAware;
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
+import io.flutter.plugin.common.MethodCall;
+import io.flutter.plugin.common.MethodChannel;
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
+import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.common.PluginRegistry.Registrar;
+
+public class FlutterBluetoothSerialPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware {
+  private static final String CHANNEL = "flutter_bluetooth_serial";
+  private MethodChannel channel;
+  private Activity activity;
+  
+  public static void registerWith(Registrar registrar) {
+    final MethodChannel channel = new MethodChannel(registrar.messenger(), CHANNEL);
+    channel.setMethodCallHandler(new FlutterBluetoothSerialPlugin());
+  }
+  
+  @Override
+  public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+    channel = new MethodChannel(binding.getBinaryMessenger(), CHANNEL);
+    channel.setMethodCallHandler(this);
+  }
+  
+  @Override
+  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+    channel.setMethodCallHandler(null);
+    channel = null;
+  }
+  
+  @Override
+  public void onAttachedToActivity(ActivityPluginBinding binding) {
+    activity = binding.getActivity();
+  }
+  
+  @Override
+  public void onDetachedFromActivity() {
+    activity = null;
+  }
+  
+  @Override
+  public void onReattachedToActivityForConfigChanges(ActivityPluginBinding binding) {
+    activity = binding.getActivity();
+  }
+  
+  @Override
+  public void onMethodCall(MethodCall call, Result result) {
+    switch (call.method) {
+      case "getAdapterState":
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter == null) {
+          result.success("unsupported");
+        } else if (adapter.isEnabled()) {
+          result.success("enabled");
+        } else {
+          result.success("disabled");
+        }
+        break;
+      case "isAvailable":
+        result.success(BluetoothAdapter.getDefaultAdapter() != null);
+        break;
+      case "isEnabled":
+        BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter();
+        result.success(a != null && a.isEnabled());
+        break;
+      default:
+        result.notImplemented();
+        break;
+    }
+  }
+}
+EOF
+  
+  log_ok "Created stub Java file for flutter_bluetooth_serial plugin"
+}
+
+# ── Step 7: Build Release APK ───────────────────────────────────────────────
 build_apk() {
   log_info "Building release APK..."
   
   cd "$FRONTEND_DIR"
+  
+  # Fix flutter_bluetooth_serial plugin missing Android native source
+  fix_bluetooth_serial_plugin
   
   # Clean previous builds
   flutter clean 2>&1 | tail -2 || true
@@ -231,9 +334,8 @@ build_apk() {
   # Get dependencies
   flutter pub get 2>&1 | tail -2 || true
   
-  # Build APK (|| true because flutter_bluetooth_serial plugin has a pre-existing
-  # bug: missing Android native source files, causing a non-fatal warning)
-  flutter build apk --release 2>&1 || true
+  # Build APK
+  flutter build apk --release 2>&1
   
   local APK_PATH="$FRONTEND_DIR/build/app/outputs/flutter-apk/app-release.apk"
   
