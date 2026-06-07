@@ -389,7 +389,6 @@ public class FlutterBluetoothSerialPlugin implements FlutterPlugin, MethodCallHa
 }
 EOFBT
   log_ok "Created/updated stub Java file for flutter_bluetooth_serial plugin"
-  fi
   
   # ── geolocator_android-4.6.2 ────────────────────────────────────────────
   local GEO_PLUGIN_DIR="/root/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2"
@@ -486,7 +485,6 @@ public void onMethodCall(MethodCall call, Result result) {
 }
 EOFGEO
   log_ok "Created/updated stub Java file for geolocator_android plugin"
-  fi
 }
 
 # ── Step 7: Build Release APK ───────────────────────────────────────────────
