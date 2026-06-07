@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import '../../../core/constants.dart';
 import '../../../shared/models/location.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../ai/services/model_bundle.dart';
 
 /// Predictive analytics engine that forecasts danger escalation,
 /// optimizes resource deployment, and enables proactive emergency response.
@@ -27,7 +29,10 @@ class PredictiveEngine {
 
   // Model state
   bool _isModelLoaded = false;
-  dynamic _lstmModel; // TFLite LSTM model for time series
+  tfl.Interpreter? _lstmModel; // TFLite LSTM model for time series
+
+  // Model bundle manager
+  final ModelBundle _modelBundle = ModelBundle();
 
   // Callbacks
   void Function(PredictionResult prediction)? onDangerForecast;
@@ -36,10 +41,28 @@ class PredictiveEngine {
   /// Initialize the predictive engine.
   Future<void> initialize() async {
     try {
+      // Initialize model bundle
+      await _modelBundle.initialize();
+
       // Load LSTM model for time series forecasting
-      // _lstmModel = await Interpreter.fromAsset('models/danger_forecast.tflite');
-      _isModelLoaded = true;
-      debugPrint('Predictive engine initialized');
+      if (!kIsWeb) {
+        try {
+          final modelPath = await _modelBundle.getModelPath('models/danger_forecast.tflite');
+          if (modelPath == 'models/danger_forecast.tflite') {
+            _lstmModel = await tfl.Interpreter.fromAsset(modelPath);
+          } else {
+            _lstmModel = tfl.Interpreter.fromFile(modelPath);
+          }
+          _isModelLoaded = true;
+          debugPrint('Predictive engine: LSTM model loaded successfully');
+        } catch (e) {
+          debugPrint('Predictive engine: LSTM model load failed, using rule-based: $e');
+          _isModelLoaded = false;
+        }
+      } else {
+        _isModelLoaded = false;
+        debugPrint('Predictive engine initialized (rule-based mode for web)');
+      }
     } catch (e) {
       debugPrint('Predictive engine initialized (rule-based mode): $e');
     }
@@ -401,7 +424,7 @@ class PredictiveEngine {
   }
 
   void dispose() {
-    // Cleanup
+    _lstmModel?.close();
   }
 }
 

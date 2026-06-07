@@ -1,8 +1,11 @@
 import 'dart:math';
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import '../../../core/constants.dart';
+import 'text_tokenizer.dart';
+import 'model_bundle.dart';
 
 /// Power-aware inference engine that dynamically switches between models
 /// based on battery level, achieving 50-200x energy reduction.
@@ -25,10 +28,16 @@ class PowerAwareInference {
   Timer? _batteryMonitor;
 
   // Model instances
-  dynamic _fullModel;      // FP32 TFLite model
-  dynamic _quantizedModel; // INT8 quantized TFLite model
+  tfl.Interpreter? _fullModel;      // FP32 TFLite model
+  tfl.Interpreter? _quantizedModel; // INT8 quantized TFLite model
   bool _fullModelLoaded = false;
   bool _quantizedModelLoaded = false;
+
+  // Tokenizer for model input preprocessing
+  final TextTokenizer _tokenizer = TextTokenizer();
+
+  // Model bundle manager
+  final ModelBundle _modelBundle = ModelBundle();
 
   // Inference cache for common patterns (LRU cache)
   final Map<int, DistressResult> _inferenceCache = {};
@@ -48,6 +57,8 @@ class PowerAwareInference {
 
   /// Initialize battery monitoring and pre-load models.
   Future<void> initialize() async {
+    await _modelBundle.initialize();
+    await _tokenizer.initialize();
     await _updateBatteryFromPlatform();
     _startBatteryMonitoring();
     await _loadModels();
@@ -78,17 +89,45 @@ class PowerAwareInference {
 
   Future<void> _loadModels() async {
     try {
+      // Initialize tokenizer and model bundle first
+      await _tokenizer.initialize();
+      await _modelBundle.initialize();
+
       // Load full FP32 model
-      // final interpreter = await Interpreter.fromAsset('models/distress_full.tflite');
-      // _fullModel = interpreter;
-      _fullModelLoaded = true;
+      try {
+        final modelPath = await _modelBundle.getModelPath(AppConstants.distressModelPath);
+        if (modelPath == AppConstants.distressModelPath) {
+          // Load from bundled assets
+          _fullModel = await tfl.Interpreter.fromAsset(modelPath);
+        } else {
+          // Load from file (downloaded/cached)
+          _fullModel = tfl.Interpreter.fromFile(modelPath);
+        }
+        _fullModelLoaded = true;
+        debugPrint('PowerAwareInference: Full FP32 model loaded successfully');
+      } catch (e) {
+        debugPrint('PowerAwareInference: Full model load failed: $e');
+        _fullModelLoaded = false;
+      }
 
       // Load quantized INT8 model
-      // final quantInterpreter = await Interpreter.fromAsset('models/distress_quant.tflite');
-      // _quantizedModel = quantInterpreter;
-      _quantizedModelLoaded = true;
+      try {
+        final quantPath = await _modelBundle.getModelPath('models/distress_quant.tflite');
+        if (await _modelBundle.isModelAvailable('models/distress_quant.tflite')) {
+          if (quantPath == 'models/distress_quant.tflite') {
+            _quantizedModel = await tfl.Interpreter.fromAsset(quantPath);
+          } else {
+            _quantizedModel = tfl.Interpreter.fromFile(quantPath);
+          }
+          _quantizedModelLoaded = true;
+          debugPrint('PowerAwareInference: Quantized INT8 model loaded successfully');
+        }
+      } catch (e) {
+        debugPrint('PowerAwareInference: Quantized model load failed: $e');
+        _quantizedModelLoaded = false;
+      }
     } catch (e) {
-      debugPrint('Model loading failed, using rule-based fallback: $e');
+      debugPrint('PowerAwareInference: Model loading failed, using rule-based fallback: $e');
     }
   }
 
@@ -198,11 +237,36 @@ class PowerAwareInference {
 
   /// Full FP32 model inference (highest accuracy, highest power).
   Future<DistressResult> _runFullModel(String text) async {
-    if (_fullModelLoaded) {
+    if (_fullModelLoaded && _fullModel != null) {
       try {
-        // final output = List.filled(2, 0.0);
-        // _fullModel.run(text, output);
-        // return DistressResult(...);
+        // Tokenize input using the proper tokenizer
+        final input = _tokenizer.tokenizeToFloat(text, sequenceLength: AppConstants.modelInputSize);
+
+        // Prepare output buffer (4 priority classes)
+        final output = [List.filled(4, 0.0)];
+
+        // Run inference
+        _fullModel!.run(input, output);
+
+        final scores = output[0];
+        int priority = 0;
+        double maxScore = -1.0;
+
+        for (int i = 0; i < scores.length; i++) {
+          if (scores[i] > maxScore) {
+            maxScore = scores[i];
+            priority = i;
+          }
+        }
+
+        return DistressResult(
+          isDistress: maxScore > AppConstants.distressThreshold,
+          confidence: maxScore,
+          priority: priority,
+          inferenceTimeMs: 0, // Set by caller
+          method: 'full_model_fp32',
+          reasons: ['TFLite FP32 inference: ${_priorityLabel(priority)} (${(maxScore * 100).toStringAsFixed(1)}%)'],
+        );
       } catch (e) {
         debugPrint('Full model inference failed: $e');
       }
@@ -213,13 +277,38 @@ class PowerAwareInference {
 
   /// Quantized INT8 model inference (4x less power, ~1% accuracy loss).
   Future<DistressResult> _runQuantizedModel(String text) async {
-    if (_quantizedModelLoaded) {
+    if (_quantizedModelLoaded && _quantizedModel != null) {
       try {
-        // INT8 quantization reduces model size 4x and speeds up 2x
-        // final input = _quantizeInput(text);
-        // final output = List<int>.filled(2, 0);
-        // _quantizedModel.run(input, output);
-        // return DistressResult(...dequantize(output)...);
+        // INT8 quantization: tokenize to int tensor
+        final input = _tokenizer.tokenizeToInt(text, sequenceLength: AppConstants.modelInputSize);
+
+        // Prepare INT8 output buffer
+        final output = [List.filled(4, 0)];
+
+        // Run inference
+        _quantizedModel!.run(input, output);
+
+        // Dequantize output (INT8 -> FP32)
+        final scores = output[0].map((e) => e.toDouble() / 255.0).toList();
+
+        int priority = 0;
+        double maxScore = -1.0;
+
+        for (int i = 0; i < scores.length; i++) {
+          if (scores[i] > maxScore) {
+            maxScore = scores[i];
+            priority = i;
+          }
+        }
+
+        return DistressResult(
+          isDistress: maxScore > AppConstants.distressThreshold,
+          confidence: maxScore,
+          priority: priority,
+          inferenceTimeMs: 0,
+          method: 'quantized_int8',
+          reasons: ['TFLite INT8 inference: ${_priorityLabel(priority)} (${(maxScore * 100).toStringAsFixed(1)}%)'],
+        );
       } catch (e) {
         debugPrint('Quantized model inference failed: $e');
       }
@@ -247,7 +336,45 @@ class PowerAwareInference {
     }
 
     // 3. Run only a subset of neural network layers
-    // In production: execute only first N layers and exit
+    // If full model is loaded, run it but with a timeout
+    if (_fullModelLoaded && _fullModel != null) {
+      try {
+        final input = _tokenizer.tokenizeToFloat(text, sequenceLength: AppConstants.modelInputSize);
+        final output = [List.filled(4, 0.0)];
+
+        // Run with timeout to limit energy usage
+        await _fullModel!.run(input, output).timeout(
+          const Duration(milliseconds: 50),
+          onTimeout: () {
+            debugPrint('Sparse inference timed out, using keyword fallback');
+            throw TimeoutException('Inference timed out');
+          },
+        );
+
+        final scores = output[0];
+        int priority = 0;
+        double maxScore = -1.0;
+
+        for (int i = 0; i < scores.length; i++) {
+          if (scores[i] > maxScore) {
+            maxScore = scores[i];
+            priority = i;
+          }
+        }
+
+        return DistressResult(
+          isDistress: maxScore > AppConstants.distressThreshold,
+          confidence: maxScore,
+          priority: priority,
+          inferenceTimeMs: 0,
+          method: 'sparse_partial',
+          reasons: ['Sparse inference with timed execution'],
+        );
+      } catch (e) {
+        debugPrint('Sparse inference failed: $e');
+      }
+    }
+
     return DistressResult(
       isDistress: keywordScore > 0.5,
       confidence: keywordScore,
@@ -310,6 +437,16 @@ class PowerAwareInference {
     if (score > 0.5) return AppConstants.priorityHigh;
     if (score > 0.3) return AppConstants.priorityMedium;
     return AppConstants.priorityLow;
+  }
+
+  String _priorityLabel(int priority) {
+    switch (priority) {
+      case 0: return 'LOW';
+      case 1: return 'MEDIUM';
+      case 2: return 'HIGH';
+      case 3: return 'CRITICAL';
+      default: return 'UNKNOWN';
+    }
   }
 
   /// Analyze a batch of messages with power-aware scheduling.

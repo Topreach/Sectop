@@ -28,6 +28,16 @@
 # Keep WorkManager
 -keep class androidx.work.** { *; }
 
+# TensorFlow Lite - keep interpreter and delegate classes
+-keep class org.tensorflow.lite.** { *; }
+-keep class org.tensorflow.lite.gpu.** { *; }
+-keep class org.tensorflow.lite.nnapi.** { *; }
+-keep class org.tensorflow.lite.support.** { *; }
+
+# Keep TFLite model files from being compressed
+-keep class **.tflite
+-renamesourcefileattribute SourceFile
+
 # Keep Bluetooth serial classes
 -keep class io.github.edufolly.flutterbluetoothserial.** { *; }
 

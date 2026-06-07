@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import '../../../core/constants.dart';
+import 'text_tokenizer.dart';
+import 'model_bundle.dart';
 
 /// On-device AI Service for distress detection and message prioritization.
 /// 
@@ -21,6 +23,12 @@ class DistressDetector extends ChangeNotifier {
   bool _modelLoaded = false;
   bool _isLoading = false;
   double _lastInferenceTime = 0;
+
+  // Tokenizer for model input preprocessing
+  final TextTokenizer _tokenizer = TextTokenizer();
+
+  // Model bundle manager
+  final ModelBundle _modelBundle = ModelBundle();
 
   bool get modelLoaded => _modelLoaded;
   bool get isLoading => _isLoading;
@@ -41,11 +49,22 @@ class DistressDetector extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Initialize tokenizer and model bundle
+      await _tokenizer.initialize();
+      await _modelBundle.initialize();
+
       if (!kIsWeb) {
         // Load the TFLite model for native platforms
-        _interpreter = await tfl.Interpreter.fromAsset(AppConstants.distressModelPath);
+        final modelPath = await _modelBundle.getModelPath(AppConstants.distressModelPath);
+        if (modelPath == AppConstants.distressModelPath) {
+          // Load from bundled assets
+          _interpreter = await tfl.Interpreter.fromAsset(modelPath);
+        } else {
+          // Load from file (downloaded/cached)
+          _interpreter = tfl.Interpreter.fromFile(modelPath);
+        }
         _modelLoaded = true;
-        debugPrint('Distress detection model loaded successfully');
+        debugPrint('Distress detection model loaded successfully from: $modelPath');
       } else {
         // For web, we use rule-based analysis as fallback
         _modelLoaded = false;
@@ -74,7 +93,8 @@ class DistressDetector extends ChangeNotifier {
     final stopwatch = Stopwatch()..start();
 
     try {
-      final input = _tokenize(message);
+      // Use the proper tokenizer instead of simplified hash-based embedding
+      final input = _tokenizer.tokenizeToFloat(message, sequenceLength: AppConstants.modelInputSize);
       // Model has 4 output nodes (one for each priority level)
       final output = [List<double>.filled(4, 0.0)];
 
@@ -288,7 +308,7 @@ class DistressDetector extends ChangeNotifier {
 
   /// Dispose of the detector.
   void dispose() {
-    // Cleanup resources if needed
+    _interpreter?.close();
   }
 }
 
