@@ -221,20 +221,97 @@ patch_dependencies() {
 
 # ── Step 6: Fix plugins with missing Android native source files ──────────
 # Some Flutter plugins (e.g., flutter_bluetooth_serial, geolocator_android)
-# were published without their android/src/ directory. This function creates
-# stub Java files so Flutter's plugin validation passes.
+# were published without their android/ directory entirely (no build.gradle,
+# no AndroidManifest.xml, no Java sources). This function creates the missing
+# files so Flutter's plugin validation and Gradle configuration succeed.
 fix_missing_plugin_sources() {
+  # ── Helper: create a minimal Android library build.gradle ───────────────
+  _create_plugin_build_gradle() {
+    local DIR="$1"   # android/ directory of the plugin
+    local PKG="$2"   # Android package name (e.g. io.github.edufolly.flutterbluetoothserial)
+    local FILE="$DIR/build.gradle"
+    if [ -f "$FILE" ]; then
+      return 0
+    fi
+    cat > "$FILE" << GRADLEEOF
+group '$PKG'
+version '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.1'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    if (project.android.hasProperty("namespace")) {
+        namespace("$PKG")
+    }
+
+    compileSdk 34
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        minSdkVersion 21
+    }
+}
+GRADLEEOF
+    log_ok "Created build.gradle for $PKG"
+  }
+
+  # ── Helper: create a minimal AndroidManifest.xml ────────────────────────
+  _create_plugin_manifest() {
+    local DIR="$1"   # android/src/main/ directory of the plugin
+    local FILE="$DIR/AndroidManifest.xml"
+    if [ -f "$FILE" ]; then
+      return 0
+    fi
+    mkdir -p "$DIR"
+    cat > "$FILE" << 'MANIFESTEOF'
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+</manifest>
+MANIFESTEOF
+    log_ok "Created AndroidManifest.xml"
+  }
+
   # ── flutter_bluetooth_serial-0.4.0 ──────────────────────────────────────
   local BT_PLUGIN_DIR="/root/.pub-cache/hosted/pub.dev/flutter_bluetooth_serial-0.4.0"
-  local BT_JAVA_DIR="$BT_PLUGIN_DIR/android/src/main/java/io/github/edufolly/flutterbluetoothserial"
+  local BT_ANDROID_DIR="$BT_PLUGIN_DIR/android"
+  local BT_JAVA_DIR="$BT_ANDROID_DIR/src/main/java/io/github/edufolly/flutterbluetoothserial"
   local BT_JAVA_FILE="$BT_JAVA_DIR/FlutterBluetoothSerialPlugin.java"
+  local BT_PKG="io.github.edufolly.flutterbluetoothserial"
   
   if [ ! -f "$BT_JAVA_FILE" ]; then
     log_warn "flutter_bluetooth_serial plugin is missing Android native source files"
-    log_info "Creating stub Java file for flutter_bluetooth_serial plugin..."
+    log_info "Creating stub files for flutter_bluetooth_serial plugin..."
     
     mkdir -p "$BT_JAVA_DIR"
     
+    # Create build.gradle
+    _create_plugin_build_gradle "$BT_ANDROID_DIR" "$BT_PKG"
+    
+    # Create AndroidManifest.xml
+    _create_plugin_manifest "$BT_ANDROID_DIR/src/main"
+    
+    # Create stub Java file
     cat > "$BT_JAVA_FILE" << 'EOFBT'
 package io.github.edufolly.flutterbluetoothserial;
 
@@ -315,22 +392,31 @@ public class FlutterBluetoothSerialPlugin implements FlutterPlugin, MethodCallHa
 }
 EOFBT
     
-    log_ok "Created stub Java file for flutter_bluetooth_serial plugin"
+    log_ok "Created stub files for flutter_bluetooth_serial plugin"
   else
     log_ok "flutter_bluetooth_serial plugin already has Android native source"
   fi
   
   # ── geolocator_android-4.6.2 ────────────────────────────────────────────
   local GEO_PLUGIN_DIR="/root/.pub-cache/hosted/pub.dev/geolocator_android-4.6.2"
-  local GEO_JAVA_DIR="$GEO_PLUGIN_DIR/android/src/main/java/com/baseflow/geolocator"
+  local GEO_ANDROID_DIR="$GEO_PLUGIN_DIR/android"
+  local GEO_JAVA_DIR="$GEO_ANDROID_DIR/src/main/java/com/baseflow/geolocator"
   local GEO_JAVA_FILE="$GEO_JAVA_DIR/GeolocatorPlugin.java"
+  local GEO_PKG="com.baseflow.geolocator"
   
   if [ ! -f "$GEO_JAVA_FILE" ]; then
     log_warn "geolocator_android plugin is missing Android native source files"
-    log_info "Creating stub Java file for geolocator_android plugin..."
+    log_info "Creating stub files for geolocator_android plugin..."
     
     mkdir -p "$GEO_JAVA_DIR"
     
+    # Create build.gradle
+    _create_plugin_build_gradle "$GEO_ANDROID_DIR" "$GEO_PKG"
+    
+    # Create AndroidManifest.xml
+    _create_plugin_manifest "$GEO_ANDROID_DIR/src/main"
+    
+    # Create stub Java file
     cat > "$GEO_JAVA_FILE" << 'EOFGEO'
 package com.baseflow.geolocator;
 
@@ -411,7 +497,7 @@ public class GeolocatorPlugin implements FlutterPlugin, MethodCallHandler, Activ
 }
 EOFGEO
     
-    log_ok "Created stub Java file for geolocator_android plugin"
+    log_ok "Created stub files for geolocator_android plugin"
   else
     log_ok "geolocator_android plugin already has Android native source"
   fi
