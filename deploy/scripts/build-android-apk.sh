@@ -681,6 +681,14 @@ WMEOF3
     # Create a symlink in the project root for easy access
     ln -sf "$APK_PATH" "$PROJECT_DIR/danger-emergence.apk"
     log_info "Symlink created: $PROJECT_DIR/danger-emergence.apk"
+    
+    # Copy APK to the Flutter build web directory so nginx (Docker) can serve it
+    local BUILD_WEB_DIR="$FRONTEND_DIR/build/web"
+    if [ -d "$BUILD_WEB_DIR" ]; then
+      cp "$APK_PATH" "$BUILD_WEB_DIR/danger-emergence.apk"
+      log_info "APK copied to web build directory for nginx: $BUILD_WEB_DIR/danger-emergence.apk"
+      log_info "Download URL: http://147.93.41.71/danger-emergence.apk"
+    fi
   else
     log_error "APK build failed — output not found at $APK_PATH"
     exit 1
