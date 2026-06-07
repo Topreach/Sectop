@@ -2,24 +2,30 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
+import 'package:flutter/services.dart';
 import '../../../core/constants.dart';
 import 'text_tokenizer.dart';
 import 'model_bundle.dart';
 
 /// On-device AI Service for distress detection and message prioritization.
-/// 
+///
 /// Capabilities:
-/// - Text-based distress classification (using TFLite model)
+/// - Text-based distress classification (using TFLite model via native bridge)
 /// - Message priority scoring
 /// - Audio anomaly detection (screams, gunshots)
 /// - Runs completely offline on device CPU/NPU
+///
+/// NOTE: TFLite inference is performed via MethodChannel bridge to native
+/// Kotlin code (SecurityProvider.kt) instead of the tflite_flutter plugin.
+/// This avoids native .so library loading crashes during Flutter engine init.
 class DistressDetector extends ChangeNotifier {
   static final DistressDetector _instance = DistressDetector._internal();
   factory DistressDetector() => _instance;
   DistressDetector._internal();
 
-  tfl.Interpreter? _interpreter;
+  static const _channel = MethodChannel('com.dangeremergence/security');
+
+  String? _modelId;
   bool _modelLoaded = false;
   bool _isLoading = false;
   double _lastInferenceTime = 0;
@@ -42,7 +48,12 @@ class DistressDetector extends ChangeNotifier {
     'CRITICAL - Life-threatening emergency',
   ];
 
-  /// Load the TFLite model from assets.
+  /// Load the TFLite model from assets via native MethodChannel bridge.
+  ///
+  /// CRITICAL: This runs deferred to avoid blocking the UI. Unlike the
+  /// tflite_flutter plugin, the native bridge does NOT bundle .so files
+  /// in the Flutter plugin layer, so it cannot cause UnsatisfiedLinkError
+  /// during Flutter engine initialization.
   Future<void> loadModel() async {
     if (_modelLoaded || _isLoading) return;
     _isLoading = true;
@@ -54,17 +65,26 @@ class DistressDetector extends ChangeNotifier {
       await _modelBundle.initialize();
 
       if (!kIsWeb) {
-        // Load the TFLite model for native platforms
+        // Defer TFLite loading slightly to let the widget tree settle
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Load the TFLite model via native MethodChannel bridge
         final modelPath = await _modelBundle.getModelPath(AppConstants.distressModelPath);
-        if (modelPath == AppConstants.distressModelPath) {
-          // Load from bundled assets
-          _interpreter = await tfl.Interpreter.fromAsset(modelPath);
-        } else {
-          // Load from file (downloaded/cached)
-          _interpreter = tfl.Interpreter.fromFile(modelPath);
+        
+        try {
+          final result = await _channel.invokeMethod('tfliteLoadModel', {
+            'modelPath': modelPath,
+          });
+          
+          if (result != null && result is Map) {
+            _modelId = result['modelId'] as String?;
+            _modelLoaded = _modelId != null;
+            debugPrint('Distress detection model loaded via native bridge: $_modelId');
+          }
+        } catch (e) {
+          debugPrint('Failed to load TFLite model via native bridge (non-fatal, using rule-based): $e');
+          _modelLoaded = false;
         }
-        _modelLoaded = true;
-        debugPrint('Distress detection model loaded successfully from: $modelPath');
       } else {
         // For web, we use rule-based analysis as fallback
         _modelLoaded = false;
@@ -82,25 +102,37 @@ class DistressDetector extends ChangeNotifier {
   /// Analyze a text message for distress content.
   /// Returns a priority level (0-3) and confidence score.
   Future<DistressResult> analyzeMessage(String message) async {
-    if (_modelLoaded && _interpreter != null) {
+    if (_modelLoaded && _modelId != null) {
       return _inference(message);
     }
     return _ruleBasedAnalysis(message);
   }
 
-  /// Run TFLite inference on the message.
+  /// Run TFLite inference on the message via native MethodChannel bridge.
   Future<DistressResult> _inference(String message) async {
     final stopwatch = Stopwatch()..start();
 
     try {
-      // Use the proper tokenizer instead of simplified hash-based embedding
+      // Tokenize input using the proper tokenizer
       final input = _tokenizer.tokenizeToFloat(message, sequenceLength: AppConstants.modelInputSize);
-      // Model has 4 output nodes (one for each priority level)
-      final output = [List<double>.filled(4, 0.0)];
+      
+      // Run inference via native bridge
+      final result = await _channel.invokeMethod('tfliteRunInference', {
+        'modelId': _modelId,
+        'input': input,
+        'inputShape': [1, AppConstants.modelInputSize],
+      });
 
-      _interpreter!.run(input, output);
+      if (result == null || result is! Map) {
+        throw Exception('Null result from native inference');
+      }
 
-      final scores = output[0];
+      final scores = (result['output'] as List<dynamic>)
+          .map((e) => (e as num).toDouble())
+          .toList();
+      
+      final inferenceTime = (result['inferenceTimeMs'] as num?)?.toDouble() ?? 0.0;
+
       int priority = 0;
       double maxScore = -1.0;
 
@@ -112,7 +144,7 @@ class DistressDetector extends ChangeNotifier {
       }
 
       stopwatch.stop();
-      _lastInferenceTime = stopwatch.elapsedMilliseconds.toDouble();
+      _lastInferenceTime = inferenceTime > 0 ? inferenceTime : stopwatch.elapsedMilliseconds.toDouble();
 
       return DistressResult(
         priority: priority,

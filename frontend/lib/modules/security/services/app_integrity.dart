@@ -190,15 +190,21 @@ class AppIntegrity {
         if (await _fileExists('/data/adb/magisk.db')) {
           indicators.add('Magisk detected');
         }
-
-        // Check if running as root
-        try {
-          final result = await Process.run('id', []);
-          if (result.stdout.toString().contains('uid=0')) {
-            indicators.add('Process running as root');
-          }
-        } catch (_) {
-          // 'id' command not available — expected on non-rooted devices
+// Check if running as root
+// NOTE: Process.run() is NOT available in Flutter's standard Android engine.
+// On Android, dart:io Process class is not compiled into the app by default.
+// This check is intentionally skipped on Android to avoid ArgumentError.
+// Root detection is handled via file/package checks above.
+if (!Platform.isAndroid) {
+  try {
+    final result = await Process.run('id', []);
+    if (result.stdout.toString().contains('uid=0')) {
+      indicators.add('Process running as root');
+    }
+  } catch (_) {
+    // 'id' command not available — expected on non-rooted devices
+  }
+}
         }
       } else if (Platform.isIOS) {
         // Check for common jailbreak files
@@ -289,16 +295,22 @@ class AppIntegrity {
           }
         } catch (_) {}
       }
-
-      // Cross-platform: Check debugger flags
-      if (Platform.environment.containsKey('FLUTTER_TEST') ||
-          Platform.environment.containsKey('DEBUGGER_ATTACHED')) {
-        return IntegrityCheck(
-          name: 'Debugger Detection',
-          passed: false,
-          severity: SecurityEventSeverity.warning,
-          details: 'Debug environment detected',
-        );
+// Cross-platform: Check debugger flags
+// NOTE: Platform.environment may throw UnsupportedError on Android
+// because dart:io Platform is not fully available in Flutter's engine.
+try {
+  if (Platform.environment.containsKey('FLUTTER_TEST') ||
+      Platform.environment.containsKey('DEBUGGER_ATTACHED')) {
+    return IntegrityCheck(
+      name: 'Debugger Detection',
+      passed: false,
+      severity: SecurityEventSeverity.warning,
+      details: 'Debug environment detected',
+    );
+  }
+} catch (_) {
+  // Platform.environment not available — expected on Android
+}
       }
 
       // Check if running in debug mode

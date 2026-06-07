@@ -1,5 +1,6 @@
 package com.dangeremergence.security
 
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
@@ -12,6 +13,8 @@ import androidx.annotation.RequiresApi
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.security.*
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
@@ -20,6 +23,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import org.tensorflow.lite.Interpreter
 
 /**
  * Dedicated security provider that handles all MethodChannel calls
@@ -61,6 +65,10 @@ class SecurityProvider(private val context: android.content.Context) {
             "getSignatureHash" -> { handleGetSignatureHash(result); true }
             "isPackageInstalled" -> { handleIsPackageInstalled(call, result); true }
             "verifyBundleSignature" -> { handleVerifyBundleSignature(result); true }
+            // TFLite Native Inference Bridge
+            "tfliteLoadModel" -> { handleTfliteLoadModel(call, result); true }
+            "tfliteRunInference" -> { handleTfliteRunInference(call, result); true }
+            "tfliteIsAvailable" -> { handleTfliteIsAvailable(result); true }
             else -> false
         }
     }
@@ -457,15 +465,167 @@ class SecurityProvider(private val context: android.content.Context) {
             result.success(false)
         }
     }
+/**
+ * iOS bundle signature verification stub.
+ * On Android, this is not applicable — always returns true.
+ */
+private fun handleVerifyBundleSignature(result: MethodChannel.Result) {
+    // Android does not have bundle signature verification like iOS.
+    // APK signature is verified at install time by the OS.
+    // Return true as the OS-level check is sufficient.
+    result.success(true)
+}
 
-    /**
-     * iOS bundle signature verification stub.
-     * On Android, this is not applicable — always returns true.
-     */
-    private fun handleVerifyBundleSignature(result: MethodChannel.Result) {
-        // Android does not have bundle signature verification like iOS.
-        // APK signature is verified at install time by the OS.
-        // Return true as the OS-level check is sufficient.
-        result.success(true)
+// ──────────────────────────────────────────────
+// TFLite Native Inference Bridge
+// ──────────────────────────────────────────────
+
+/** Map of loaded model ID -> Interpreter instance */
+private val loadedModels = HashMap<String, Interpreter>()
+private var modelIdCounter = 0
+
+/**
+ * Load a TFLite model from the app's assets directory.
+ *
+ * Arguments:
+ *   - modelPath (String): Path to the .tflite model file in assets/
+ *
+ * Returns:
+ *   - modelId (String): Unique identifier for the loaded model
+ */
+private fun handleTfliteLoadModel(call: MethodCall, result: MethodChannel.Result) {
+    try {
+        val modelPath = call.argument<String>("modelPath")
+            ?: throw IllegalArgumentException("modelPath required")
+
+        Log.d(TAG, "Loading TFLite model from assets: $modelPath")
+
+        // Load the model from assets using Android's AssetManager
+        val assetManager = context.assets
+        val buffer = assetManager.open(modelPath).use { inputStream ->
+            val bytes = inputStream.readBytes()
+            ByteBuffer.allocateDirect(bytes.size).apply {
+                order(ByteOrder.nativeOrder())
+                put(bytes)
+                rewind()
+            }
+        }
+
+        val interpreter = Interpreter(buffer)
+        val modelId = "model_${++modelIdCounter}"
+
+        loadedModels[modelId] = interpreter
+
+        val response = HashMap<String, Any?>()
+        response["modelId"] = modelId
+        response["inputShape"] = interpreter.getInputTensor(0).shape()
+        response["outputShape"] = interpreter.getOutputTensor(0).shape()
+        response["inputType"] = interpreter.getInputTensor(0).dataType().name()
+        response["outputType"] = interpreter.getOutputTensor(0).dataType().name()
+
+        Log.d(TAG, "TFLite model loaded successfully: $modelPath (id=$modelId)")
+        result.success(response)
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to load TFLite model", e)
+        result.error("TFLITE_LOAD_ERROR", "Failed to load model: ${e.message}", null)
     }
+}
+
+/**
+ * Run inference on a previously loaded TFLite model.
+ *
+ * Arguments:
+ *   - modelId (String): Model ID returned from tfliteLoadModel
+ *   - input (List<dynamic>): Input data as a flattened list
+ *   - inputShape (List<Int>): Shape of the input tensor
+ *
+ * Returns:
+ *   - output (List<dynamic>): Flattened output data
+ *   - outputShape (List<Int>): Shape of the output tensor
+ */
+private fun handleTfliteRunInference(call: MethodCall, result: MethodChannel.Result) {
+    try {
+        val modelId = call.argument<String>("modelId")
+            ?: throw IllegalArgumentException("modelId required")
+        val inputList = call.argument<List<Double>>("input")
+            ?: throw IllegalArgumentException("input required")
+        val inputShape = call.argument<List<Int>>("inputShape")
+            ?: throw IllegalArgumentException("inputShape required")
+
+        val interpreter = loadedModels[modelId]
+            ?: throw IllegalStateException("Model not found: $modelId")
+
+        // Convert input list to ByteBuffer
+        val inputSize = inputList.size
+        val inputBuffer = ByteBuffer.allocateDirect(inputSize * 4).apply {
+            order(ByteOrder.nativeOrder())
+            inputList.forEach { putFloat(it.toFloat()) }
+            rewind()
+        }
+
+        // Get output shape from model
+        val outputTensor = interpreter.getOutputTensor(0)
+        val outputShape = outputTensor.shape()
+        val outputSize = outputShape.fold(1) { acc, dim -> acc * dim }
+
+        // Create output buffer
+        val outputBuffer = ByteBuffer.allocateDirect(outputSize * 4).apply {
+            order(ByteOrder.nativeOrder())
+        }
+
+        // Run inference
+        val startTime = System.nanoTime()
+        interpreter.run(inputBuffer, outputBuffer)
+        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0
+
+        // Read output
+        outputBuffer.rewind()
+        val outputList = ArrayList<Double>(outputSize)
+        for (i in 0 until outputSize) {
+            outputList.add(outputBuffer.getFloat().toDouble())
+        }
+
+        val response = HashMap<String, Any?>()
+        response["output"] = outputList
+        response["outputShape"] = outputShape.toList()
+        response["inferenceTimeMs"] = elapsedMs
+
+        result.success(response)
+    } catch (e: Exception) {
+        Log.e(TAG, "TFLite inference failed", e)
+        result.error("TFLITE_INFERENCE_ERROR", "Inference failed: ${e.message}", null)
+    }
+}
+
+/**
+ * Check if the TFLite native runtime is available on this device.
+ *
+ * Returns:
+ *   - available (Boolean): Whether TFLite runtime is available
+ *   - version (String): TFLite runtime version
+ */
+private fun handleTfliteIsAvailable(result: MethodChannel.Result) {
+    try {
+        // Try to get TFLite version info
+        val version = try {
+            Interpreter::class.java.`package`?.implementationVersion ?: "unknown"
+        } catch (e: Exception) {
+            "unknown"
+        }
+
+        val response = HashMap<String, Any?>()
+        response["available"] = true
+        response["version"] = version
+        response["runtime"] = "org.tensorflow.lite"
+
+        result.success(response)
+    } catch (e: Exception) {
+        Log.e(TAG, "TFLite runtime check failed", e)
+        val response = HashMap<String, Any?>()
+        response["available"] = false
+        response["version"] = "unavailable"
+        response["runtime"] = "org.tensorflow.lite"
+        result.success(response)
+    }
+}
 }

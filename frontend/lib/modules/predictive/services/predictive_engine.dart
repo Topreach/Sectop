@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
+import 'package:flutter/services.dart';
 import '../../../core/constants.dart';
 import '../../../shared/models/location.dart';
 import '../../../shared/services/offline_storage.dart';
@@ -14,10 +14,16 @@ import '../../ai/services/model_bundle.dart';
 /// - Prophet-style time series forecasting for danger zone prediction
 /// - Hungarian algorithm for optimal resource allocation
 /// - LSTM-based anomaly detection for early warning
+///
+/// NOTE: TFLite model loading is performed via native MethodChannel bridge
+/// (SecurityProvider.kt) instead of the tflite_flutter plugin, to avoid
+/// native .so library loading crashes during Flutter engine initialization.
 class PredictiveEngine {
   static final PredictiveEngine _instance = PredictiveEngine._();
   factory PredictiveEngine() => _instance;
   PredictiveEngine._();
+
+  static const _channel = MethodChannel('com.dangeremergence/security');
 
   // Historical data store
   final Map<String, List<ZoneHistoryPoint>> _zoneHistory = {};
@@ -29,7 +35,7 @@ class PredictiveEngine {
 
   // Model state
   bool _isModelLoaded = false;
-  tfl.Interpreter? _lstmModel; // TFLite LSTM model for time series
+  String? _lstmModelId; // TFLite LSTM model ID (loaded via native bridge)
 
   // Model bundle manager
   final ModelBundle _modelBundle = ModelBundle();
@@ -44,17 +50,18 @@ class PredictiveEngine {
       // Initialize model bundle
       await _modelBundle.initialize();
 
-      // Load LSTM model for time series forecasting
+      // Load LSTM model for time series forecasting via native bridge
       if (!kIsWeb) {
         try {
           final modelPath = await _modelBundle.getModelPath('models/danger_forecast.tflite');
-          if (modelPath == 'models/danger_forecast.tflite') {
-            _lstmModel = await tfl.Interpreter.fromAsset(modelPath);
-          } else {
-            _lstmModel = tfl.Interpreter.fromFile(modelPath);
+          final result = await _channel.invokeMethod('tfliteLoadModel', {
+            'modelPath': modelPath,
+          });
+          if (result != null && result is Map) {
+            _lstmModelId = result['modelId'] as String?;
+            _isModelLoaded = _lstmModelId != null;
+            debugPrint('Predictive engine: LSTM model loaded via native bridge: $_lstmModelId');
           }
-          _isModelLoaded = true;
-          debugPrint('Predictive engine: LSTM model loaded successfully');
         } catch (e) {
           debugPrint('Predictive engine: LSTM model load failed, using rule-based: $e');
           _isModelLoaded = false;
@@ -424,7 +431,8 @@ class PredictiveEngine {
   }
 
   void dispose() {
-    _lstmModel?.close();
+    _lstmModelId = null;
+    _isModelLoaded = false;
   }
 }
 

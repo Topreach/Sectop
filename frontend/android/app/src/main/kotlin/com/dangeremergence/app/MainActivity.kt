@@ -12,6 +12,7 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import com.dangeremergence.security.SecurityProvider
+import java.util.HashMap
 
 class MainActivity : FlutterActivity() {
     private val METHOD_CHANNEL = "com.dangeremergence/security"

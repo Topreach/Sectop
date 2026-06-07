@@ -44,8 +44,12 @@ dependencies:
   web_socket_channel: ^2.4.0
   json_annotation: ^4.8.1
   # AI/ML
-  tflite_flutter: ^0.10.3
-  tflite_flutter_helper: ^0.3.1
+  # NOTE: tflite_flutter and tflite_flutter_helper are intentionally removed.
+  # These Flutter plugins bundle native .so libraries that cause
+  # UnsatisfiedLinkError during Flutter engine initialization on devices
+  # with incompatible ABIs. TFLite inference is performed via native
+  # Kotlin MethodChannel bridge (see SecurityProvider.kt) which uses
+  # the Android TFLite runtime from build.gradle dependencies.
   image: ^3.0.2
 
   # Background Services
