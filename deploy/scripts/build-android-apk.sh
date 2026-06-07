@@ -763,6 +763,14 @@ WMEOF3
     mkdir -p "$BUILD_WEB_DIR"
     cp "$APK_PATH" "$BUILD_WEB_DIR/danger-emergence.apk"
     log_info "APK copied to web build directory for nginx: $BUILD_WEB_DIR/danger-emergence.apk"
+
+    # Also copy directly into the Docker nginx container (in case bind mount is stale)
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^danger-emergence-nginx$'; then
+      docker cp "$APK_PATH" danger-emergence-nginx:/usr/share/nginx/html/danger-emergence.apk 2>/dev/null && \
+        log_info "APK copied directly into Docker nginx container" || \
+        log_warn "Could not copy APK into Docker container (will use bind mount)"
+    fi
+
     log_info "Download URL: http://173.249.34.3/danger-emergence.apk"
   else
     log_error "APK build failed — output not found at $APK_PATH"
