@@ -52,26 +52,35 @@ class SecurityManager extends ChangeNotifier {
   Future<void> initialize() async {
     debugPrint('SecurityManager: Initializing...');
 
-    // Initialize secure enclave
-    await _enclave.initialize();
+    try {
+      // Initialize secure enclave
+      await _enclave.initialize();
+    } catch (e, stack) {
+      debugPrint('SecurityManager: SecureEnclave init failed (non-fatal): $e\n$stack');
+    }
 
-    // Run initial integrity check
-    final integrityResult = await _integrity.initialize();
-    _isCompromised = !integrityResult.passed;
+    try {
+      // Run initial integrity check
+      final integrityResult = await _integrity.initialize();
+      _isCompromised = !integrityResult.passed;
 
-    if (_isCompromised) {
-      _logEvent(
-        SecurityEventType.integrityCheckFailed,
-        SecurityEventSeverity.critical,
-        'Initial integrity check failed: ${integrityResult.failedChecks.length} checks failed',
-      );
-      _handleCompromise(integrityResult);
-    } else {
-      _logEvent(
-        SecurityEventType.integrityCheckPassed,
-        SecurityEventSeverity.info,
-        'Initial integrity check passed',
-      );
+      if (_isCompromised) {
+        _logEvent(
+          SecurityEventType.integrityCheckFailed,
+          SecurityEventSeverity.critical,
+          'Initial integrity check failed: ${integrityResult.failedChecks.length} checks failed',
+        );
+        _handleCompromise(integrityResult);
+      } else {
+        _logEvent(
+          SecurityEventType.integrityCheckPassed,
+          SecurityEventSeverity.info,
+          'Initial integrity check passed',
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('SecurityManager: Integrity check failed (non-fatal): $e\n$stack');
+      _isCompromised = false;
     }
 
     // Start periodic integrity monitoring

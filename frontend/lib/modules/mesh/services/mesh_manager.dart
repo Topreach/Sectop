@@ -60,13 +60,19 @@ class MeshManager extends ChangeNotifier {
 
     // Initialize Bluetooth (mobile only)
     if (!kIsWeb) {
-      _bluetooth = FlutterBluetoothSerial.instance;
-      _bluetooth!.onStateChanged().listen((state) {
-        _bluetoothState = state;
-        notifyListeners();
-      });
+      try {
+        _bluetooth = FlutterBluetoothSerial.instance;
+        _bluetooth!.onStateChanged().listen((state) {
+          _bluetoothState = state;
+          notifyListeners();
+        });
 
-      _bluetoothState = await _bluetooth!.state;
+        _bluetoothState = await _bluetooth!.state;
+      } catch (e, stack) {
+        debugPrint('MeshManager: Bluetooth init failed (non-fatal): $e\n$stack');
+        _bluetooth = null;
+        _bluetoothState = BluetoothState.UNKNOWN;
+      }
     }
     notifyListeners();
   }

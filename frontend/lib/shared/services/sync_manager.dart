@@ -34,18 +34,33 @@ class SyncManager {
 
   /// Initialize the sync manager and start listening for connectivity changes.
   Future<void> initialize() async {
-    // Cache initial connectivity state
-    final initialResult = await _connectivity.checkConnectivity();
-    _cachedIsOnline = initialResult != ConnectivityResult.none;
-    _cachedPendingCount = (await _storage.getPendingSyncItems()).length;
+    try {
+      // Cache initial connectivity state
+      final initialResult = await _connectivity.checkConnectivity();
+      _cachedIsOnline = initialResult != ConnectivityResult.none;
+    } catch (e, stack) {
+      debugPrint('SyncManager: connectivity check failed (non-fatal): $e\n$stack');
+      _cachedIsOnline = false;
+    }
 
-    // Listen for connectivity changes
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
-      _cachedIsOnline = result != ConnectivityResult.none;
-      if (_cachedIsOnline) {
-        _performSync();
-      }
-    });
+    try {
+      _cachedPendingCount = (await _storage.getPendingSyncItems()).length;
+    } catch (e, stack) {
+      debugPrint('SyncManager: pending count query failed (non-fatal): $e\n$stack');
+      _cachedPendingCount = 0;
+    }
+
+    try {
+      // Listen for connectivity changes
+      _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+        _cachedIsOnline = result != ConnectivityResult.none;
+        if (_cachedIsOnline) {
+          _performSync();
+        }
+      });
+    } catch (e, stack) {
+      debugPrint('SyncManager: connectivity listener failed (non-fatal): $e\n$stack');
+    }
 
     // Start periodic sync
     _startPeriodicSync();

@@ -50,9 +50,14 @@ class ObservabilityService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Load persisted sampling rate
-    final prefs = await SharedPreferences.getInstance();
-    _currentSamplingRate = prefs.getDouble('observability_sampling_rate') ?? 1.0;
+    try {
+      // Load persisted sampling rate
+      final prefs = await SharedPreferences.getInstance();
+      _currentSamplingRate = prefs.getDouble('observability_sampling_rate') ?? 1.0;
+    } catch (e, stack) {
+      debugPrint('ObservabilityService: SharedPreferences failed (non-fatal): $e\n$stack');
+      _currentSamplingRate = 1.0;
+    }
 
     // Start periodic flush to backend
     _flushTimer = Timer.periodic(_flushInterval, (_) => _flushBuffers());

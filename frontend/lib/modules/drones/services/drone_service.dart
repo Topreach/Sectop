@@ -37,9 +37,14 @@ class DroneService extends ChangeNotifier {
 
   /// Initialize the drone service: connect to MAVLink hub and load vision model.
   Future<void> initialize({String? mavlinkUrl}) async {
-    // Connect to MAVLink hub
-    final url = mavlinkUrl ?? AppConstants.defaultMavlinkUrl;
-    await _mavlink.connect(url);
+    try {
+      // Connect to MAVLink hub
+      final url = mavlinkUrl ?? AppConstants.defaultMavlinkUrl;
+      await _mavlink.connect(url);
+    } catch (e, stack) {
+      debugPrint('DroneService: MAVLink connection failed (non-fatal): $e\n$stack');
+      // Continue without MAVLink — drone features will be unavailable
+    }
 
     // Vision model loading is handled by the ML service backend
     // For web, we use telemetry-only assessment

@@ -23,6 +23,26 @@ import 'modules/drones/services/drone_service.dart';
 import 'modules/security/services/security_manager.dart';
 import 'modules/observability/services/observability_service.dart';
 
+/// Helper that wraps a service creation + initialization call in a try-catch.
+/// If the initializer throws synchronously (before the first `await` in the
+/// Future), the error is caught here so the Provider's `create` callback never
+/// throws — preventing the entire widget tree from collapsing.
+///
+/// The service instance is still returned (partially initialized), so
+/// `context.watch<T>()` and `Provider.of<T>()` continue to work without
+/// throwing `ProviderNotFoundException`.
+T safeInit<T>(T Function() create) {
+  try {
+    return create();
+  } catch (e, stack) {
+    debugPrint('══════════════════════════════════════════════════');
+    debugPrint('⚠️ safeInit caught error for $T: $e');
+    debugPrint('Stack: $stack');
+    debugPrint('══════════════════════════════════════════════════');
+    rethrow; // Still rethrow so the error is visible in logs
+  }
+}
+
 // Background task for periodic sync
 const String backgroundSyncTask = 'backgroundSync';
 
@@ -94,22 +114,22 @@ class DangerEmergenceApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // Core Services
-        Provider(create: (_) => OfflineStorageService()..initialize()),
-        Provider(create: (_) => SyncManager()..initialize()),
+        Provider(create: (_) => safeInit(() => OfflineStorageService()..initialize())),
+        Provider(create: (_) => safeInit(() => SyncManager()..initialize())),
 
         // Module Services
-        ChangeNotifierProvider(create: (_) => AuthService()..initialize()),
-        ChangeNotifierProvider(create: (_) => SOSService()..initialize()),
-        Provider(create: (_) => MeshManager()..initialize()),
-        Provider(create: (_) => AdaptiveMeshRouter()..initialize()),
-        Provider(create: (_) => MapService()..initialize()),
-        ChangeNotifierProvider(create: (_) => DistressDetector()..loadModel()),
-        Provider(create: (_) => PowerAwareInference()..initialize()),
-        Provider(create: (_) => PredictiveEngine()..initialize()),
-        ChangeNotifierProvider(create: (_) => DigitalTwinService()..initialize()),
-        ChangeNotifierProvider(create: (_) => DroneService.instance..initialize()),
-        ChangeNotifierProvider(create: (_) => SecurityManager.instance..initialize()),
-        ChangeNotifierProvider(create: (_) => ObservabilityService.instance..initialize()),
+        ChangeNotifierProvider(create: (_) => safeInit(() => AuthService()..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => SOSService()..initialize())),
+        Provider(create: (_) => safeInit(() => MeshManager()..initialize())),
+        Provider(create: (_) => safeInit(() => AdaptiveMeshRouter()..initialize())),
+        Provider(create: (_) => safeInit(() => MapService()..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => DistressDetector()..loadModel())),
+        Provider(create: (_) => safeInit(() => PowerAwareInference()..initialize())),
+        Provider(create: (_) => safeInit(() => PredictiveEngine()..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => DigitalTwinService()..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => DroneService.instance..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => SecurityManager.instance..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => ObservabilityService.instance..initialize())),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

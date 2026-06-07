@@ -23,15 +23,20 @@ class OfflineStorageService {
     // SQLite is not available on web; skip database initialization.
     // SharedPreferences-based methods (getSetting, saveSetting) still work.
     if (!kIsWeb) {
-      final dbPath = await getDatabasesPath();
-      final path = join(dbPath, AppConstants.dbName);
+      try {
+        final dbPath = await getDatabasesPath();
+        final path = join(dbPath, AppConstants.dbName);
 
-      _database = await openDatabase(
-        path,
-        version: AppConstants.dbVersion,
-        onCreate: _createTables,
-        onUpgrade: _upgradeTables,
-      );
+        _database = await openDatabase(
+          path,
+          version: AppConstants.dbVersion,
+          onCreate: _createTables,
+          onUpgrade: _upgradeTables,
+        );
+      } catch (e, stack) {
+        debugPrint('OfflineStorageService: DB init failed (non-fatal): $e\n$stack');
+        _database = null;
+      }
     }
 
     _initialized = true;

@@ -8,6 +8,29 @@ class Breakpoints {
   static const double desktop = 1200;
 }
 
+/// ResponsiveWrapper — wraps the app child with responsive constraints.
+/// Used in [MaterialApp.builder] to provide consistent responsive behavior.
+class ResponsiveWrapper extends StatelessWidget {
+  final Widget child;
+
+  const ResponsiveWrapper({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            // Prevent font scaling in emergency context
+            textScaler: TextScaler.noScaling,
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
 /// Responsive layout widget that adapts to screen size.
 /// Shows different layouts for mobile, tablet, and desktop.
 class ResponsiveLayout extends StatelessWidget {
