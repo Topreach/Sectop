@@ -510,9 +510,20 @@ build_apk() {
   if [ -f "$APP_BUILD_GRADLE" ]; then
     # Add compileOptions for desugaring if not already present
     if ! grep -q "isCoreLibraryDesugaringEnabled" "$APP_BUILD_GRADLE" 2>/dev/null; then
-      sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' "$APP_BUILD_GRADLE"
-      # Add desugaring dependency
-      sed -i '/dependencies {/a\    coreLibraryDesugaring '\''com.android.tools:desugar_jdk_libs:2.0.4'\''' "$APP_BUILD_GRADLE"
+      # Use awk to insert isCoreLibraryDesugaringEnabled inside compileOptions block
+      awk '{
+        print $0
+        if ($0 ~ /compileOptions \{/) {
+          print "        isCoreLibraryDesugaringEnabled = true"
+        }
+      }' "$APP_BUILD_GRADLE" > "${APP_BUILD_GRADLE}.tmp" && mv "${APP_BUILD_GRADLE}.tmp" "$APP_BUILD_GRADLE"
+      # Add desugaring dependency inside dependencies block
+      awk '{
+        print $0
+        if ($0 ~ /dependencies \{/) {
+          print "    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\""
+        }
+      }' "$APP_BUILD_GRADLE" > "${APP_BUILD_GRADLE}.tmp" && mv "${APP_BUILD_GRADLE}.tmp" "$APP_BUILD_GRADLE"
       log_info "Enabled core library desugaring for flutter_local_notifications"
     fi
   fi
@@ -520,19 +531,13 @@ build_apk() {
   # Patch workmanager-0.5.2 Kotlin files that use deprecated Shims/Registrar API
   local WM_DIR="/root/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager"
   if [ -d "$WM_DIR" ]; then
-    # Replace BackgroundWorker.kt with a stub that doesn't use shim
+    # Replace BackgroundWorker.kt with a stub that has NO unused imports
     cat > "$WM_DIR/BackgroundWorker.kt" << 'WMEOF'
 package dev.fluttercommunity.workmanager
 
 import android.content.Context
-import androidx.annotation.NonNull
 import androidx.work.Worker
 import androidx.work.WorkerParameters
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.embedding.engine.plugins.shim.ShimPluginRegistry
-import io.flutter.view.FlutterCallbackInformation
-import io.flutter.view.FlutterMain
 
 class BackgroundWorker(
     context: Context,
@@ -581,7 +586,35 @@ class WorkmanagerPlugin : FlutterPlugin, MethodCallHandler {
     }
 }
 WMEOF2
-    log_info "Patched workmanager plugin Kotlin stubs"
+    # Replace WorkmanagerCallHandler.kt with a stub that defines the constants
+    cat > "$WM_DIR/WorkmanagerCallHandler.kt" << 'WMEOF3'
+package dev.fluttercommunity.workmanager
+
+import androidx.annotation.NonNull
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodChannel.Result
+
+class WorkmanagerCallHandler {
+    companion object {
+        private const val DART_TASK_KEY = "taskKey"
+        private const val IS_IN_DEBUG_MODE_KEY = "isInDebugMode"
+        private const val PAYLOAD_KEY = "payload"
+    }
+
+    fun handleMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
+        when (call.method) {
+            "initialize" -> result.success(true)
+            "registerOneOffTask" -> result.success(true)
+            "registerPeriodicTask" -> result.success(true)
+            "cancelAllTasks" -> result.success(true)
+            "cancelUniqueWork" -> result.success(true)
+            else -> result.notImplemented()
+        }
+    }
+}
+WMEOF3
+    log_info "Patched workmanager plugin Kotlin stubs (BackgroundWorker, WorkmanagerPlugin, WorkmanagerCallHandler)"
   fi
   
   # Clean previous builds
