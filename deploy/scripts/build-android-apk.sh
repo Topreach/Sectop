@@ -505,26 +505,43 @@ build_apk() {
     log_info "Patched flutter_local_notifications ambiguous bigLargeIcon call"
   fi
   
-  # Enable core library desugaring in app/build.gradle (required by flutter_local_notifications)
+  # Enable core library desugaring in app/build.gradle.kts (required by flutter_local_notifications)
+  # Modern Flutter generates Kotlin DSL (build.gradle.kts), not Groovy (build.gradle)
+  local APP_BUILD_GRADLE_KTS="$FRONTEND_DIR/android/app/build.gradle.kts"
   local APP_BUILD_GRADLE="$FRONTEND_DIR/android/app/build.gradle"
-  if [ -f "$APP_BUILD_GRADLE" ]; then
+  if [ -f "$APP_BUILD_GRADLE_KTS" ]; then
     # Add compileOptions for desugaring if not already present
-    if ! grep -q "isCoreLibraryDesugaringEnabled" "$APP_BUILD_GRADLE" 2>/dev/null; then
+    if ! grep -q "isCoreLibraryDesugaringEnabled" "$APP_BUILD_GRADLE_KTS" 2>/dev/null; then
       # Use awk to insert isCoreLibraryDesugaringEnabled inside compileOptions block
       awk '{
         print $0
         if ($0 ~ /compileOptions \{/) {
           print "        isCoreLibraryDesugaringEnabled = true"
         }
+      }' "$APP_BUILD_GRADLE_KTS" > "${APP_BUILD_GRADLE_KTS}.tmp" && mv "${APP_BUILD_GRADLE_KTS}.tmp" "$APP_BUILD_GRADLE_KTS"
+      # Add dependencies block with coreLibraryDesugaring at end of file (Kotlin DSL template has no dependencies block)
+      echo "" >> "$APP_BUILD_GRADLE_KTS"
+      echo "dependencies {" >> "$APP_BUILD_GRADLE_KTS"
+      echo "    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")" >> "$APP_BUILD_GRADLE_KTS"
+      echo "}" >> "$APP_BUILD_GRADLE_KTS"
+      log_info "Enabled core library desugaring for flutter_local_notifications (Kotlin DSL)"
+    fi
+  elif [ -f "$APP_BUILD_GRADLE" ]; then
+    # Fallback for Groovy DSL
+    if ! grep -q "isCoreLibraryDesugaringEnabled" "$APP_BUILD_GRADLE" 2>/dev/null; then
+      awk '{
+        print $0
+        if ($0 ~ /compileOptions \{/) {
+          print "        isCoreLibraryDesugaringEnabled = true"
+        }
       }' "$APP_BUILD_GRADLE" > "${APP_BUILD_GRADLE}.tmp" && mv "${APP_BUILD_GRADLE}.tmp" "$APP_BUILD_GRADLE"
-      # Add desugaring dependency inside dependencies block
       awk '{
         print $0
         if ($0 ~ /dependencies \{/) {
           print "    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\""
         }
       }' "$APP_BUILD_GRADLE" > "${APP_BUILD_GRADLE}.tmp" && mv "${APP_BUILD_GRADLE}.tmp" "$APP_BUILD_GRADLE"
-      log_info "Enabled core library desugaring for flutter_local_notifications"
+      log_info "Enabled core library desugaring for flutter_local_notifications (Groovy DSL)"
     fi
   fi
   
