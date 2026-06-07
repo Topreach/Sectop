@@ -304,13 +304,13 @@ MANIFESTEOF
   _create_plugin_build_gradle "$BT_ANDROID_DIR" "$BT_PKG"
   _create_plugin_manifest "$BT_ANDROID_DIR/src/main"
   
-  if [ ! -f "$BT_JAVA_FILE" ]; then
-    log_warn "flutter_bluetooth_serial plugin is missing Android native source files"
-    log_info "Creating stub Java file for flutter_bluetooth_serial plugin..."
-    
-    mkdir -p "$BT_JAVA_DIR"
-    
-    cat > "$BT_JAVA_FILE" << 'EOFBT'
+  # Always recreate the Java stub (it may have been created by a previous run
+  # with compilation errors, e.g. using removed APIs like PluginRegistry.Registrar)
+  log_info "Creating/updating stub Java file for flutter_bluetooth_serial plugin..."
+  
+  mkdir -p "$BT_JAVA_DIR"
+  
+  cat > "$BT_JAVA_FILE" << 'EOFBT'
 package io.github.edufolly.flutterbluetoothserial;
 
 import android.app.Activity;
@@ -323,17 +323,11 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 public class FlutterBluetoothSerialPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware {
   private static final String CHANNEL = "flutter_bluetooth_serial";
   private MethodChannel channel;
   private Activity activity;
-  
-  public static void registerWith(Registrar registrar) {
-    final MethodChannel channel = new MethodChannel(registrar.messenger(), CHANNEL);
-    channel.setMethodCallHandler(new FlutterBluetoothSerialPlugin());
-  }
   
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
@@ -354,6 +348,11 @@ public class FlutterBluetoothSerialPlugin implements FlutterPlugin, MethodCallHa
   
   @Override
   public void onDetachedFromActivity() {
+    activity = null;
+  }
+  
+  @Override
+  public void onDetachedFromActivityForConfigChanges() {
     activity = null;
   }
   
@@ -389,10 +388,7 @@ public class FlutterBluetoothSerialPlugin implements FlutterPlugin, MethodCallHa
   }
 }
 EOFBT
-    
-    log_ok "Created stub Java file for flutter_bluetooth_serial plugin"
-  else
-    log_ok "flutter_bluetooth_serial plugin already has Android native source"
+  log_ok "Created/updated stub Java file for flutter_bluetooth_serial plugin"
   fi
   
   # ── geolocator_android-4.6.2 ────────────────────────────────────────────
@@ -406,13 +402,12 @@ EOFBT
   _create_plugin_build_gradle "$GEO_ANDROID_DIR" "$GEO_PKG"
   _create_plugin_manifest "$GEO_ANDROID_DIR/src/main"
   
-  if [ ! -f "$GEO_JAVA_FILE" ]; then
-    log_warn "geolocator_android plugin is missing Android native source files"
-    log_info "Creating stub Java file for geolocator_android plugin..."
-    
-    mkdir -p "$GEO_JAVA_DIR"
-    
-    cat > "$GEO_JAVA_FILE" << 'EOFGEO'
+  # Always recreate the Java stub
+  log_info "Creating/updating stub Java file for geolocator_android plugin..."
+  
+  mkdir -p "$GEO_JAVA_DIR"
+  
+  cat > "$GEO_JAVA_FILE" << 'EOFGEO'
 package com.baseflow.geolocator;
 
 import android.app.Activity;
@@ -424,77 +419,73 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 public class GeolocatorPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware {
-  private static final String CHANNEL = "flutter.baseflow.com/geolocator";
-  private MethodChannel channel;
-  private Activity activity;
-  
-  public static void registerWith(Registrar registrar) {
-    final MethodChannel channel = new MethodChannel(registrar.messenger(), CHANNEL);
-    channel.setMethodCallHandler(new GeolocatorPlugin());
-  }
-  
-  @Override
-  public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
-    channel = new MethodChannel(binding.getBinaryMessenger(), CHANNEL);
-    channel.setMethodCallHandler(this);
-  }
-  
-  @Override
-  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-    channel.setMethodCallHandler(null);
-    channel = null;
-  }
-  
-  @Override
-  public void onAttachedToActivity(ActivityPluginBinding binding) {
-    activity = binding.getActivity();
-  }
-  
-  @Override
-  public void onDetachedFromActivity() {
-    activity = null;
-  }
-  
-  @Override
-  public void onReattachedToActivityForConfigChanges(ActivityPluginBinding binding) {
-    activity = binding.getActivity();
-  }
-  
-  @Override
-  public void onMethodCall(MethodCall call, Result result) {
-    switch (call.method) {
-      case "checkPermission":
-        result.success("denied");
-        break;
-      case "requestPermission":
-        result.success("denied");
-        break;
-      case "getCurrentPosition":
-        result.error("UNAVAILABLE", "Geolocator plugin stub - location not available", null);
-        break;
-      case "getLastKnownPosition":
-        result.error("UNAVAILABLE", "Geolocator plugin stub - location not available", null);
-        break;
-      case "isLocationServiceEnabled":
-        result.success(false);
-        break;
-      case "openLocationSettings":
-        result.success(false);
-        break;
-      default:
-        result.notImplemented();
-        break;
-    }
+private static final String CHANNEL = "flutter.baseflow.com/geolocator";
+private MethodChannel channel;
+private Activity activity;
+
+@Override
+public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+  channel = new MethodChannel(binding.getBinaryMessenger(), CHANNEL);
+  channel.setMethodCallHandler(this);
+}
+
+@Override
+public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+  channel.setMethodCallHandler(null);
+  channel = null;
+}
+
+@Override
+public void onAttachedToActivity(ActivityPluginBinding binding) {
+  activity = binding.getActivity();
+}
+
+@Override
+public void onDetachedFromActivity() {
+  activity = null;
+}
+
+@Override
+public void onDetachedFromActivityForConfigChanges() {
+  activity = null;
+}
+
+@Override
+public void onReattachedToActivityForConfigChanges(ActivityPluginBinding binding) {
+  activity = binding.getActivity();
+}
+
+@Override
+public void onMethodCall(MethodCall call, Result result) {
+  switch (call.method) {
+    case "checkPermission":
+      result.success("denied");
+      break;
+    case "requestPermission":
+      result.success("denied");
+      break;
+    case "getCurrentPosition":
+      result.error("UNAVAILABLE", "Geolocator plugin stub - location not available", null);
+      break;
+    case "getLastKnownPosition":
+      result.error("UNAVAILABLE", "Geolocator plugin stub - location not available", null);
+      break;
+    case "isLocationServiceEnabled":
+      result.success(false);
+      break;
+    case "openLocationSettings":
+      result.success(false);
+      break;
+    default:
+      result.notImplemented();
+      break;
   }
 }
+}
 EOFGEO
-    
-    log_ok "Created stub Java file for geolocator_android plugin"
-  else
-    log_ok "geolocator_android plugin already has Android native source"
+  log_ok "Created/updated stub Java file for geolocator_android plugin"
   fi
 }
 
