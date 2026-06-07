@@ -35,7 +35,7 @@ class AuthService extends ChangeNotifier {
     try {
       // Check for existing offline credentials
       final userId = await _storage.getSetting(AppConstants.keyUserId);
-      final authToken = await _storage.getSetting(AppConstants.keyAuthToken);
+      final authToken = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
 
       if (userId != null && authToken != null) {
         // Load user profile from local storage
@@ -146,7 +146,7 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     // Create or retrieve emergency profile
-    final emergencyToken = await _storage.getSetting(AppConstants.keyEmergencyToken);
+    final emergencyToken = await _storage.getSensitiveSetting(AppConstants.keyEmergencyToken);
     
     if (emergencyToken != null) {
       // Restore existing emergency session
@@ -175,7 +175,7 @@ class AuthService extends ChangeNotifier {
     userMap['updated_at'] = DateTime.now().millisecondsSinceEpoch;
 
     await _storage.insert('users', userMap);
-    await _storage.saveSetting(AppConstants.keyEmergencyToken, emergencyId);
+    await _storage.saveSensitiveSetting(AppConstants.keyEmergencyToken, emergencyId);
     await _storage.saveSetting(AppConstants.keyUserId, emergencyId);
 
     _currentUser = emergencyProfile;
@@ -198,7 +198,7 @@ class AuthService extends ChangeNotifier {
 
     await _storage.saveSetting(AppConstants.keyUserId, userData['id']);
     if (token != null) {
-      await _storage.saveSetting(AppConstants.keyAuthToken, token);
+      await _storage.saveSensitiveSetting(AppConstants.keyAuthToken, token);
     }
 
     _currentUser = UserProfile.fromMap(userData);
@@ -209,7 +209,7 @@ class AuthService extends ChangeNotifier {
     _currentUser = null;
     _isEmergencyMode = false;
     await _storage.removeSetting(AppConstants.keyUserId);
-    await _storage.removeSetting(AppConstants.keyAuthToken);
+    await _storage.removeSensitiveSetting(AppConstants.keyAuthToken);
     notifyListeners();
   }
 

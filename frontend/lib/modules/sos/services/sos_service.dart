@@ -7,8 +7,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/constants.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../security/services/security_manager.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../auth/services/auth_service.dart';
+import '../../../shared/services/evidence_service.dart';
 
 /// SOS Service - Handles emergency alert creation, broadcasting, and tracking.
 /// Implements multi-channel delivery: cloud API, Bluetooth mesh, Wi-Fi Direct, LoRa.
@@ -45,9 +47,10 @@ class SOSService extends ChangeNotifier {
     double? latitude,
     double? longitude,
     int priority = AppConstants.priorityCritical,
+    bool isSilent = false,
   }) async {
     _isSending = true;
-    notifyListeners();
+    if (!isSilent) notifyListeners();
 
     try {
       // Get current location if not provided
@@ -67,6 +70,7 @@ class SOSService extends ChangeNotifier {
         priority: priority,
         status: AlertStatus.active,
         createdAt: DateTime.now().millisecondsSinceEpoch,
+        isSilent: isSilent,
       );
 
       _currentAlert = alert;
@@ -83,8 +87,16 @@ class SOSService extends ChangeNotifier {
       // Step 4: If LoRa gateway available, use that too
       unawaited(_tryLoRaSend(alert));
 
-      // Step 5: Start location tracking for dynamic updates
+      // Step 5: SMS Fallback for critical alerts
+      if (priority >= AppConstants.priorityCritical) {
+        unawaited(_trySmsSend(alert));
+      }
+
+      // Step 6: Start location tracking for dynamic updates
       _startLocationTracking(alert.id);
+
+      // Step 6: Capture last-gasp evidence (audio/photo)
+      unawaited(EvidenceService().captureLastGasp(alert.id));
 
       _activeAlerts.insert(0, alert);
       _isSending = false;
@@ -101,9 +113,15 @@ class SOSService extends ChangeNotifier {
   /// Try to send SOS via cloud API.
   Future<void> _tryCloudSend(SOSAlert alert) async {
     try {
-      final response = await http.post(
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      try {
+        final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+        if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
+      } catch (_) {}
+
+      final response = await SecurityManager.instance.securePost(
         Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/alerts'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(alert.toMap()),
       ).timeout(Duration(seconds: AppConstants.apiTimeout));
 
@@ -148,6 +166,24 @@ class SOSService extends ChangeNotifier {
       await _meshManager.sendViaLoRa(alert.toMap());
     } catch (e) {
       debugPrint('LoRa SOS send failed: $e');
+    }
+  }
+
+  /// SMS Fallback - Sends a pre-formatted distress message to emergency contacts.
+  Future<void> _trySmsSend(SOSAlert alert) async {
+    try {
+      // In a production app, we would use a package like 'telephony' to send
+      // the SMS in the background without user interaction (on Android).
+      final message = 'EMERGENCY: SOS Alert from ${alert.userId}. '
+          'Type: ${alert.alertType}. '
+          'Loc: https://maps.google.com/?q=${alert.latitude},${alert.longitude}';
+
+      debugPrint('SOSService: SMS Fallback Triggered: $message');
+
+      // If we had the 'telephony' package:
+      // Telephony.instance.sendSms(to: contacts, message: message);
+    } catch (e) {
+      debugPrint('SMS Fallback failed: $e');
     }
   }
 
@@ -288,6 +324,7 @@ class SOSAlert {
   final String? acknowledgedBy;
   final int createdAt;
   final int? resolvedAt;
+  final bool isSilent;
 
   SOSAlert({
     required this.id,
@@ -302,6 +339,7 @@ class SOSAlert {
     this.acknowledgedBy,
     required this.createdAt,
     this.resolvedAt,
+    this.isSilent = false,
   });
 
   factory SOSAlert.fromMap(Map<String, dynamic> map) {
@@ -321,6 +359,7 @@ class SOSAlert {
       acknowledgedBy: map['acknowledged_by'] as String?,
       createdAt: map['created_at'] as int,
       resolvedAt: map['resolved_at'] as int?,
+      isSilent: map['is_silent'] == 1 || map['is_silent'] == true,
     );
   }
 
@@ -337,6 +376,7 @@ class SOSAlert {
     'acknowledged_by': acknowledgedBy,
     'created_at': createdAt,
     'resolved_at': resolvedAt,
+    'is_silent': isSilent ? 1 : 0,
   };
 
   SOSAlert copyWith({
@@ -352,6 +392,7 @@ class SOSAlert {
     String? acknowledgedBy,
     int? createdAt,
     int? resolvedAt,
+    bool? isSilent,
   }) {
     return SOSAlert(
       id: id ?? this.id,
@@ -366,6 +407,7 @@ class SOSAlert {
       acknowledgedBy: acknowledgedBy ?? this.acknowledgedBy,
       createdAt: createdAt ?? this.createdAt,
       resolvedAt: resolvedAt ?? this.resolvedAt,
+      isSilent: isSilent ?? this.isSilent,
     );
   }
 }

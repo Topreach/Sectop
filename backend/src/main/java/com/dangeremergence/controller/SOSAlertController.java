@@ -27,7 +27,8 @@ public class SOSAlertController {
                 ((Number) request.get("latitude")).doubleValue(),
                 ((Number) request.get("longitude")).doubleValue(),
                 request.get("accuracy") != null ? ((Number) request.get("accuracy")).doubleValue() : null,
-                (int) request.getOrDefault("priority", 3)
+                (int) request.getOrDefault("priority", 3),
+                (boolean) request.getOrDefault("is_silent", false)
         );
         return ResponseEntity.ok(alert);
     }

@@ -7,6 +7,7 @@ import '../../../shared/services/sync_manager.dart';
 import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
+import '../../../shared/services/hardware_trigger_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -462,11 +463,81 @@ class _ProfileView extends StatelessWidget {
             _ProfileOption(Icons.person_outline, 'Edit Profile', () {}),
             _ProfileOption(Icons.medical_services_outlined, 'Medical Info', () {}),
             _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {}),
-            _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {}),
-            _ProfileOption(Icons.info_outline, 'About', () {}),
+            _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
+              _showPrivacySecurityDialog(context);
+            }),
+            _ProfileOption(Icons.info_outline, 'About', () {
+              _showAboutDialog(context);
+            }),
           ],
         ),
       ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Danger Emergence',
+      applicationVersion: '1.0.0 (Nigeria Edition)',
+      applicationIcon: const Icon(Icons.security, color: AppTheme.primaryColor, size: 48),
+      children: [
+        const SizedBox(height: 16),
+        const Text(
+          'A specialized emergency system designed for high-risk security environments.',
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () {
+            // In a real app, use url_launcher
+            debugPrint('Opening Privacy Policy...');
+          },
+          child: const Text('Read Privacy Policy'),
+        ),
+      ],
+    );
+  }
+
+  void _showPrivacySecurityDialog(BuildContext context) {
+    final triggerService = Provider.of<HardwareTriggerService>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Privacy & Security'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SwitchListTile(
+                    title: const Text('Stealth Mode SOS'),
+                    subtitle: const Text('Silent panic trigger via hardware buttons'),
+                    value: triggerService.isStealthModeEnabled,
+                    onChanged: (value) {
+                      triggerService.setStealthMode(value);
+                      setDialogState(() {});
+                    },
+                    activeColor: AppTheme.primaryColor,
+                  ),
+                  const Divider(),
+                  const Text(
+                    'When enabled, hardware triggers (Volume Up + Down) will send a silent SOS without showing any UI or making sound.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CLOSE'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

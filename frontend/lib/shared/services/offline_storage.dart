@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import '../../modules/security/services/secure_enclave.dart';
 import '../../core/constants.dart';
 
 /// Manages all offline data storage for the Danger Emergence System.
@@ -242,6 +245,25 @@ class OfflineStorageService {
     return results.isNotEmpty ? results.first : null;
   }
 
+  /// Insert or update a record by its 'id' field.
+  Future<void> upsert(String table, Map<String, dynamic> data) async {
+    final db = _database;
+    if (db == null) return;
+
+    final id = data['id'];
+    if (id == null) {
+      await insert(table, data);
+      return;
+    }
+
+    final existing = await query(table, where: 'id = ?', whereArgs: [id]);
+    if (existing.isNotEmpty) {
+      await update(table, data, where: 'id = ?', whereArgs: [id]);
+    } else {
+      await insert(table, data);
+    }
+  }
+
   // ==================== Message Operations ====================
 
   /// Save a message to local storage.
@@ -418,10 +440,64 @@ class OfflineStorageService {
     }
   }
 
+  /// Save a sensitive setting using the secure enclave when available.
+  Future<void> saveSensitiveSetting(String key, String value) async {
+    final enclave = SecureEnclaveService();
+    try {
+      await enclave.initialize();
+    } catch (_) {}
+
+    final prefs = await SharedPreferences.getInstance();
+    if (enclave.isAvailable) {
+      try {
+        final ciphertext = await enclave.encrypt(
+          keyAlias: 'sensitive_$key',
+          plaintext: Uint8List.fromList(utf8.encode(value)),
+        );
+        await prefs.setString('${key}_enc', base64Encode(ciphertext));
+        return;
+      } catch (e) {
+        debugPrint('Secure enclave encrypt failed, falling back: $e');
+      }
+    }
+
+    // Fallback to normal storage (less secure)
+    await prefs.setString(key, value);
+  }
+
   /// Get a setting from SharedPreferences.
   Future<dynamic> getSetting(String key) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.get(key);
+  }
+
+  /// Get a sensitive setting previously stored via `saveSensitiveSetting`.
+  Future<String?> getSensitiveSetting(String key) async {
+    final enclave = SecureEnclaveService();
+    try {
+      await enclave.initialize();
+    } catch (_) {}
+
+    final prefs = await SharedPreferences.getInstance();
+    final enc = prefs.getString('${key}_enc');
+    if (enc != null) {
+      try {
+        final bytes = base64Decode(enc);
+        final plain = await enclave.decrypt(keyAlias: 'sensitive_$key', ciphertext: Uint8List.fromList(bytes));
+        return utf8.decode(plain);
+      } catch (e) {
+        debugPrint('Secure enclave decrypt failed: $e');
+      }
+    }
+
+    return prefs.getString(key);
+  }
+
+  /// Remove a sensitive setting.
+  Future<void> removeSensitiveSetting(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('${key}_enc');
+    await prefs.remove(key);
   }
 
   /// Remove a setting.

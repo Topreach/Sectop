@@ -89,3 +89,14 @@ CREATE INDEX IF NOT EXISTS idx_zones_created_at ON zones(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen);
+CREATE INDEX IF NOT EXISTS idx_users_id ON users(id);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+
+-- Composite indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_messages_sender_created ON messages(sender_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_created ON messages(receiver_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_status_created ON messages(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_sos_alerts_user_created ON sos_alerts(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_sos_alerts_status_created ON sos_alerts(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_zones_type_status ON zones(type, status);
+CREATE INDEX IF NOT EXISTS idx_zones_location_active ON zones(latitude, longitude) WHERE status = 'active';

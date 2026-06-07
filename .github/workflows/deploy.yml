@@ -154,6 +154,17 @@ jobs:
         run: |
           # Apply canary-specific config
           kubectl -n ${{ env.K8S_NAMESPACE }} apply -f deploy/k8s/canary.yaml
+          # Create backend secrets from GitHub secrets for canary
+          kubectl -n ${{ env.K8S_NAMESPACE }} create secret generic backend-secrets \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal=DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=REDIS_HOST="${{ secrets.REDIS_HOST }}" \
+            --from-literal=REDIS_PORT="${{ secrets.REDIS_PORT }}" \
+            --from-literal=ML_API_KEY="${{ secrets.ML_API_KEY }}" \
+            --from-literal=ML_SERVICE_JWT_SECRET="${{ secrets.ML_SERVICE_JWT_SECRET }}" \
+            --from-literal=EMERGENCY_BYPASS_KEY="${{ secrets.EMERGENCY_BYPASS_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
           
           # Wait for canary pods to be ready
           kubectl -n ${{ env.K8S_NAMESPACE }} wait --for=condition=ready pod -l app=backend-canary --timeout=300s
@@ -211,6 +222,18 @@ jobs:
       # Rolling update with max surge
       - name: Apply rolling update
         run: |
+          # Ensure backend secrets exist in production namespace
+          kubectl -n ${{ env.K8S_NAMESPACE }} create secret generic backend-secrets \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal=DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=REDIS_HOST="${{ secrets.REDIS_HOST }}" \
+            --from-literal=REDIS_PORT="${{ secrets.REDIS_PORT }}" \
+            --from-literal=ML_API_KEY="${{ secrets.ML_API_KEY }}" \
+            --from-literal=ML_SERVICE_JWT_SECRET="${{ secrets.ML_SERVICE_JWT_SECRET }}" \
+            --from-literal=EMERGENCY_BYPASS_KEY="${{ secrets.EMERGENCY_BYPASS_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl -n ${{ env.K8S_NAMESPACE }} apply -k deploy/k8s/
           
           # Wait for rollout to complete

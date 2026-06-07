@@ -2,6 +2,7 @@ package com.dangeremergence.controller;
 
 import com.dangeremergence.model.User;
 import com.dangeremergence.service.UserService;
+import com.dangeremergence.service.EmergencyBypassService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,16 +11,33 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthController.class);
+
+    // Simple in-memory rate limit tracking: IP -> timestamps (ms)
+    private static final ConcurrentHashMap<String, CopyOnWriteArrayList<Long>> bypassRequests = new ConcurrentHashMap<>();
+    private static final int BYPASS_LIMIT = 5; // max per window
+    private static final long BYPASS_WINDOW_MS = 60L * 60L * 1000L; // 1 hour
+
     private final UserService userService;
+    private final com.dangeremergence.config.JwtUtil jwtUtil;
+
+    private final EmergencyBypassService emergencyBypassService;
 
     @Autowired
-    public AuthController(UserService userService) {
+    public AuthController(UserService userService, com.dangeremergence.config.JwtUtil jwtUtil, EmergencyBypassService emergencyBypassService) {
         this.userService = userService;
+        this.jwtUtil = jwtUtil;
+        this.emergencyBypassService = emergencyBypassService;
     }
 
     @PostMapping("/register")
@@ -50,6 +68,11 @@ public class AuthController {
         response.put("email", savedUser.getEmail());
         response.put("role", savedUser.getRole());
         response.put("message", "Registration successful");
+        // Issue JWT for the new user
+        try {
+            String token = jwtUtil.generateToken(savedUser.getId(), savedUser.getEmail(), savedUser.getRole().name());
+            response.put("token", token);
+        } catch (Exception ignored) {}
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -68,6 +91,11 @@ public class AuthController {
             response.put("role", user.getRole());
             response.put("publicKey", user.getPublicKey());
             response.put("message", "Login successful");
+            // Issue JWT
+            try {
+                String token = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+                response.put("token", token);
+            } catch (Exception ignored) {}
             return ResponseEntity.ok(response);
         }
 
@@ -77,14 +105,63 @@ public class AuthController {
     }
 
     @PostMapping("/emergency-bypass")
-    public ResponseEntity<?> emergencyBypass(@RequestBody EmergencyBypassRequest request) {
-        // Emergency bypass creates a temporary session without full authentication
+    public ResponseEntity<?> emergencyBypass(@RequestBody EmergencyBypassRequest request,
+                                             @RequestHeader(value = "X-EMERGENCY-AUTH", required = false) String emergencyAuth,
+                                             HttpServletRequest httpRequest) {
+        // Emergency bypass: protected by optional API key or limited-rate per IP; issues short-lived emergency JWT
+        String configuredKey = System.getenv("EMERGENCY_BYPASS_KEY");
+        String clientIp = httpRequest.getRemoteAddr();
+
+        String method = "rate_limit";
+        // If a bypass key is configured, require it
+        if (configuredKey != null && !configuredKey.isBlank()) {
+            method = "key";
+            if (emergencyAuth == null || !configuredKey.equals(emergencyAuth)) {
+                LOGGER.warn("Emergency bypass attempt with invalid key from {}", clientIp);
+                emergencyBypassService.record(null, request.getPhone(), clientIp, method, false, false);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid emergency auth"));
+            }
+        } else {
+            // Rate limit by IP
+            long now = System.currentTimeMillis();
+            bypassRequests.putIfAbsent(clientIp, new CopyOnWriteArrayList<>());
+            var timestamps = bypassRequests.get(clientIp);
+            // Remove stale entries
+            timestamps.removeIf(ts -> ts < now - BYPASS_WINDOW_MS);
+            if (timestamps.size() >= BYPASS_LIMIT) {
+                LOGGER.warn("Emergency bypass rate limit exceeded from {}", clientIp);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error", "Rate limit exceeded"));
+            }
+            timestamps.add(now);
+        }
+
+        // Create emergency session and issue short-lived token
+        String sessionId = "emergency_" + System.currentTimeMillis();
         Map<String, Object> response = new HashMap<>();
-        response.put("sessionId", "emergency_" + System.currentTimeMillis());
+        response.put("sessionId", sessionId);
         response.put("name", request.getName() != null ? request.getName() : "Emergency User");
         response.put("phone", request.getPhone());
         response.put("role", "citizen");
         response.put("emergencyMode", true);
+
+        boolean tokenIssued = false;
+        try {
+            // 10 minute token
+            long tenMinutes = 10L * 60L * 1000L;
+            String token = jwtUtil.generateTokenWithExpiry(sessionId, request.getPhone() != null ? request.getPhone() : "", "citizen", tenMinutes, true);
+            response.put("token", token);
+            tokenIssued = true;
+        } catch (Exception e) {
+            LOGGER.error("Failed to issue emergency token for {}: {}", clientIp, e.getMessage());
+        }
+
+        LOGGER.info("Emergency bypass granted for {} (ip={})", request.getPhone(), clientIp);
+        // persist audit
+        try {
+            emergencyBypassService.record(sessionId, request.getPhone(), clientIp, method, true, tokenIssued);
+        } catch (Exception e) {
+            LOGGER.error("Failed to persist emergency bypass audit: {}", e.getMessage());
+        }
         response.put("message", "Emergency access granted");
         return ResponseEntity.ok(response);
     }

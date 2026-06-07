@@ -12,10 +12,11 @@ import os
 import time
 import logging
 from typing import List, Optional
+import jwt
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -111,13 +112,47 @@ app = FastAPI(
 )
 
 # CORS configuration
+allowed_origins = os.getenv("ML_ALLOWED_ORIGINS")
+if allowed_origins:
+    origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+else:
+    origins = ["https://app.dangeremergence.com"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# Simple API key auth for service-to-service calls
+ML_API_KEY = os.getenv("ML_API_KEY")
+ML_SERVICE_JWT_SECRET = os.getenv("ML_SERVICE_JWT_SECRET")
+
+def verify_service_jwt(token: Optional[str]):
+    if ML_SERVICE_JWT_SECRET is None:
+        # If not configured, disallow JWT auth
+        return False
+    if not token:
+        return False
+    try:
+        # Decode without verifying algorithms list to be flexible but verify signature
+        payload = jwt.decode(token, ML_SERVICE_JWT_SECRET, algorithms=["HS256"])
+        # Optionally check issuer/audience
+        return True
+    except Exception:
+        return False
+
+def require_ml_api_key(api_key: Optional[str], bearer_jwt: Optional[str] = None):
+    # Allow either a configured API key or a valid service JWT
+    if ML_API_KEY and api_key and api_key == ML_API_KEY:
+        return
+    if bearer_jwt and bearer_jwt.startswith("Bearer "):
+        token = bearer_jwt.split(" ", 1)[1]
+        if verify_service_jwt(token):
+            return
+    raise HTTPException(status_code=401, detail="Unauthorized: invalid ML service credentials")
 
 
 def _load_model():
@@ -231,6 +266,7 @@ async def health_check():
 async def prioritize_message(
     request: PrioritizeRequest,
     background_tasks: BackgroundTasks,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
     """
     Analyze a message and return its priority level.
@@ -241,6 +277,16 @@ async def prioritize_message(
     
     start = time.time()
     
+    # Validate API key (from Authorization: ApiKey <key> or X-API-KEY)
+    api_key = None
+    if authorization:
+        # support 'ApiKey <key>' or 'Bearer <key>' forms
+        parts = authorization.split()
+        if len(parts) == 2:
+            api_key = parts[1]
+
+    require_ml_api_key(api_key, authorization)
+
     if model_loaded and model is not None:
         priority, confidence = _model_prioritize(request.text)
         method = "model"
@@ -266,7 +312,7 @@ async def prioritize_message(
 
 
 @app.post("/api/v1/prioritize/batch", response_model=BatchPrioritizeResponse)
-async def prioritize_batch(request: BatchPrioritizeRequest):
+async def prioritize_batch(request: BatchPrioritizeRequest, authorization: Optional[str] = Header(None, alias="Authorization")):
     """
     Batch prioritize multiple messages.
     """
@@ -275,6 +321,14 @@ async def prioritize_batch(request: BatchPrioritizeRequest):
     start = time.time()
     results = []
     
+    # Validate API key
+    api_key = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2:
+            api_key = parts[1]
+    require_ml_api_key(api_key, authorization)
+
     for message in request.messages:
         msg_start = time.time()
         

@@ -40,8 +40,17 @@ public class SOSAlert {
 
     private Double accuracy;
 
+    @Column(length = 50)
+    private String state;
+
+    @Column(length = 50)
+    private String lga;
+
     @Column(nullable = false)
     private int priority;
+
+    @Column(name = "is_silent")
+    private boolean silent;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)

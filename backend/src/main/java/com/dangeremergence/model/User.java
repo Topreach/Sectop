@@ -81,6 +81,7 @@ public class User {
     public enum UserRole {
         citizen,
         responder,
+        guardian,
         coordinator
     }
 }

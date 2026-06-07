@@ -1,0 +1,52 @@
+# Mosquitto ACL File for Danger Emergence System
+# ================================================
+# Pattern-based access control for MQTT topics.
+#
+# Topic hierarchy:
+#   danger-emergence/{userId}/sos        - SOS alerts
+#   danger-emergence/{userId}/message    - Direct messages
+#   danger-emergence/{userId}/location   - Location updates
+#   danger-emergence/{userId}/status     - User status
+#   danger-emergence/broadcast/alert     - Broadcast alerts
+#   danger-emergence/broadcast/zone      - Zone updates
+#   danger-emergence/system/health       - System health checks
+#
+# User types:
+#   citizen       - General public user
+#   responder     - Emergency responder (police, fire, medical)
+#   coordinator   - Emergency operations coordinator
+#   admin         - System administrator
+
+# ── Anonymous (unauthenticated) — no access ──────────────────────────────────
+# (denied by default when allow_anonymous false)
+
+# ── Admin — full access to all topics ────────────────────────────────────────
+user admin
+topic readwrite danger-emergence/#
+
+# ── Coordinator — read/write their own topics, read broadcast ────────────────
+pattern readwrite danger-emergence/%u/sos
+pattern readwrite danger-emergence/%u/message
+pattern readwrite danger-emergence/%u/location
+pattern readwrite danger-emergence/%u/status
+pattern read danger-emergence/broadcast/#
+pattern read danger-emergence/system/#
+
+# ── Responder — read/write their own topics, write SOS, read broadcast ───────
+pattern readwrite danger-emergence/%u/sos
+pattern readwrite danger-emergence/%u/message
+pattern readwrite danger-emergence/%u/location
+pattern readwrite danger-emergence/%u/status
+pattern read danger-emergence/broadcast/alert
+pattern read danger-emergence/system/health
+
+# ── Citizen — read/write their own topics only ───────────────────────────────
+pattern readwrite danger-emergence/%u/sos
+pattern readwrite danger-emergence/%u/message
+pattern readwrite danger-emergence/%u/location
+pattern readwrite danger-emergence/%u/status
+pattern read danger-emergence/broadcast/alert
+
+# ── Backend Service Account — full system access ─────────────────────────────
+user backend
+topic readwrite danger-emergence/#
