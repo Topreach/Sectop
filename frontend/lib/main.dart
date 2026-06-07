@@ -39,8 +39,32 @@ T safeInit<T>(T Function() create) {
     debugPrint('⚠️ safeInit caught error for $T: $e');
     debugPrint('Stack: $stack');
     debugPrint('══════════════════════════════════════════════════');
-    rethrow; // Still rethrow so the error is visible in logs
+    // Return a default instance so the Provider tree doesn't collapse.
+    // The service will be in a degraded state but the app continues to run.
+    return _createFallback<T>();
   }
+}
+
+/// Creates a fallback instance for a service type when initialization fails.
+/// Uses the type's default constructor if available.
+T _createFallback<T>() {
+  // For ChangeNotifier subtypes, create a default instance
+  if (T == AuthService) return AuthService() as T;
+  if (T == SOSService) return SOSService() as T;
+  if (T == DroneService) return DroneService.instance as T;
+  if (T == SecurityManager) return SecurityManager.instance as T;
+  if (T == ObservabilityService) return ObservabilityService.instance as T;
+  if (T == DigitalTwinService) return DigitalTwinService() as T;
+  // For plain Provider services, try default constructor
+  if (T == OfflineStorageService) return OfflineStorageService() as T;
+  if (T == SyncManager) return SyncManager() as T;
+  if (T == MeshManager) return MeshManager() as T;
+  if (T == AdaptiveMeshRouter) return AdaptiveMeshRouter() as T;
+  if (T == MapService) return MapService() as T;
+  if (T == DistressDetector) return DistressDetector() as T;
+  if (T == PowerAwareInference) return PowerAwareInference() as T;
+  if (T == PredictiveEngine) return PredictiveEngine() as T;
+  throw StateError('No fallback constructor for $T');
 }
 
 // Background task for periodic sync
