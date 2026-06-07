@@ -483,7 +483,7 @@ public void onMethodCall(MethodCall call, Result result) {
   }
 }
 }
-EOFGeo
+EOFGEO
   log_ok "Created/updated stub Java file for geolocator_android plugin"
 }
 
