@@ -11,6 +11,10 @@ frontend/ios/.symlinks/
 frontend/android/.gradle/
 frontend/android/local.properties
 frontend/android/key.properties
+frontend/android/app/src/main/res/values/secrets.xml
+
+# Build artifacts
+danger-emergence.apk
 
 # Java/Backend
 backend/target/

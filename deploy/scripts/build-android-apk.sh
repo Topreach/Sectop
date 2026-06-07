@@ -50,7 +50,23 @@ patch_plugins_surgically() {
   log_info "Ensuring plugins use Flutter v2 embedding..."
 }
 
-# ── Step 2: Android Manifest & Gradle Config ────────────────────────────────
+# ── Step 2: Inject Secrets from Environment ─────────────────────────────────
+inject_secrets() {
+  log_info "Injecting secrets from environment variables..."
+
+  local SECRETS_FILE="$FRONTEND_DIR/android/app/src/main/res/values/secrets.xml"
+
+  if [ -z "${MAPBOX_ACCESS_TOKEN:-}" ]; then
+    log_warn "MAPBOX_ACCESS_TOKEN is not set. Using placeholder (maps will not work)."
+    log_warn "Set MAPBOX_ACCESS_TOKEN in your .env file or export it before building."
+  else
+    log_ok "MAPBOX_ACCESS_TOKEN found (${MAPBOX_ACCESS_TOKEN:0:12}...)"
+    # Replace the placeholder with the real token
+    sed -i "s|__MAPBOX_ACCESS_TOKEN__|$MAPBOX_ACCESS_TOKEN|g" "$SECRETS_FILE"
+  fi
+}
+
+# ── Step 3: Android Manifest & Gradle Config ────────────────────────────────
 configure_android() {
   log_info "Configuring Android platform..."
   
@@ -89,6 +105,7 @@ build_apk() {
 # ── Main ────────────────────────────────────────────────────────────────────
 main() {
   configure_android
+  inject_secrets
   build_apk
 }
 
