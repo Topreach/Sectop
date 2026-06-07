@@ -733,14 +733,19 @@ WMEOF3
     log_info "Patched workmanager plugin Kotlin stubs (BackgroundWorker, WorkmanagerPlugin, WorkmanagerCallHandler)"
   fi
   
+  # Kill any stale Gradle daemons to avoid file watcher conflicts
+  log_info "Stopping any stale Gradle daemons..."
+  cd "$FRONTEND_DIR/android" && ./gradlew --stop 2>&1 || true
+  cd "$PROJECT_DIR"
+  
   # Clean previous builds
   flutter clean 2>&1 | tail -2 || true
   
   # Get dependencies
   flutter pub get 2>&1 | tail -2 || true
   
-  # Build APK
-  flutter build apk --release 2>&1 || true
+  # Build APK (use --no-daemon to avoid file watcher conflicts on this server)
+  flutter build apk --release --no-daemon 2>&1 || true
   
   local APK_PATH="$FRONTEND_DIR/build/app/outputs/flutter-apk/app-release.apk"
   
