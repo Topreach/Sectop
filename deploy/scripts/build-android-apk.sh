@@ -496,6 +496,15 @@ build_apk() {
   # Fix plugins with missing Android native source files
   fix_missing_plugin_sources
   
+  # Patch flutter_local_notifications ambiguous bigLargeIcon(null) call
+  # Android SDK has both bigLargeIcon(Bitmap) and bigLargeIcon(Icon), so null is ambiguous
+  local LN_FILE="/root/.pub-cache/hosted/pub.dev/flutter_local_notifications-16.3.3/android/src/main/java/com/dexterous/flutterlocalnotifications/FlutterLocalNotificationsPlugin.java"
+  if [ -f "$LN_FILE" ]; then
+    # Cast null to Bitmap to resolve ambiguity
+    sed -i 's/bigPictureStyle.bigLargeIcon(null);/bigPictureStyle.bigLargeIcon((android.graphics.Bitmap) null);/' "$LN_FILE" 2>/dev/null || true
+    log_info "Patched flutter_local_notifications ambiguous bigLargeIcon call"
+  fi
+  
   # Clean previous builds
   flutter clean 2>&1 | tail -2 || true
   
