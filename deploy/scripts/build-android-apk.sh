@@ -760,11 +760,10 @@ WMEOF3
     
     # Copy APK to the Flutter build web directory so nginx (Docker) can serve it
     local BUILD_WEB_DIR="$FRONTEND_DIR/build/web"
-    if [ -d "$BUILD_WEB_DIR" ]; then
-      cp "$APK_PATH" "$BUILD_WEB_DIR/danger-emergence.apk"
-      log_info "APK copied to web build directory for nginx: $BUILD_WEB_DIR/danger-emergence.apk"
-      log_info "Download URL: http://173.249.34.3/danger-emergence.apk"
-    fi
+    mkdir -p "$BUILD_WEB_DIR"
+    cp "$APK_PATH" "$BUILD_WEB_DIR/danger-emergence.apk"
+    log_info "APK copied to web build directory for nginx: $BUILD_WEB_DIR/danger-emergence.apk"
+    log_info "Download URL: http://173.249.34.3/danger-emergence.apk"
   else
     log_error "APK build failed — output not found at $APK_PATH"
     exit 1
