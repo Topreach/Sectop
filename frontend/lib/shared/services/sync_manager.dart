@@ -123,14 +123,25 @@ class SyncManager {
     final lastSync = await _storage.getSetting(AppConstants.keyLastSync);
     final lastSyncTimestamp = lastSync as int? ?? 0;
 
+    // Convert milliseconds epoch to ISO 8601 string (backend expects LocalDateTime format)
+    final sinceIso = lastSyncTimestamp > 0
+        ? DateTime.fromMillisecondsSinceEpoch(lastSyncTimestamp).toIso8601String()
+        : DateTime.now().minusHours(24).toIso8601String();
+
+    // Get current user ID for message sync
+    final userId = await _storage.getSetting(AppConstants.keyUserId) as String?;
+
     try {
-      // Pull messages
+      // Pull messages (requires userId + since in ISO format)
+      final queryParams = <String, String>{
+        'since': sinceIso,
+      };
+      if (userId != null) {
+        queryParams['userId'] = userId;
+      }
       final messagesResponse = await http.get(
         Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/messages/sync')
-            .replace(queryParameters: {
-          'since': lastSyncTimestamp.toString(),
-          'limit': AppConstants.batchSyncSize.toString(),
-        }),
+            .replace(queryParameters: queryParams),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -142,11 +153,11 @@ class SyncManager {
         }
       }
 
-      // Pull SOS alerts
+      // Pull SOS alerts (expects since in ISO format)
       final sosResponse = await http.get(
         Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/alerts/sync')
             .replace(queryParameters: {
-          'since': lastSyncTimestamp.toString(),
+          'since': sinceIso,
         }),
         headers: {'Content-Type': 'application/json'},
       );
@@ -159,11 +170,11 @@ class SyncManager {
         }
       }
 
-      // Pull zones
+      // Pull zones (expects since in ISO format)
       final zonesResponse = await http.get(
         Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/zones/sync')
             .replace(queryParameters: {
-          'since': lastSyncTimestamp.toString(),
+          'since': sinceIso,
         }),
         headers: {'Content-Type': 'application/json'},
       );
