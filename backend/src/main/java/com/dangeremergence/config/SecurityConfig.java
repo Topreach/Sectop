@@ -28,8 +28,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/public/**").permitAll()
+                .requestMatchers("/api/v1/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/ws/**").permitAll()
+                .requestMatchers("/ws", "/ws/**").permitAll()
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers

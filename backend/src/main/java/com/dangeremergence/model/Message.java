@@ -1,11 +1,14 @@
 package com.dangeremergence.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "messages")
 @Data
@@ -59,6 +62,13 @@ public class Message {
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    @PrePersist
+    public void ensureId() {
+        if (id == null) {
+            id = UUID.randomUUID().toString();
+        }
+    }
 
     public enum MessageType {
         text, sos, alert, location_update, acknowledgment, resolution, zone_update

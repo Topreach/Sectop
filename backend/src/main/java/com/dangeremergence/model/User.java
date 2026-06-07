@@ -1,5 +1,6 @@
 package com.dangeremergence.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -8,7 +9,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+@JsonIgnoreProperties({"sentMessages", "receivedMessages", "sosAlerts"})
 @Entity
 @Table(name = "users")
 @Data
@@ -67,6 +70,13 @@ public class User {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<SOSAlert> sosAlerts = new ArrayList<>();
+
+    @PrePersist
+    public void ensureId() {
+        if (id == null) {
+            id = UUID.randomUUID().toString();
+        }
+    }
 
     public enum UserRole {
         citizen,

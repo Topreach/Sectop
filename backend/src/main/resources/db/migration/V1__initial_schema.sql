@@ -2,7 +2,7 @@
 -- Flyway Migration V1
 
 CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(50) UNIQUE,
@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS messages (
-    id BIGSERIAL PRIMARY KEY,
-    sender_id BIGINT REFERENCES users(id),
-    receiver_id BIGINT REFERENCES users(id),
+    id VARCHAR(36) PRIMARY KEY,
+    sender_id VARCHAR(36) REFERENCES users(id),
+    receiver_id VARCHAR(36) REFERENCES users(id),
     content TEXT NOT NULL,
     message_type VARCHAR(50) NOT NULL DEFAULT 'text',
     priority INTEGER DEFAULT 0,
@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE TABLE IF NOT EXISTS sos_alerts (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id),
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) REFERENCES users(id),
     alert_type VARCHAR(100) NOT NULL,
     description TEXT,
     latitude DOUBLE PRECISION NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS sos_alerts (
 );
 
 CREATE TABLE IF NOT EXISTS zones (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL,
     description TEXT,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS zones (
     geometry TEXT,
     severity VARCHAR(50),
     status VARCHAR(50) NOT NULL DEFAULT 'active',
-    created_by BIGINT REFERENCES users(id),
+    created_by VARCHAR(36) REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP

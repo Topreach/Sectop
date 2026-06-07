@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -25,6 +26,9 @@ public class UserService {
     }
 
     public User registerUser(User user, String rawPassword) {
+        if (user.getId() == null) {
+            user.setId(UUID.randomUUID().toString());
+        }
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setLastSeen(LocalDateTime.now());
         user.setActive(true);

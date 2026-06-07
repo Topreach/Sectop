@@ -20,14 +20,17 @@ public class MessageController {
 
     @PostMapping
     public ResponseEntity<Message> sendMessage(@RequestBody Map<String, Object> request) {
+        Number priorityNumber = (Number) request.getOrDefault("priority", 0);
+        int priority = priorityNumber != null ? priorityNumber.intValue() : 0;
+
         Message message = messageService.sendMessage(
                 (String) request.get("sender_id"),
                 (String) request.get("receiver_id"),
                 (String) request.get("content"),
                 Message.MessageType.valueOf((String) request.getOrDefault("message_type", "text")),
-                (int) request.getOrDefault("priority", 0),
-                (Double) request.get("latitude"),
-                (Double) request.get("longitude")
+                priority,
+                request.get("latitude") != null ? ((Number) request.get("latitude")).doubleValue() : null,
+                request.get("longitude") != null ? ((Number) request.get("longitude")).doubleValue() : null
         );
         return ResponseEntity.ok(message);
     }

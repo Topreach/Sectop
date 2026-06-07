@@ -553,7 +553,16 @@ build_apk() {
       log_info "Patched connectivity_plus compileSdkVersion 33 -> 34"
     fi
   fi
-  
+
+  # Patch flutter_local_notifications compileSdkVersion from 33 to 34 (required by its dependencies)
+  local LN_BUILD_GRADLE="/root/.pub-cache/hosted/pub.dev/flutter_local_notifications-16.3.3/android/build.gradle"
+  if [ -f "$LN_BUILD_GRADLE" ]; then
+    if grep -q "compileSdkVersion 33" "$LN_BUILD_GRADLE" 2>/dev/null; then
+      sed -i 's/compileSdkVersion 33/compileSdkVersion 34/' "$LN_BUILD_GRADLE"
+      log_info "Patched flutter_local_notifications compileSdkVersion 33 -> 34"
+    fi
+  fi
+
   # Patch workmanager-0.5.2 Kotlin files that use deprecated Shims/Registrar API
   local WM_DIR="/root/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager"
   if [ -d "$WM_DIR" ]; then
