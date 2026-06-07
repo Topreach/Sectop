@@ -8,6 +8,7 @@ import '../../../shared/services/encryption.dart';
 import 'security_config.dart';
 import 'app_integrity.dart';
 import 'secure_enclave.dart';
+import '../../../shared/services/service_health.dart';
 
 /// Central security manager orchestrating all hardening services.
 ///
@@ -340,6 +341,16 @@ class SecurityManager extends ChangeNotifier {
   void _handleCompromise(IntegrityResult result) {
     _isCompromised = true;
 
+    // Report to the global service health monitor
+    try {
+      ServiceHealthNotifier().markCompromised(
+        SecurityManager,
+        'Security integrity check failed: ${result.severity.name}',
+      );
+    } catch (_) {
+      // Health monitor is optional — ignore if not available
+    }
+
     if (SecurityConfig.enableAutoIncidentResponse) {
       // Trigger incident response actions
       _triggerIncidentResponse(result);
@@ -350,20 +361,36 @@ class SecurityManager extends ChangeNotifier {
 
   /// Trigger automatic incident response.
   void _triggerIncidentResponse(IntegrityResult result) {
-    // 1. Zeroize sensitive keys
+    // 1. Zeroize sensitive keys (wrap in try-catch for missing native plugin)
     if (SecurityConfig.zeroizeOnUninstall) {
-      _enclave.zeroizeAllKeys();
+      try {
+        _enclave.zeroizeAllKeys();
+      } catch (e) {
+        debugPrint('SecurityManager: zeroizeAllKeys failed (non-fatal): $e');
+      }
     }
 
     // 2. Clear cached sensitive data
-    _clearSensitiveCache();
+    try {
+      _clearSensitiveCache();
+    } catch (e) {
+      debugPrint('SecurityManager: clearSensitiveCache failed (non-fatal): $e');
+    }
 
     // 3. Force re-authentication
-    _forceReauthentication();
+    try {
+      _forceReauthentication();
+    } catch (e) {
+      debugPrint('SecurityManager: forceReauthentication failed (non-fatal): $e');
+    }
 
     // 4. Report to backend
     if (SecurityConfig.enableSecurityTelemetry) {
-      _reportCompromise(result);
+      try {
+        _reportCompromise(result);
+      } catch (e) {
+        debugPrint('SecurityManager: reportCompromise failed (non-fatal): $e');
+      }
     }
 
     debugPrint('SecurityManager: Incident response triggered');

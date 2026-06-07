@@ -17,6 +17,8 @@ class PowerAwareInference {
   factory PowerAwareInference() => _instance;
   PowerAwareInference._();
 
+  static const _channel = MethodChannel('com.dangeremergence/security');
+
   // Battery state
   double _batteryLevel = 100.0;
   bool _isCharging = true;
@@ -46,18 +48,32 @@ class PowerAwareInference {
 
   /// Initialize battery monitoring and pre-load models.
   Future<void> initialize() async {
+    await _updateBatteryFromPlatform();
     _startBatteryMonitoring();
     await _loadModels();
   }
 
   void _startBatteryMonitoring() {
     _batteryMonitor = Timer.periodic(const Duration(seconds: 30), (_) async {
-      // In production, use platform channel to get actual battery level
-      // For now, simulate gradual drain
+      await _updateBatteryFromPlatform();
+    });
+  }
+
+  Future<void> _updateBatteryFromPlatform() async {
+    try {
+      final Map? status = await _channel.invokeMethod('getBatteryStatus');
+      if (status != null) {
+        _batteryLevel = (status['level'] as num).toDouble();
+        _isCharging = status['isCharging'] as bool;
+        debugPrint('PowerAwareInference: Battery updated ($_batteryLevel%, charging=$_isCharging)');
+      }
+    } catch (e) {
+      debugPrint('PowerAwareInference: Failed to get battery status: $e');
+      // Fallback: simulate drain if not charging
       if (!_isCharging && _batteryLevel > 0) {
         _batteryLevel = max(0, _batteryLevel - 0.5);
       }
-    });
+    }
   }
 
   Future<void> _loadModels() async {

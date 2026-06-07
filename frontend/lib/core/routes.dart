@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../modules/auth/screens/splash_screen.dart';
+import '../modules/auth/screens/permission_screen.dart';
 import '../modules/auth/screens/login_screen.dart';
 import '../modules/sos/screens/dashboard_screen.dart';
 import '../modules/sos/screens/sos_screen.dart';
@@ -14,6 +15,7 @@ class AppRoutes {
   AppRoutes._();
 
   static const String splash = '/';
+  static const String permissions = '/permissions';
   static const String login = '/login';
   static const String dashboard = '/dashboard';
   static const String sos = '/sos';
@@ -35,6 +37,11 @@ class AppRoutes {
       case splash:
         return MaterialPageRoute(
           builder: (_) => const SplashScreen(),
+          settings: settings,
+        );
+      case permissions:
+        return MaterialPageRoute(
+          builder: (_) => const PermissionScreen(),
           settings: settings,
         );
       case login:

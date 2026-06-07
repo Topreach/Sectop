@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import '../../../core/constants.dart';
 
 /// On-device AI Service for distress detection and message prioritization.
@@ -16,6 +17,7 @@ class DistressDetector extends ChangeNotifier {
   factory DistressDetector() => _instance;
   DistressDetector._internal();
 
+  tfl.Interpreter? _interpreter;
   bool _modelLoaded = false;
   bool _isLoading = false;
   double _lastInferenceTime = 0;
@@ -39,10 +41,16 @@ class DistressDetector extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Model loading is handled by the ML service backend
-      // For web, we use rule-based analysis as fallback
-      _modelLoaded = false;
-      debugPrint('Distress detection model: using rule-based fallback for web');
+      if (!kIsWeb) {
+        // Load the TFLite model for native platforms
+        _interpreter = await tfl.Interpreter.fromAsset(AppConstants.distressModelPath);
+        _modelLoaded = true;
+        debugPrint('Distress detection model loaded successfully');
+      } else {
+        // For web, we use rule-based analysis as fallback
+        _modelLoaded = false;
+        debugPrint('Distress detection model: using rule-based fallback for web');
+      }
     } catch (e) {
       debugPrint('Failed to load model: $e');
       _modelLoaded = false;
@@ -55,7 +63,48 @@ class DistressDetector extends ChangeNotifier {
   /// Analyze a text message for distress content.
   /// Returns a priority level (0-3) and confidence score.
   Future<DistressResult> analyzeMessage(String message) async {
+    if (_modelLoaded && _interpreter != null) {
+      return _inference(message);
+    }
     return _ruleBasedAnalysis(message);
+  }
+
+  /// Run TFLite inference on the message.
+  Future<DistressResult> _inference(String message) async {
+    final stopwatch = Stopwatch()..start();
+
+    try {
+      final input = _tokenize(message);
+      // Model has 4 output nodes (one for each priority level)
+      final output = [List<double>.filled(4, 0.0)];
+
+      _interpreter!.run(input, output);
+
+      final scores = output[0];
+      int priority = 0;
+      double maxScore = -1.0;
+
+      for (int i = 0; i < scores.length; i++) {
+        if (scores[i] > maxScore) {
+          maxScore = scores[i];
+          priority = i;
+        }
+      }
+
+      stopwatch.stop();
+      _lastInferenceTime = stopwatch.elapsedMilliseconds.toDouble();
+
+      return DistressResult(
+        priority: priority,
+        confidence: maxScore,
+        label: _priorityLabels[priority],
+        inferenceTime: _lastInferenceTime,
+        method: 'tflite-inference',
+      );
+    } catch (e) {
+      debugPrint('Inference error: $e');
+      return _ruleBasedAnalysis(message);
+    }
   }
 
   /// Rule-based analysis for distress detection.

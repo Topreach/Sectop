@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'mesh_manager.dart';
 import '../../../shared/models/location.dart';
@@ -38,15 +40,30 @@ class AdaptiveMeshRouter {
   // Path history for predictive routing
   final Map<String, List<Location>> _movementHistory = {};
 
+  // Reference to MeshManager for actual network I/O
+  MeshManager? _meshManager;
+
   // Callbacks
   void Function(String destination, List<int> data)? onRouteFound;
-  void Function(String message)? onLog;
+  void Function(String)? onLog;
 
   // Configuration
   static const int _ogmIntervalMs = 1000; // B.A.T.M.A.N. OGM every 1s
   static const int _routeTimeoutMs = 30000; // Route expires after 30s
   static const int _maxHops = 32; // Max mesh hops
   static const int _discoveryTimeoutMs = 5000;
+
+  /// Bind this router to a MeshManager instance for actual network I/O.
+  void bindToMeshManager(MeshManager manager) {
+    _meshManager = manager;
+    // Wire the router's callbacks to the manager's send methods
+    onRouteFound = (destination, data) {
+      manager.sendRawData(destination, data);
+    };
+    onLog = (message) {
+      debugPrint('AdaptiveMeshRouter: $message');
+    };
+  }
 
   /// Initialize the routing protocol.
   void initialize() {
@@ -71,7 +88,17 @@ class AdaptiveMeshRouter {
       timestamp: DateTime.now(),
     );
 
-    // In production: broadcast via Bluetooth + Wi-Fi Direct + LoRa
+    // Serialize and broadcast via MeshManager on all available interfaces
+    final data = utf8.encode(json.encode({
+      'type': 'OGM',
+      'originator': ogm.originator,
+      'sequenceNumber': ogm.sequenceNumber,
+      'hopCount': ogm.hopCount,
+      'batteryLevel': ogm.batteryLevel,
+      'neighborCount': ogm.neighborCount,
+      'timestamp': ogm.timestamp.toIso8601String(),
+    }));
+    _meshManager?.broadcastRawData(data, priority: MessagePriority.low);
     onLog?.call('OGM broadcast #$_ownSequenceNumber');
   }
 
@@ -150,8 +177,18 @@ class AdaptiveMeshRouter {
       minBattery: _getBatteryLevel(),
     );
 
+    // Serialize and broadcast via MeshManager
+    final data = utf8.encode(json.encode({
+      'type': 'RREQ',
+      'originator': rreq.originator,
+      'destination': rreq.destination,
+      'rreqId': rreq.rreqId,
+      'hopCount': rreq.hopCount,
+      'pathCost': rreq.pathCost,
+      'minBattery': rreq.minBattery,
+    }));
+    _meshManager?.broadcastRawData(data, priority: MessagePriority.high);
     onLog?.call('RREQ broadcast for $destination (ID: $rreqId)');
-    // In production: broadcast on all interfaces
   }
 
   /// Process incoming RREQ.
@@ -192,8 +229,16 @@ class AdaptiveMeshRouter {
       nextHop: nextHop,
     );
 
+    // Serialize and send unicast via MeshManager to the next hop
+    final data = utf8.encode(json.encode({
+      'type': 'RREP',
+      'destination': rrep.destination,
+      'originator': rrep.originator,
+      'pathCost': rrep.pathCost,
+      'nextHop': rrep.nextHop,
+    }));
+    _meshManager?.sendRawData(nextHop, data);
     onLog?.call('RREP sent to $destination via $nextHop (cost: $cost)');
-    // In production: send unicast RREP
   }
 
   /// Process incoming RREP.
@@ -369,8 +414,8 @@ class AdaptiveMeshRouter {
     );
   }
 
-  String _getOwnId() => 'device_${DateTime.now().millisecondsSinceEpoch}';
-  double _getBatteryLevel() => 80.0; // In production: read from platform
+  String _getOwnId() => _meshManager?.deviceId ?? 'device_unknown';
+  double _getBatteryLevel() => _meshManager?.batteryLevel ?? 80.0;
   int _generateRreqId() => DateTime.now().microsecondsSinceEpoch;
 
   void dispose() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
@@ -32,13 +33,26 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
     );
     _animationController.forward();
-    _navigateAfterDelay();
+    _checkAppStatus();
   }
 
-  Future<void> _navigateAfterDelay() async {
+  Future<void> _checkAppStatus() async {
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
 
+    // 1. Check permissions first (Proactive Permission UX)
+    final locationStatus = await Permission.location.status;
+    final bluetoothStatus = await Permission.bluetoothScan.status;
+
+    if (!mounted) return;
+
+    // If critical permissions aren't granted, go to PermissionScreen
+    if (!locationStatus.isGranted || !bluetoothStatus.isGranted) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.permissions);
+      return;
+    }
+
+    // 2. Check Authentication
     final authService = context.read<AuthService>();
     final isLoggedIn = authService.isAuthenticated;
 

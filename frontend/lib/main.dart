@@ -9,7 +9,9 @@ import 'core/themes.dart';
 import 'core/routes.dart';
 import 'shared/services/offline_storage.dart';
 import 'shared/services/sync_manager.dart';
+import 'shared/services/service_health.dart';
 import 'shared/widgets/responsive_layout.dart';
+import 'shared/widgets/degraded_mode_banner.dart';
 import 'modules/auth/services/auth_service.dart';
 import 'modules/sos/services/sos_service.dart';
 import 'modules/mesh/services/mesh_manager.dart';
@@ -23,6 +25,9 @@ import 'modules/drones/services/drone_service.dart';
 import 'modules/security/services/security_manager.dart';
 import 'modules/observability/services/observability_service.dart';
 
+/// Global service health monitor — tracks which services are degraded.
+final ServiceHealthNotifier serviceHealth = ServiceHealthNotifier();
+
 /// Helper that wraps a service creation + initialization call in a try-catch.
 /// If the initializer throws synchronously (before the first `await` in the
 /// Future), the error is caught here so the Provider's `create` callback never
@@ -31,14 +36,21 @@ import 'modules/observability/services/observability_service.dart';
 /// The service instance is still returned (partially initialized), so
 /// `context.watch<T>()` and `Provider.of<T>()` continue to work without
 /// throwing `ProviderNotFoundException`.
+///
+/// Also reports the failure to [ServiceHealthNotifier] so the UI can show
+/// a "Degraded Mode" banner to the user.
 T safeInit<T>(T Function() create) {
   try {
-    return create();
+    final instance = create();
+    serviceHealth.registerService(T);
+    return instance;
   } catch (e, stack) {
     debugPrint('══════════════════════════════════════════════════');
     debugPrint('⚠️ safeInit caught error for $T: $e');
     debugPrint('Stack: $stack');
     debugPrint('══════════════════════════════════════════════════');
+    // Report degraded status to the health monitor
+    serviceHealth.markDegraded(T, 'Initialization failed: $e');
     // Return a default instance so the Provider tree doesn't collapse.
     // The service will be in a degraded state but the app continues to run.
     return _createFallback<T>();
@@ -91,6 +103,11 @@ void main() async {
       debugPrint('🚨 FlutterError caught: ${details.exception}');
       debugPrint('Stack: ${details.stack}');
       debugPrint('══════════════════════════════════════════════════');
+      // Report to health monitor so the UI can show degraded mode
+      serviceHealth.markDegraded(
+        FlutterError,
+        'Flutter framework error: ${details.exception}',
+      );
     };
 
     WidgetsFlutterBinding.ensureInitialized();
@@ -109,6 +126,10 @@ void main() async {
         );
       } catch (e, stack) {
         debugPrint('WorkManager init error (non-fatal): $e\n$stack');
+        serviceHealth.markDegraded(
+          Workmanager,
+          'Background sync unavailable: $e',
+        );
       }
     }
 
@@ -126,6 +147,11 @@ void main() async {
     debugPrint('💥 Unhandled async error: $error');
     debugPrint('Stack: $stack');
     debugPrint('══════════════════════════════════════════════════');
+    // Show critical error overlay for unrecoverable async errors
+    serviceHealth.markUnavailable(
+      Object,
+      'Unhandled async error: $error',
+    );
   });
 }
 
@@ -137,6 +163,9 @@ class DangerEmergenceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Service Health Monitor (must be first so others can report to it)
+        ChangeNotifierProvider.value(value: serviceHealth),
+
         // Core Services
         Provider(create: (_) => safeInit(() => OfflineStorageService()..initialize())),
         Provider(create: (_) => safeInit(() => SyncManager()..initialize())),
@@ -176,14 +205,24 @@ class DangerEmergenceApp extends StatelessWidget {
           Locale('fr', 'FR'),
         ],
 
-        // Performance & Responsive Layout
+        // Performance & Responsive Layout + Degraded Mode Banner
         builder: (context, child) {
           return MediaQuery(
             // Prevent font scaling in emergency context
             data: MediaQuery.of(context).copyWith(
               textScaler: TextScaler.noScaling,
             ),
-            child: ResponsiveWrapper(child: child!),
+            child: ResponsiveWrapper(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Show degraded mode banner at the top when services fail
+                  const DegradedModeBanner(),
+                  // Main app content fills remaining space
+                  Expanded(child: child!),
+                ],
+              ),
+            ),
           );
         },
       ),
