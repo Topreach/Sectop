@@ -545,22 +545,31 @@ build_apk() {
     fi
   fi
   
-  # Patch connectivity_plus compileSdkVersion from 33 to 34 (required by its dependencies)
-  local CONNECTIVITY_BUILD_GRADLE="/root/.pub-cache/hosted/pub.dev/connectivity_plus-5.0.2/android/build.gradle"
-  if [ -f "$CONNECTIVITY_BUILD_GRADLE" ]; then
-    if grep -q "compileSdkVersion 33" "$CONNECTIVITY_BUILD_GRADLE" 2>/dev/null; then
-      sed -i 's/compileSdkVersion 33/compileSdkVersion 34/' "$CONNECTIVITY_BUILD_GRADLE"
-      log_info "Patched connectivity_plus compileSdkVersion 33 -> 34"
+  # Patch ALL plugin compileSdk from 33 to 34 (required by transitive dependencies like androidx.fragment:1.7.1)
+  # Handles both 'compileSdkVersion 33' (Groovy) and 'compileSdk 33' (Kotlin DSL / newer Groovy)
+  log_info "Scanning plugin build.gradle files for compileSdk 33..."
+  local SDK33_COUNT=0
+  for BUILD_GRADLE in /root/.pub-cache/hosted/pub.dev/*/android/build.gradle; do
+    if [ -f "$BUILD_GRADLE" ]; then
+      local CHANGED=0
+      if grep -q "compileSdkVersion 33" "$BUILD_GRADLE" 2>/dev/null; then
+        sed -i 's/compileSdkVersion 33/compileSdkVersion 34/' "$BUILD_GRADLE"
+        CHANGED=1
+      fi
+      if grep -q "^[[:space:]]*compileSdk 33[[:space:]]*$" "$BUILD_GRADLE" 2>/dev/null; then
+        sed -i 's/^\([[:space:]]*\)compileSdk 33\([[:space:]]*\)$/\1compileSdk 34\2/' "$BUILD_GRADLE"
+        CHANGED=1
+      fi
+      if [ "$CHANGED" = "1" ]; then
+        SDK33_COUNT=$((SDK33_COUNT + 1))
+        log_info "  Patched compileSdk 33 -> 34: $(basename $(dirname $(dirname $BUILD_GRADLE)))"
+      fi
     fi
-  fi
-
-  # Patch flutter_local_notifications compileSdkVersion from 33 to 34 (required by its dependencies)
-  local LN_BUILD_GRADLE="/root/.pub-cache/hosted/pub.dev/flutter_local_notifications-16.3.3/android/build.gradle"
-  if [ -f "$LN_BUILD_GRADLE" ]; then
-    if grep -q "compileSdkVersion 33" "$LN_BUILD_GRADLE" 2>/dev/null; then
-      sed -i 's/compileSdkVersion 33/compileSdkVersion 34/' "$LN_BUILD_GRADLE"
-      log_info "Patched flutter_local_notifications compileSdkVersion 33 -> 34"
-    fi
+  done
+  if [ "$SDK33_COUNT" -gt 0 ]; then
+    log_info "Patched $SDK33_COUNT plugin(s) compileSdk 33 -> 34"
+  else
+    log_info "No plugins with compileSdk 33 found"
   fi
 
   # Patch workmanager-0.5.2 Kotlin files that use deprecated Shims/Registrar API
