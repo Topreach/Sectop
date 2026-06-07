@@ -743,8 +743,8 @@ WMEOF3
   # Get dependencies
   cd "$FRONTEND_DIR" && flutter pub get 2>&1 | tail -2 || true
   
-  # Build APK (use -- --no-daemon to avoid file watcher conflicts on this server)
-  cd "$FRONTEND_DIR" && flutter build apk --release -- --no-daemon 2>&1 || true
+  # Build APK (use GRADLE_OPTS to pass --no-daemon to avoid file watcher conflicts)
+  cd "$FRONTEND_DIR" && GRADLE_OPTS="-Dorg.gradle.daemon=false" flutter build apk --release 2>&1 || true
   
   local APK_PATH="$FRONTEND_DIR/build/app/outputs/flutter-apk/app-release.apk"
   
