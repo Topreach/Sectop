@@ -27,12 +27,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Background Services -->
+    <!-- Background Services -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
-
     <!-- Camera (for future AR/QR features) -->
     <uses-permission android:name="android.permission.CAMERA"/>
 
@@ -94,6 +95,12 @@
         <service
             android:name="com.dangeremergence.mesh.MeshForegroundService"
             android:foregroundServiceType="dataSync"
+            android:exported="false"/>
+
+        <!-- Foreground service for background location tracking -->
+        <service
+            android:name="com.dangeremergence.location.LocationService"
+            android:foregroundServiceType="location"
             android:exported="false"/>
 
         <!-- Boot receiver for restarting services -->
