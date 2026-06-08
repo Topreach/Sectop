@@ -206,7 +206,6 @@ class AppIntegrity {
             // 'id' command not available — expected on non-rooted devices
           }
         }
-      }
       } else if (Platform.isIOS) {
         // Check for common jailbreak files
         const jailbreakPaths = [
