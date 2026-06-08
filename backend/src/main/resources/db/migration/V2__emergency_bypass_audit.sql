@@ -1,6 +1,6 @@
 -- Flyway migration: create emergency_bypass_audit table
 CREATE TABLE IF NOT EXISTS emergency_bypass_audit (
-  id SERIAL PRIMARY KEY,
+  id BIGSERIAL PRIMARY KEY,
   session_id TEXT,
   phone TEXT,
   client_ip TEXT,
