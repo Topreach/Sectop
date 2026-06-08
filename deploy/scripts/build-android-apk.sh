@@ -51,7 +51,25 @@ patch_plugins() {
         fi
       fi
     fi
-  done
+  fi
+
+  # Fix background_fetch plugin: safeExtGet() returns null in Gradle 8.x
+  # The plugin defines safeExtGet as a local method in the android block's ext,
+  # but in Gradle 8.x this method isn't found when called from compileSdkVersion.
+  # We replace safeExtGet() calls with direct fallback values.
+  local BG_FETCH_GRADLE
+  BG_FETCH_GRADLE=$(find "$PUB_CACHE/hosted/pub.dev/background_fetch-*" -name "build.gradle" 2>/dev/null | head -1)
+  if [ -n "$BG_FETCH_GRADLE" ] && grep -q "safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
+    log_info "Patching background_fetch safeExtGet() for Gradle 8.x compatibility..."
+    # Replace safeExtGet('prop', fallback) with direct fallback values
+    sed -i 's/safeExtGet("compileSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
+    sed -i "s/safeExtGet('compileSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
+    sed -i 's/safeExtGet("minSdkVersion", 21)/21/g' "$BG_FETCH_GRADLE"
+    sed -i "s/safeExtGet('minSdkVersion', 21)/21/g" "$BG_FETCH_GRADLE"
+    sed -i 's/safeExtGet("targetSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
+    sed -i "s/safeExtGet('targetSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
+    log_ok "  Patched background_fetch build.gradle"
+  fi
 
   # Bump all plugins to SDK 34
   log_info "Bumping plugin SDK versions to 34..."
