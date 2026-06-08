@@ -55,6 +55,7 @@ android {
             // When enabling, ensure all -keep rules in proguard-rules.pro
             // are comprehensive and tested.
             minifyEnabled = false
+            shrinkResources = false
             proguardFiles(
                 getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
