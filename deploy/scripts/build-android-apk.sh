@@ -51,7 +51,7 @@ patch_plugins() {
         fi
       fi
     fi
-  fi
+  done
 
   # Fix background_fetch plugin: safeExtGet() returns null in Gradle 8.x
   # The plugin defines safeExtGet as a local method in the android block's ext,
@@ -132,7 +132,6 @@ else
 fi
 
 log_ok "Plugin patching complete"
-  log_ok "Plugin patching complete"
 }
 
 # ── Step 2: Build APK ────────────────────────────────────────────────────────
