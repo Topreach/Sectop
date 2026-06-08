@@ -35,13 +35,18 @@ log_error() { echo -e "\033[0;31m[ERROR]\033[0m $*"; }
 patch_plugins() {
   log_info "Patching plugin compatibility for AGP 8+ and v2 embedding..."
 
-  local PUB_CACHE
-  PUB_CACHE="${PUB_CACHE:-/root/.pub-cache}"
+  # Determine pub cache directory (may be empty on some systems)
+  local PUB_CACHE_DIR
+  if [ -n "${PUB_CACHE:-}" ]; then
+    PUB_CACHE_DIR="$PUB_CACHE"
+  else
+    PUB_CACHE_DIR="/root/.pub-cache"
+  fi
 
   # Fix missing 'namespace' in plugin build.gradle files (required for AGP 8+)
   # Use temp file to avoid pipefail issues with 'set -u'
   local GRADLE_LIST="/tmp/sectop_gradle_files_$$.txt"
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$GRADLE_LIST" || true
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$GRADLE_LIST" || true
   while read -r gradle_file; do
     [ -z "$gradle_file" ] && continue
     if grep -q "apply plugin: 'com.android.library'" "$gradle_file" 2>/dev/null; then
@@ -61,55 +66,65 @@ patch_plugins() {
   done < "$GRADLE_LIST"
   rm -f "$GRADLE_LIST"
 
-  # Fix background_fetch plugin: safeExtGet() returns null in Gradle 8.x
-  # The plugin defines safeExtGet as a local method in the android block's ext,
-  # but in Gradle 8.x this method isn't found when called from compileSdkVersion.
-  # We replace safeExtGet() calls with direct fallback values.
-  # Use a for loop with glob expansion (outside quotes) to find the directory
+  # Fix plugins with safeExtGet() that returns null in Gradle 8.x
+  # Some plugins (e.g. background_fetch) define safeExtGet as a local method in
+  # the android block's ext, but in Gradle 8.x this method isn't found when
+  # called from compileSdkVersion. We replace safeExtGet() calls with direct
+  # fallback values.
   #
   # IMPORTANT: Order of sed operations matters here. We must fix any lines
   # corrupted by PREVIOUS sed runs FIRST, before doing the safeExtGet replacement.
   # Otherwise "compileSdk 34safeExtGet(...)" -> safeExtGet replaced -> "compileSdk 3434"
-  for BG_FETCH_DIR in "$PUB_CACHE"/hosted/pub.dev/background_fetch-*/; do
-    if [ -d "$BG_FETCH_DIR" ]; then
-      local BG_FETCH_GRADLE
-      BG_FETCH_GRADLE=$(find "$BG_FETCH_DIR" -name "build.gradle" 2>/dev/null | head -1)
-      if [ -n "$BG_FETCH_GRADLE" ] && grep -q "safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
-        log_info "Patching background_fetch safeExtGet() for Gradle 8.x compatibility..."
+  #
+  # NOTE: PUB_CACHE_DIR is already set above (see namespace patching section).
 
-        # STEP 1: Fix any lines corrupted by previous sed runs where [0-9]* matched
-        # zero digits, e.g. "compileSdk 34safeExtGet('compileSdkVersion', 36)"
-        # These must be fixed BEFORE the safeExtGet replacement below.
-        # The pattern: capture "compileSdk " as \1, then digits, then "safeExtGet(...)"
-        # Replace with \1 + "34" (the digit before safeExtGet is the value we want)
-        if grep -q "[0-9]safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
-          log_info "  Detected corrupted lines from previous sed runs, fixing..."
-          sed -i 's/\(compileSdk \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$BG_FETCH_GRADLE"
-          sed -i 's/\(compileSdkVersion \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$BG_FETCH_GRADLE"
-        fi
+  # STEP 1: Fix ALL corrupted lines across ALL plugins (from previous [0-9]* sed bug)
+  # The old sed pattern 's/compileSdk [0-9]*/compileSdk 34/g' matched zero digits
+  # when the next token was non-numeric, producing lines like:
+  #   "compileSdk 34safeExtGet('compileSdkVersion', 36)"  (background_fetch)
+  #   "compileSdk 34= 36 // flutter.compileSdkVersion"     (sqflite_android)
+  # We fix these by removing the corrupted suffix after the intended value.
+  log_info "Fixing any plugin build.gradle files corrupted by previous sed runs..."
+  local CORRUPTED_LIST="/tmp/sectop_corrupted_$$.txt"
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$CORRUPTED_LIST" || true
+  while read -r gradle_file; do
+    [ -z "$gradle_file" ] && continue
+    # Fix: "compileSdk 34safeExtGet(...)" -> "compileSdk 34"
+    sed -i 's/\(compileSdk \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$gradle_file" 2>/dev/null || true
+    # Fix: "compileSdkVersion 34safeExtGet(...)" -> "compileSdkVersion 34"
+    sed -i 's/\(compileSdkVersion \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$gradle_file" 2>/dev/null || true
+    # Fix: "compileSdk 34= 36 // ..." -> "compileSdk 34"
+    sed -i 's/\(compileSdk \)[0-9][0-9]*= [0-9][0-9]*.*/\134/g' "$gradle_file" 2>/dev/null || true
+    # Fix: "compileSdkVersion 34= 36 // ..." -> "compileSdkVersion 34"
+    sed -i 's/\(compileSdkVersion \)[0-9][0-9]*= [0-9][0-9]*.*/\134/g' "$gradle_file" 2>/dev/null || true
+  done < "$CORRUPTED_LIST"
+  rm -f "$CORRUPTED_LIST"
 
-        # STEP 2: Replace safeExtGet() calls with direct values
-        # Use wildcard for fallback value since different versions may use different defaults
-        sed -i 's/safeExtGet("compileSdkVersion", [0-9]*)/34/g' "$BG_FETCH_GRADLE"
-        sed -i "s/safeExtGet('compileSdkVersion', [0-9]*)/34/g" "$BG_FETCH_GRADLE"
-        sed -i 's/safeExtGet("minSdkVersion", [0-9]*)/21/g' "$BG_FETCH_GRADLE"
-        sed -i "s/safeExtGet('minSdkVersion', [0-9]*)/21/g" "$BG_FETCH_GRADLE"
-        sed -i 's/safeExtGet("targetSdkVersion", [0-9]*)/34/g' "$BG_FETCH_GRADLE"
-        sed -i "s/safeExtGet('targetSdkVersion', [0-9]*)/34/g" "$BG_FETCH_GRADLE"
-
-        log_ok "  Patched background_fetch build.gradle"
-      fi
+  # STEP 2: Replace safeExtGet() calls with direct values in ALL plugins
+  # Use wildcard for fallback value since different versions may use different defaults
+  log_info "Replacing safeExtGet() calls with direct values..."
+  local SAFEEXT_LIST="/tmp/sectop_safeext_$$.txt"
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$SAFEEXT_LIST" || true
+  while read -r gradle_file; do
+    [ -z "$gradle_file" ] && continue
+    if grep -q "safeExtGet" "$gradle_file" 2>/dev/null; then
+      sed -i 's/safeExtGet("compileSdkVersion", [0-9]*)/34/g' "$gradle_file" 2>/dev/null || true
+      sed -i "s/safeExtGet('compileSdkVersion', [0-9]*)/34/g" "$gradle_file" 2>/dev/null || true
+      sed -i 's/safeExtGet("minSdkVersion", [0-9]*)/21/g' "$gradle_file" 2>/dev/null || true
+      sed -i "s/safeExtGet('minSdkVersion', [0-9]*)/21/g" "$gradle_file" 2>/dev/null || true
+      sed -i 's/safeExtGet("targetSdkVersion", [0-9]*)/34/g' "$gradle_file" 2>/dev/null || true
+      sed -i "s/safeExtGet('targetSdkVersion', [0-9]*)/34/g" "$gradle_file" 2>/dev/null || true
     fi
-    break
-  done
+  done < "$SAFEEXT_LIST"
+  rm -f "$SAFEEXT_LIST"
 
   # Bump all plugins to SDK 34
   # NOTE: Use [0-9][0-9]* (one or more digits) instead of [0-9]* (zero or more)
   # to avoid matching non-numeric tokens like 'safeExtGet' after 'compileSdk '
   log_info "Bumping plugin SDK versions to 34..."
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null || true
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9][0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null || true
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9][0-9]*/compileSdk 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9][0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9][0-9]*/compileSdk 34/g' {} + 2>/dev/null || true
 
   # Fix Android v1 embedding → v2 embedding for all plugins
   # Flutter 3.16+ requires all plugins to use the v2 Android embedding.
@@ -117,7 +132,7 @@ patch_plugins() {
   # We patch plugin AndroidManifest.xml files to add the v2 registration.
   log_info "Migrating plugins from v1 to v2 Android embedding..."
   local MANIFEST_LIST="/tmp/sectop_manifests_$$.txt"
-  find "$PUB_CACHE/hosted/pub.dev/" -name "AndroidManifest.xml" 2>/dev/null > "$MANIFEST_LIST" || true
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "AndroidManifest.xml" 2>/dev/null > "$MANIFEST_LIST" || true
   while read -r manifest; do
     [ -z "$manifest" ] && continue
     # Check if this manifest uses v1 embedding (has old FlutterActivity/FlutterApplication references)
@@ -136,7 +151,7 @@ patch_plugins() {
 
   # Also patch any plugin build.gradle that references the old v1 embedding
   local GRADLE_LIST2="/tmp/sectop_gradle2_$$.txt"
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$GRADLE_LIST2" || true
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$GRADLE_LIST2" || true
   while read -r gradle_file; do
     [ -z "$gradle_file" ] && continue
     if grep -q "io.flutter.app" "$gradle_file" 2>/dev/null; then
