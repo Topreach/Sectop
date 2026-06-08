@@ -1,6 +1,16 @@
 #!/bin/bash
 # =============================================================================
-# Danger Emergence System - PRO Android APK Build Script (Fixed)
+# Danger Emergence System - Android APK Build Script
+# =============================================================================
+# Builds a release APK for the Danger Emergence mobile app.
+# The frontend is a thin client that communicates with the backend via REST API.
+#
+# Usage:
+#   ./deploy/scripts/build-android-apk.sh
+#
+# Environment variables:
+#   MAPBOX_ACCESS_TOKEN  - (optional) Mapbox token for map tiles
+#   ANDROID_HOME         - (optional) Android SDK path (default: /opt/android-sdk)
 # =============================================================================
 set -euo pipefail
 
@@ -9,6 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 ANDROID_SDK_ROOT="${ANDROID_HOME:-/opt/android-sdk}"
+BUILD_DIR="$FRONTEND_DIR/build/app/outputs/flutter-apk"
+OUTPUT_APK="$PROJECT_DIR/danger-emergence.apk"
 
 # ── Loggers ──────────────────────────────────────────────────────────────────
 log_info()  { echo -e "\033[0;34m[INFO]\033[0m  $*"; }
@@ -16,97 +28,79 @@ log_ok()    { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 log_warn()  { echo -e "\033[1;33m[WARN]\033[0m  $*"; }
 log_error() { echo -e "\033[0;31m[ERROR]\033[0m $*"; }
 
-# ── Step 1: Surgical Plugin Patching (The "Real Fix") ────────────────────────
-# Instead of stubbing, we fix the specific compatibility issues in the plugins.
-patch_plugins_surgically() {
-  log_info "Applying surgical patches to plugins..."
+# ── Step 1: Plugin Compatibility Patching ────────────────────────────────────
+patch_plugins() {
+  log_info "Patching plugin compatibility for AGP 8+..."
 
-  # 1. Fix missing 'namespace' in all plugin build.gradle files (Required for AGP 8+)
-  find /root/.pub-cache/hosted/pub.dev/ -name "build.gradle" -exec grep -l "apply plugin: 'com.android.library'" {} + | while read -r gradle_file; do
-    if ! grep -q "namespace" "$gradle_file"; then
-      # Extract package name from the path or manifest to use as namespace
-      pkg_name=$(grep "package=" "$(dirname "$gradle_file")/src/main/AndroidManifest.xml" | sed -e 's/.*package="//' -e 's/".*//')
-      if [ -n "$pkg_name" ]; then
-        sed -i "/android {/a \    namespace \"$pkg_name\"" "$gradle_file"
+  local PUB_CACHE
+  PUB_CACHE="${PUB_CACHE:-/root/.pub-cache}"
+
+  # Fix missing 'namespace' in plugin build.gradle files (required for AGP 8+)
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null | while read -r gradle_file; do
+    if grep -q "apply plugin: 'com.android.library'" "$gradle_file" 2>/dev/null; then
+      if ! grep -q "namespace" "$gradle_file" 2>/dev/null; then
+        local manifest_dir
+        manifest_dir="$(dirname "$gradle_file")/src/main/AndroidManifest.xml"
+        if [ -f "$manifest_dir" ]; then
+          local pkg_name
+          pkg_name=$(grep "package=" "$manifest_dir" | sed -e 's/.*package="//' -e 's/".*//')
+          if [ -n "$pkg_name" ]; then
+            sed -i "/android {/a \    namespace \"$pkg_name\"" "$gradle_file"
+            log_info "  Added namespace '$pkg_name' to $(basename "$(dirname "$gradle_file")")"
+          fi
+        fi
       fi
     fi
   done
 
-  # 2. Fix compileSdk/targetSdk 33 -> 34 for all plugins to prevent merger conflicts
-  log_info "Bumping all plugins to SDK 34..."
-  find /root/.pub-cache/hosted/pub.dev/ -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} +
-  find /root/.pub-cache/hosted/pub.dev/ -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' {} +
-  find /root/.pub-cache/hosted/pub.dev/ -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 34/g' {} +
+  # Bump all plugins to SDK 34
+  log_info "Bumping plugin SDK versions to 34..."
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 34/g' {} + 2>/dev/null
 
-  # 3. Fix flutter_local_notifications ambiguous call (Cast null to Bitmap)
-  local LN_FILE=$(find /root/.pub-cache/hosted/pub.dev/ -name "FlutterLocalNotificationsPlugin.java" | head -n 1)
-  if [ -f "$LN_FILE" ]; then
-    sed -i 's/bigLargeIcon(null)/bigLargeIcon((android.graphics.Bitmap)null)/g' "$LN_FILE"
-    log_ok "Patched flutter_local_notifications"
-  fi
-
-  # 4. Fix workmanager deprecated Registrar (Only if truly necessary, using fallback)
-  # Instead of overwriting with stubs, we ensure it uses the v2 embedding
-  log_info "Ensuring plugins use Flutter v2 embedding..."
+  log_ok "Plugin patching complete"
 }
 
-# ── Step 2: Inject Secrets from Environment ─────────────────────────────────
-inject_secrets() {
-  log_info "Injecting secrets from environment variables..."
-
-  local SECRETS_FILE="$FRONTEND_DIR/android/app/src/main/res/values/secrets.xml"
-
-  if [ -z "${MAPBOX_ACCESS_TOKEN:-}" ]; then
-    log_warn "MAPBOX_ACCESS_TOKEN is not set. Using placeholder (maps will not work)."
-    log_warn "Set MAPBOX_ACCESS_TOKEN in your .env file or export it before building."
-  else
-    log_ok "MAPBOX_ACCESS_TOKEN found (${MAPBOX_ACCESS_TOKEN:0:12}...)"
-    # Replace the placeholder with the real token
-    sed -i "s|__MAPBOX_ACCESS_TOKEN__|$MAPBOX_ACCESS_TOKEN|g" "$SECRETS_FILE"
-  fi
-}
-
-# ── Step 3: Android Manifest & Gradle Config ────────────────────────────────
-configure_android() {
-  log_info "Configuring Android platform..."
-  
-  cd "$FRONTEND_DIR"
-  if [ ! -d "android" ]; then
-    flutter create --platforms android .
-  fi
-
-  # Add required permissions to Manifest if missing
-  local MANIFEST="android/app/src/main/AndroidManifest.xml"
-  if ! grep -q "BLUETOOTH_SCAN" "$MANIFEST"; then
-     log_info "Adding missing permissions to Manifest..."
-     # (Omitted full insertion logic for brevity, but it remains part of the build logic)
-  fi
-}
-
-# ── Step 3: Build APK ────────────────────────────────────────────────────────
+# ── Step 2: Build APK ────────────────────────────────────────────────────────
 build_apk() {
-  log_info "Running Flutter Build..."
+  log_info "Building release APK..."
   cd "$FRONTEND_DIR"
 
+  # Get dependencies
   flutter pub get
-  patch_plugins_surgically
-  
+
+  # Patch plugins for compatibility
+  patch_plugins
+
+  # Build release APK (no tree-shake icons to ensure all Material icons are included)
   flutter build apk --release --no-tree-shake-icons
-  
-  if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-    log_ok "APK Built Successfully at build/app/outputs/flutter-apk/app-release.apk"
-    cp "build/app/outputs/flutter-apk/app-release.apk" "$PROJECT_DIR/danger-emergence.apk"
+
+  # Verify and copy output
+  if [ -f "$BUILD_DIR/app-release.apk" ]; then
+    local size
+    size=$(du -h "$BUILD_DIR/app-release.apk" | cut -f1)
+    log_ok "APK built successfully! Size: $size"
+    cp "$BUILD_DIR/app-release.apk" "$OUTPUT_APK"
+    log_ok "APK copied to: $OUTPUT_APK"
   else
-    log_error "Build failed."
+    log_error "Build failed - APK not found at $BUILD_DIR/app-release.apk"
     exit 1
   fi
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────
 main() {
-  configure_android
-  inject_secrets
+  log_info "=== Danger Emergence Android APK Build ==="
+  log_info "Project: $PROJECT_DIR"
+  log_info "Android SDK: $ANDROID_SDK_ROOT"
+  echo ""
+
   build_apk
+
+  log_ok "=== Build Complete ==="
+  log_info "Install the APK on your device:"
+  log_info "  adb install $OUTPUT_APK"
 }
 
 main "$@"

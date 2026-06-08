@@ -52,7 +52,7 @@ class AppConstants {
   static const int batchSyncSize = 50;
 
   // API
-  static const String apiBaseUrl = 'https://api.dangeremergence.com';
+  static const String apiBaseUrl = 'https://sectop.resultscaleai.com';
   static const String apiVersion = 'v1';
   static const int apiTimeout = 30; // seconds
   static const int apiRetryCount = 3;
