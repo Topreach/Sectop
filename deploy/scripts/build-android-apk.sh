@@ -77,15 +77,15 @@ patch_plugins() {
       fi
     fi
   done
+# Also patch any plugin build.gradle that references the old v1 embedding
+find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null | while read -r gradle_file; do
+  if grep -q "io.flutter.app" "$gradle_file" 2>/dev/null; then
+    log_info "  Patching v1 embedding references in: $(basename "$(dirname "$gradle_file")")"
+    sed -i 's|io\.flutter\.app\.FlutterActivity|io.flutter.embedding.android.FlutterActivity|g' "$gradle_file"
+    sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$gradle_file"
+  fi
+done
 
-  # Also patch any plugin build.gradle that references the old v1 embedding
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null | while read -r gradle_file; do
-    if grep -q "io.flutter.app" "$gradle_file" 2>/dev/null; then
-      log_info "  Patching v1 embedding references in: $(basename "$(dirname "$gradle_file")")"
-      sed -i 's|io\.flutter\.app\.FlutterActivity|io.flutter.embedding.android.FlutterActivity|g' "$gradle_file"
-      sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$gradle_file"
-    fi
-  done
 # Patch Flutter SDK's Gradle plugin to skip v1 embedding check
 # Flutter 3.16+ checks for v1 embedding and fails the build.
 # We disable this check by patching the Flutter Gradle plugin.
@@ -112,8 +112,8 @@ else
   log_warn "Could not find Flutter Gradle plugin source at $FLUTTER_SDK"
   log_warn "Will rely on manifest patching only"
 fi
-  fi
 
+log_ok "Plugin patching complete"
   log_ok "Plugin patching complete"
 }
 
