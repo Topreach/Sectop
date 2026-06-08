@@ -66,24 +66,37 @@ patch_plugins() {
   # but in Gradle 8.x this method isn't found when called from compileSdkVersion.
   # We replace safeExtGet() calls with direct fallback values.
   # Use a for loop with glob expansion (outside quotes) to find the directory
+  #
+  # IMPORTANT: Order of sed operations matters here. We must fix any lines
+  # corrupted by PREVIOUS sed runs FIRST, before doing the safeExtGet replacement.
+  # Otherwise "compileSdk 34safeExtGet(...)" -> safeExtGet replaced -> "compileSdk 3434"
   for BG_FETCH_DIR in "$PUB_CACHE"/hosted/pub.dev/background_fetch-*/; do
     if [ -d "$BG_FETCH_DIR" ]; then
       local BG_FETCH_GRADLE
       BG_FETCH_GRADLE=$(find "$BG_FETCH_DIR" -name "build.gradle" 2>/dev/null | head -1)
       if [ -n "$BG_FETCH_GRADLE" ] && grep -q "safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
         log_info "Patching background_fetch safeExtGet() for Gradle 8.x compatibility..."
+
+        # STEP 1: Fix any lines corrupted by previous sed runs where [0-9]* matched
+        # zero digits, e.g. "compileSdk 34safeExtGet('compileSdkVersion', 36)"
+        # These must be fixed BEFORE the safeExtGet replacement below.
+        # The pattern: capture "compileSdk " as \1, then digits, then "safeExtGet(...)"
+        # Replace with \1 + "34" (the digit before safeExtGet is the value we want)
+        if grep -q "[0-9]safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
+          log_info "  Detected corrupted lines from previous sed runs, fixing..."
+          sed -i 's/\(compileSdk \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$BG_FETCH_GRADLE"
+          sed -i 's/\(compileSdkVersion \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$BG_FETCH_GRADLE"
+        fi
+
+        # STEP 2: Replace safeExtGet() calls with direct values
         # Use wildcard for fallback value since different versions may use different defaults
-        # Also fix any previously-corrupted lines from earlier sed runs (e.g., "compileSdk 34safeExtGet(...)")
         sed -i 's/safeExtGet("compileSdkVersion", [0-9]*)/34/g' "$BG_FETCH_GRADLE"
         sed -i "s/safeExtGet('compileSdkVersion', [0-9]*)/34/g" "$BG_FETCH_GRADLE"
         sed -i 's/safeExtGet("minSdkVersion", [0-9]*)/21/g' "$BG_FETCH_GRADLE"
         sed -i "s/safeExtGet('minSdkVersion', [0-9]*)/21/g" "$BG_FETCH_GRADLE"
         sed -i 's/safeExtGet("targetSdkVersion", [0-9]*)/34/g' "$BG_FETCH_GRADLE"
         sed -i "s/safeExtGet('targetSdkVersion', [0-9]*)/34/g" "$BG_FETCH_GRADLE"
-        # Fix any lines corrupted by previous sed runs where [0-9]* matched zero digits
-        # e.g., "compileSdk 34safeExtGet('compileSdkVersion', 36)" -> "compileSdk 34"
-        sed -i 's/compileSdk [0-9]*safeExtGet/compileSdk 34 #safeExtGet/g' "$BG_FETCH_GRADLE"
-        sed -i 's/compileSdkVersion [0-9]*safeExtGet/compileSdkVersion 34 #safeExtGet/g' "$BG_FETCH_GRADLE"
+
         log_ok "  Patched background_fetch build.gradle"
       fi
     fi
