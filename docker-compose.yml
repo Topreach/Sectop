@@ -47,7 +47,7 @@ services:
     volumes:
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
-      - mosquitto_config_vol:/mosquitto/config
+      - mosquitto_config:/mosquitto/config
     networks:
       - danger-emergence-network
     restart: unless-stopped
@@ -105,8 +105,8 @@ services:
     ports:
       - "8081:80"
     volumes:
+      - nginx_config:/etc/nginx
       - nginx_html:/usr/share/nginx/html
-      - nginx_config_vol:/etc/nginx
     depends_on:
       - backend
       - ml-service
@@ -123,6 +123,6 @@ volumes:
   redis_data:
   mosquitto_data:
   mosquitto_log:
-  mosquitto_config_vol:
-  nginx_config_vol:
+  mosquitto_config:
+  nginx_config:
   nginx_html:
