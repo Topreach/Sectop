@@ -66,6 +66,7 @@ services:
       JDBC_DATABASE_URL: jdbc:postgresql://danger-emergence-db:5432/danger_emergence
       ML_SERVICE_URL: http://ml-service:8000
       MQTT_BROKER: tcp://mosquitto:1883
+      JWT_SECRET: ${JWT_SECRET:-d2FybmktZGFuZ2VyLWVtZXJnZW5jZS1zZWNyZXQta2V5LWZvci1obWFjLXNoYTI1Ng}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8080:8080"

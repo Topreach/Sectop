@@ -15,7 +15,7 @@ public class JwtUtil {
     private final Key signingKey;
     private final long expirationMs;
 
-    public JwtUtil(@Value("${JWT_SECRET:change-this-secret}") String secret,
+    public JwtUtil(@Value("${JWT_SECRET:d2FybmktZGFuZ2VyLWVtZXJnZW5jZS1zZWNyZXQta2V5LWZvci1obWFjLXNoYTI1Ng}") String secret,
                    @Value("${JWT_EXPIRATION_MS:86400000}") long expirationMs) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
