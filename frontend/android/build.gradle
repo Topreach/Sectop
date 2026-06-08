@@ -6,7 +6,8 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.11.1'
+        // AGP and Kotlin plugin are provided by the Flutter Gradle plugin
+        // (included via includeBuild in settings.gradle)
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }

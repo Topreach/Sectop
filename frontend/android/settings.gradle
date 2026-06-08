@@ -18,7 +18,9 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "8.11.1" apply false
+    // AGP is provided by the Flutter Gradle plugin (included via includeBuild above)
+    // Do not declare com.android.application here — it would conflict with the
+    // Flutter plugin's own AGP version resolution.
     id "org.jetbrains.kotlin.android" version "2.2.20" apply false
 }
 
