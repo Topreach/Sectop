@@ -295,22 +295,21 @@ class AppIntegrity {
           }
         } catch (_) {}
       }
-// Cross-platform: Check debugger flags
-// NOTE: Platform.environment may throw UnsupportedError on Android
-// because dart:io Platform is not fully available in Flutter's engine.
-try {
-  if (Platform.environment.containsKey('FLUTTER_TEST') ||
-      Platform.environment.containsKey('DEBUGGER_ATTACHED')) {
-    return IntegrityCheck(
-      name: 'Debugger Detection',
-      passed: false,
-      severity: SecurityEventSeverity.warning,
-      details: 'Debug environment detected',
-    );
-  }
-} catch (_) {
-  // Platform.environment not available — expected on Android
-}
+      // Cross-platform: Check debugger flags
+      // NOTE: Platform.environment may throw UnsupportedError on Android
+      // because dart:io Platform is not fully available in Flutter's engine.
+      try {
+        if (Platform.environment.containsKey('FLUTTER_TEST') ||
+            Platform.environment.containsKey('DEBUGGER_ATTACHED')) {
+          return IntegrityCheck(
+            name: 'Debugger Detection',
+            passed: false,
+            severity: SecurityEventSeverity.warning,
+            details: 'Debug environment detected',
+          );
+        }
+      } catch (_) {
+        // Platform.environment not available — expected on Android
       }
 
       // Check if running in debug mode
