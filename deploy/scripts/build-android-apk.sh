@@ -72,12 +72,18 @@ patch_plugins() {
       BG_FETCH_GRADLE=$(find "$BG_FETCH_DIR" -name "build.gradle" 2>/dev/null | head -1)
       if [ -n "$BG_FETCH_GRADLE" ] && grep -q "safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
         log_info "Patching background_fetch safeExtGet() for Gradle 8.x compatibility..."
-        sed -i 's/safeExtGet("compileSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
-        sed -i "s/safeExtGet('compileSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
-        sed -i 's/safeExtGet("minSdkVersion", 21)/21/g' "$BG_FETCH_GRADLE"
-        sed -i "s/safeExtGet('minSdkVersion', 21)/21/g" "$BG_FETCH_GRADLE"
-        sed -i 's/safeExtGet("targetSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
-        sed -i "s/safeExtGet('targetSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
+        # Use wildcard for fallback value since different versions may use different defaults
+        # Also fix any previously-corrupted lines from earlier sed runs (e.g., "compileSdk 34safeExtGet(...)")
+        sed -i 's/safeExtGet("compileSdkVersion", [0-9]*)/34/g' "$BG_FETCH_GRADLE"
+        sed -i "s/safeExtGet('compileSdkVersion', [0-9]*)/34/g" "$BG_FETCH_GRADLE"
+        sed -i 's/safeExtGet("minSdkVersion", [0-9]*)/21/g' "$BG_FETCH_GRADLE"
+        sed -i "s/safeExtGet('minSdkVersion', [0-9]*)/21/g" "$BG_FETCH_GRADLE"
+        sed -i 's/safeExtGet("targetSdkVersion", [0-9]*)/34/g' "$BG_FETCH_GRADLE"
+        sed -i "s/safeExtGet('targetSdkVersion', [0-9]*)/34/g" "$BG_FETCH_GRADLE"
+        # Fix any lines corrupted by previous sed runs where [0-9]* matched zero digits
+        # e.g., "compileSdk 34safeExtGet('compileSdkVersion', 36)" -> "compileSdk 34"
+        sed -i 's/compileSdk [0-9]*safeExtGet/compileSdk 34 #safeExtGet/g' "$BG_FETCH_GRADLE"
+        sed -i 's/compileSdkVersion [0-9]*safeExtGet/compileSdkVersion 34 #safeExtGet/g' "$BG_FETCH_GRADLE"
         log_ok "  Patched background_fetch build.gradle"
       fi
     fi
@@ -85,10 +91,12 @@ patch_plugins() {
   done
 
   # Bump all plugins to SDK 34
+  # NOTE: Use [0-9][0-9]* (one or more digits) instead of [0-9]* (zero or more)
+  # to avoid matching non-numeric tokens like 'safeExtGet' after 'compileSdk '
   log_info "Bumping plugin SDK versions to 34..."
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null || true
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null || true
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9][0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9][0-9]*/compileSdk 34/g' {} + 2>/dev/null || true
 
   # Fix Android v1 embedding → v2 embedding for all plugins
   # Flutter 3.16+ requires all plugins to use the v2 Android embedding.
