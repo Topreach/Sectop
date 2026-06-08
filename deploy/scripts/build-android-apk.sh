@@ -12,7 +12,10 @@
 #   MAPBOX_ACCESS_TOKEN  - (optional) Mapbox token for map tiles
 #   ANDROID_HOME         - (optional) Android SDK path (default: /opt/android-sdk)
 # =============================================================================
-set -euo pipefail
+# Intentionally avoid 'set -euo pipefail' because find|while-read pipelines
+# and find -exec sed commands can trigger false failures with pipefail.
+# Instead, we handle errors explicitly with '|| true' where needed.
+set -u
 
 # ── Configuration ────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,7 +39,11 @@ patch_plugins() {
   PUB_CACHE="${PUB_CACHE:-/root/.pub-cache}"
 
   # Fix missing 'namespace' in plugin build.gradle files (required for AGP 8+)
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null | while read -r gradle_file; do
+  # Use temp file to avoid pipefail issues with 'set -u'
+  local GRADLE_LIST="/tmp/sectop_gradle_files_$$.txt"
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$GRADLE_LIST" || true
+  while read -r gradle_file; do
+    [ -z "$gradle_file" ] && continue
     if grep -q "apply plugin: 'com.android.library'" "$gradle_file" 2>/dev/null; then
       if ! grep -q "namespace" "$gradle_file" 2>/dev/null; then
         local manifest_dir
@@ -51,38 +58,45 @@ patch_plugins() {
         fi
       fi
     fi
-  done
+  done < "$GRADLE_LIST"
+  rm -f "$GRADLE_LIST"
 
   # Fix background_fetch plugin: safeExtGet() returns null in Gradle 8.x
   # The plugin defines safeExtGet as a local method in the android block's ext,
   # but in Gradle 8.x this method isn't found when called from compileSdkVersion.
   # We replace safeExtGet() calls with direct fallback values.
   local BG_FETCH_GRADLE
-  BG_FETCH_GRADLE=$(find "$PUB_CACHE/hosted/pub.dev/background_fetch-*" -name "build.gradle" 2>/dev/null | head -1)
-  if [ -n "$BG_FETCH_GRADLE" ] && grep -q "safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
-    log_info "Patching background_fetch safeExtGet() for Gradle 8.x compatibility..."
-    # Replace safeExtGet('prop', fallback) with direct fallback values
-    sed -i 's/safeExtGet("compileSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
-    sed -i "s/safeExtGet('compileSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
-    sed -i 's/safeExtGet("minSdkVersion", 21)/21/g' "$BG_FETCH_GRADLE"
-    sed -i "s/safeExtGet('minSdkVersion', 21)/21/g" "$BG_FETCH_GRADLE"
-    sed -i 's/safeExtGet("targetSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
-    sed -i "s/safeExtGet('targetSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
-    log_ok "  Patched background_fetch build.gradle"
+  # Use ls to expand the glob, then find the build.gradle
+  BG_FETCH_DIR=$(ls -d "$PUB_CACHE/hosted/pub.dev/background_fetch-"* 2>/dev/null | head -1)
+  if [ -n "$BG_FETCH_DIR" ]; then
+    BG_FETCH_GRADLE=$(find "$BG_FETCH_DIR" -name "build.gradle" 2>/dev/null | head -1)
+    if [ -n "$BG_FETCH_GRADLE" ] && grep -q "safeExtGet" "$BG_FETCH_GRADLE" 2>/dev/null; then
+      log_info "Patching background_fetch safeExtGet() for Gradle 8.x compatibility..."
+      sed -i 's/safeExtGet("compileSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
+      sed -i "s/safeExtGet('compileSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
+      sed -i 's/safeExtGet("minSdkVersion", 21)/21/g' "$BG_FETCH_GRADLE"
+      sed -i "s/safeExtGet('minSdkVersion', 21)/21/g" "$BG_FETCH_GRADLE"
+      sed -i 's/safeExtGet("targetSdkVersion", 31)/34/g' "$BG_FETCH_GRADLE"
+      sed -i "s/safeExtGet('targetSdkVersion', 31)/34/g" "$BG_FETCH_GRADLE"
+      log_ok "  Patched background_fetch build.gradle"
+    fi
   fi
 
   # Bump all plugins to SDK 34
   log_info "Bumping plugin SDK versions to 34..."
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null
-  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 34/g' {} + 2>/dev/null
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null || true
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 34/g' {} + 2>/dev/null || true
 
   # Fix Android v1 embedding → v2 embedding for all plugins
   # Flutter 3.16+ requires all plugins to use the v2 Android embedding.
   # The v1 embedding uses io.flutter.app.FlutterActivity (deprecated).
   # We patch plugin AndroidManifest.xml files to add the v2 registration.
   log_info "Migrating plugins from v1 to v2 Android embedding..."
-  find "$PUB_CACHE/hosted/pub.dev/" -name "AndroidManifest.xml" 2>/dev/null | while read -r manifest; do
+  local MANIFEST_LIST="/tmp/sectop_manifests_$$.txt"
+  find "$PUB_CACHE/hosted/pub.dev/" -name "AndroidManifest.xml" 2>/dev/null > "$MANIFEST_LIST" || true
+  while read -r manifest; do
+    [ -z "$manifest" ] && continue
     # Check if this manifest uses v1 embedding (has old FlutterActivity/FlutterApplication references)
     if grep -q "android:name=\"io.flutter.app." "$manifest" 2>/dev/null; then
       log_info "  Patching v1 embedding in: $(basename "$(dirname "$(dirname "$manifest")")")"
@@ -94,44 +108,50 @@ patch_plugins() {
         sed -i '/<\/application>/i \        <activity android:name="io.flutter.embedding.android.FlutterActivity" android:exported="false"/>' "$manifest"
       fi
     fi
-  done
-# Also patch any plugin build.gradle that references the old v1 embedding
-find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null | while read -r gradle_file; do
-  if grep -q "io.flutter.app" "$gradle_file" 2>/dev/null; then
-    log_info "  Patching v1 embedding references in: $(basename "$(dirname "$gradle_file")")"
-    sed -i 's|io\.flutter\.app\.FlutterActivity|io.flutter.embedding.android.FlutterActivity|g' "$gradle_file"
-    sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$gradle_file"
+  done < "$MANIFEST_LIST"
+  rm -f "$MANIFEST_LIST"
+
+  # Also patch any plugin build.gradle that references the old v1 embedding
+  local GRADLE_LIST2="/tmp/sectop_gradle2_$$.txt"
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$GRADLE_LIST2" || true
+  while read -r gradle_file; do
+    [ -z "$gradle_file" ] && continue
+    if grep -q "io.flutter.app" "$gradle_file" 2>/dev/null; then
+      log_info "  Patching v1 embedding references in: $(basename "$(dirname "$gradle_file")")"
+      sed -i 's|io\.flutter\.app\.FlutterActivity|io.flutter.embedding.android.FlutterActivity|g' "$gradle_file"
+      sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$gradle_file"
+    fi
+  done < "$GRADLE_LIST2"
+  rm -f "$GRADLE_LIST2"
+
+  # Patch Flutter SDK's Gradle plugin to skip v1 embedding check
+  # Flutter 3.16+ checks for v1 embedding and fails the build.
+  # We disable this check by patching the Flutter Gradle plugin.
+  local FLUTTER_SDK
+  # Try multiple possible Flutter SDK locations
+  if [ -d "/root/snap/flutter/common/flutter" ]; then
+    FLUTTER_SDK="/root/snap/flutter/common/flutter"
+  elif [ -d "/snap/flutter/common/flutter" ]; then
+    FLUTTER_SDK="/snap/flutter/common/flutter"
+  else
+    FLUTTER_SDK="$(dirname "$(dirname "$(which flutter 2>/dev/null || echo '')")" 2>/dev/null)"
   fi
-done
 
-# Patch Flutter SDK's Gradle plugin to skip v1 embedding check
-# Flutter 3.16+ checks for v1 embedding and fails the build.
-# We disable this check by patching the Flutter Gradle plugin.
-local FLUTTER_SDK
-# Try multiple possible Flutter SDK locations
-if [ -d "/root/snap/flutter/common/flutter" ]; then
-  FLUTTER_SDK="/root/snap/flutter/common/flutter"
-elif [ -d "/snap/flutter/common/flutter" ]; then
-  FLUTTER_SDK="/snap/flutter/common/flutter"
-else
-  FLUTTER_SDK="$(dirname "$(dirname "$(which flutter 2>/dev/null || echo '')")" 2>/dev/null)"
-fi
+  # Try to find the Gradle plugin source file
+  local FLUTTER_GRADLE_PLUGIN
+  FLUTTER_GRADLE_PLUGIN=$(find "$FLUTTER_SDK" -path "*/flutter_tools/gradle/src/main/groovy/flutter.groovy" 2>/dev/null | head -1)
 
-# Try to find the Gradle plugin source file
-local FLUTTER_GRADLE_PLUGIN
-FLUTTER_GRADLE_PLUGIN=$(find "$FLUTTER_SDK" -path "*/flutter_tools/gradle/src/main/groovy/flutter.groovy" 2>/dev/null | head -1)
+  if [ -n "$FLUTTER_GRADLE_PLUGIN" ] && [ -f "$FLUTTER_GRADLE_PLUGIN" ]; then
+    log_info "Patching Flutter Gradle plugin at: $FLUTTER_GRADLE_PLUGIN"
+    # Comment out the v1 embedding check by wrapping it in a conditional that always skips
+    sed -i 's|if (pluginManifestV1Embedding)|if (false \&\& pluginManifestV1Embedding)|g' "$FLUTTER_GRADLE_PLUGIN" 2>/dev/null || true
+    log_ok "Flutter Gradle plugin patched"
+  else
+    log_warn "Could not find Flutter Gradle plugin source at $FLUTTER_SDK"
+    log_warn "Will rely on manifest patching only"
+  fi
 
-if [ -n "$FLUTTER_GRADLE_PLUGIN" ] && [ -f "$FLUTTER_GRADLE_PLUGIN" ]; then
-  log_info "Patching Flutter Gradle plugin at: $FLUTTER_GRADLE_PLUGIN"
-  # Comment out the v1 embedding check by wrapping it in a conditional that always skips
-  sed -i 's|if (pluginManifestV1Embedding)|if (false \&\& pluginManifestV1Embedding)|g' "$FLUTTER_GRADLE_PLUGIN" 2>/dev/null || true
-  log_ok "Flutter Gradle plugin patched"
-else
-  log_warn "Could not find Flutter Gradle plugin source at $FLUTTER_SDK"
-  log_warn "Will rely on manifest patching only"
-fi
-
-log_ok "Plugin patching complete"
+  log_ok "Plugin patching complete"
 }
 
 # ── Step 2: Build APK ────────────────────────────────────────────────────────
