@@ -37,4 +37,6 @@ ENTRYPOINT ["java", \
     "-XX:+UseG1GC", \
     "-XX:+ParallelRefProcEnabled", \
     "-Djava.security.egd=file:/dev/./urandom", \
+    "-Dspring.redis.host=${REDIS_HOST}", \
+    "-Dspring.redis.port=${REDIS_PORT}", \
     "-jar", "app.jar"]

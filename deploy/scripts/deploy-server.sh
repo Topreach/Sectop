@@ -131,6 +131,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JDBC_DATABASE_URL: jdbc:postgresql://danger-emergence-db:5432/danger_emergence
       ML_SERVICE_URL: http://ml-service:8000
       MQTT_BROKER: tcp://mosquitto:1883
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
