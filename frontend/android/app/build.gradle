@@ -24,7 +24,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace = "com.dangeremergence.app"
-    compileSdk = 34
+    compileSdk = rootProject.ext.compileSdkVersion
     ndkVersion = "25.2.9519653"
 
     compileOptions {
@@ -38,8 +38,8 @@ android {
 
     defaultConfig {
         applicationId = "com.dangeremergence.app"
-        minSdk = 21
-        targetSdk = 34
+        minSdk = rootProject.ext.minSdkVersion
+        targetSdk = rootProject.ext.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
         multiDexEnabled = true
