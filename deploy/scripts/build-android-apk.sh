@@ -128,7 +128,15 @@ build_apk() {
   # Patch plugins for compatibility
   patch_plugins
 
+  # Clean any previous build artifacts to avoid cache conflicts
+  log_info "Cleaning previous build artifacts..."
+  cd "$FRONTEND_DIR/android"
+  ./gradlew clean 2>/dev/null || true
+  cd "$FRONTEND_DIR"
+
   # Build release APK (no tree-shake icons to ensure all Material icons are included)
+  # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
+  # First build may take longer due to Gradle download + dependency resolution
   flutter build apk --release --no-tree-shake-icons
 
   # Verify and copy output
