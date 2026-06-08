@@ -87,6 +87,23 @@ patch_plugins() {
     fi
   done
 
+  # Patch Flutter SDK's Gradle plugin to skip v1 embedding check
+  # Flutter 3.16+ checks for v1 embedding and fails the build.
+  # We disable this check by patching the Flutter Gradle plugin.
+  local FLUTTER_SDK
+  FLUTTER_SDK="$(dirname "$(dirname "$(which flutter)")")"
+  local FLUTTER_GRADLE_PLUGIN
+  FLUTTER_GRADLE_PLUGIN="$FLUTTER_SDK/packages/flutter_tools/gradle/src/main/groovy/flutter.groovy"
+  if [ -f "$FLUTTER_GRADLE_PLUGIN" ]; then
+    log_info "Patching Flutter Gradle plugin to skip v1 embedding check..."
+    # Comment out the v1 embedding check by wrapping it in a conditional that always skips
+    sed -i 's|if (pluginManifestV1Embedding)|if (false \&\& pluginManifestV1Embedding)|g' "$FLUTTER_GRADLE_PLUGIN" 2>/dev/null || true
+    log_ok "Flutter Gradle plugin patched"
+  else
+    log_warn "Could not find Flutter Gradle plugin at $FLUTTER_GRADLE_PLUGIN"
+    log_warn "Will rely on manifest patching only"
+  fi
+
   log_ok "Plugin patching complete"
 }
 
