@@ -2,7 +2,7 @@ package com.dangeremergence.config;
 
 import com.dangeremergence.model.User;
 import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.service.UserService;
+import com.dangeremergence.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,11 +20,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserService userService;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserService userService) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserRepository userRepository) {
         this.jwtUtil = jwtUtil;
-        this.userService = userService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String userId = jwtUtil.getUserIdFromToken(token);
                     String role = jwtUtil.getRoleFromToken(token);
                     // Load user for additional validation if needed
-                    User user = userService.getUserById(userId).orElse(null);
+                    User user = userRepository.findById(userId).orElse(null);
                     if (user != null) {
                         var auth = new UsernamePasswordAuthenticationToken(
                                 user,
