@@ -20,8 +20,10 @@ class MeshManager extends ChangeNotifier {
 
   String _deviceId = '';
   List<MeshPeer> _knownPeers = [];
+  List<MeshPeer> _discoveredPeers = [];
   List<MeshMessage> _messages = [];
   bool _isInitialized = false;
+  bool _isScanning = false;
   bool _isBatterySaverEnabled = false;
   Timer? _statsTimer;
 
@@ -31,14 +33,36 @@ class MeshManager extends ChangeNotifier {
   /// Known peers discovered via Bluetooth or backend.
   List<MeshPeer> get knownPeers => _knownPeers;
 
+  /// Discovered peers (alias for knownPeers for UI compatibility).
+  List<MeshPeer> get discoveredPeers => _discoveredPeers;
+
   /// Mesh messages received.
   List<MeshMessage> get messages => _messages;
 
   /// Whether the mesh manager is initialized.
   bool get isInitialized => _isInitialized;
 
+  /// Whether scanning is currently active.
+  bool get isScanning => _isScanning;
+
   /// Whether battery saver mode is active.
   bool get isBatterySaverEnabled => _isBatterySaverEnabled;
+
+  /// Start scanning for nearby peers.
+  void startScanning() {
+    if (_isScanning) return;
+    _isScanning = true;
+    debugPrint('MeshManager: Scanning started');
+    notifyListeners();
+  }
+
+  /// Stop scanning for nearby peers.
+  void stopScanning() {
+    if (!_isScanning) return;
+    _isScanning = false;
+    debugPrint('MeshManager: Scanning stopped');
+    notifyListeners();
+  }
 
   /// Toggle battery saver mode.
   void setBatterySaver(bool enabled) {

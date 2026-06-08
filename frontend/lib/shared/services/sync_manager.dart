@@ -18,10 +18,17 @@ class SyncManager {
   final OfflineStorageService _storage = OfflineStorageService();
 
   bool _isSyncing = false;
+  bool _isOnline = true;
   DateTime? _lastSyncTime;
 
   /// Whether a sync operation is currently in progress.
   bool get isSyncing => _isSyncing;
+
+  /// Whether the device is currently online (connected to backend).
+  bool get isOnline => _isOnline;
+
+  /// Number of items pending sync.
+  int get pendingCount => 0; // Simplified: always 0 in thin-client mode
 
   /// Timestamp of the last successful sync.
   DateTime? get lastSyncTime => _lastSyncTime;
