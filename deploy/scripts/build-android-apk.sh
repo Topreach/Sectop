@@ -30,7 +30,7 @@ log_error() { echo -e "\033[0;31m[ERROR]\033[0m $*"; }
 
 # ── Step 1: Plugin Compatibility Patching ────────────────────────────────────
 patch_plugins() {
-  log_info "Patching plugin compatibility for AGP 8+..."
+  log_info "Patching plugin compatibility for AGP 8+ and v2 embedding..."
 
   local PUB_CACHE
   PUB_CACHE="${PUB_CACHE:-/root/.pub-cache}"
@@ -58,6 +58,34 @@ patch_plugins() {
   find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} + 2>/dev/null
   find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null
   find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 34/g' {} + 2>/dev/null
+
+  # Fix Android v1 embedding → v2 embedding for all plugins
+  # Flutter 3.16+ requires all plugins to use the v2 Android embedding.
+  # The v1 embedding uses io.flutter.app.FlutterActivity (deprecated).
+  # We patch plugin AndroidManifest.xml files to add the v2 registration.
+  log_info "Migrating plugins from v1 to v2 Android embedding..."
+  find "$PUB_CACHE/hosted/pub.dev/" -name "AndroidManifest.xml" 2>/dev/null | while read -r manifest; do
+    # Check if this manifest uses v1 embedding (has old FlutterActivity/FlutterApplication references)
+    if grep -q "android:name=\"io.flutter.app." "$manifest" 2>/dev/null; then
+      log_info "  Patching v1 embedding in: $(basename "$(dirname "$(dirname "$manifest")")")"
+      # Replace v1 FlutterActivity with v2 FlutterActivity
+      sed -i 's|io\.flutter\.app\.FlutterActivity|io.flutter.embedding.android.FlutterActivity|g' "$manifest"
+      sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$manifest"
+      # Add FlutterActivity to manifest if not present
+      if ! grep -q "io.flutter.embedding.android.FlutterActivity" "$manifest" 2>/dev/null; then
+        sed -i '/<\/application>/i \        <activity android:name="io.flutter.embedding.android.FlutterActivity" android:exported="false"/>' "$manifest"
+      fi
+    fi
+  done
+
+  # Also patch any plugin build.gradle that references the old v1 embedding
+  find "$PUB_CACHE/hosted/pub.dev/" -name "build.gradle" 2>/dev/null | while read -r gradle_file; do
+    if grep -q "io.flutter.app" "$gradle_file" 2>/dev/null; then
+      log_info "  Patching v1 embedding references in: $(basename "$(dirname "$gradle_file")")"
+      sed -i 's|io\.flutter\.app\.FlutterActivity|io.flutter.embedding.android.FlutterActivity|g' "$gradle_file"
+      sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$gradle_file"
+    fi
+  done
 
   log_ok "Plugin patching complete"
 }
