@@ -258,12 +258,23 @@ fi
 docker rm temp_nginx > /dev/null
 echo "  ✅ nginx_config volume seeded."
 
-# --- Nginx HTML (basic index.html) ---
+# --- Nginx HTML (Flutter web PWA or basic placeholder) ---
 echo "  → Seeding nginx_html volume..."
 docker container create --name temp_html -v nginx_html:/usr/share/nginx/html alpine:3.18 2>/dev/null
 
-# Create a basic index.html placeholder
-cat > /tmp/index.html << 'HTML'
+# Check if Flutter web build output exists
+FLUTTER_WEB_BUILD="$PROJECT_DIR/frontend/build/web"
+if [ -d "$FLUTTER_WEB_BUILD" ] && [ -f "$FLUTTER_WEB_BUILD/index.html" ]; then
+    echo "    ✅ Flutter web build found at $FLUTTER_WEB_BUILD"
+    echo "    → Copying Flutter web PWA to nginx_html volume..."
+    docker cp "$FLUTTER_WEB_BUILD/." temp_html:/usr/share/nginx/html/
+    echo "    ✅ Flutter web PWA copied to nginx_html volume"
+else
+    echo "    ⚠️  Flutter web build not found at $FLUTTER_WEB_BUILD"
+    echo "    → Creating basic placeholder index.html..."
+
+    # Create a basic index.html placeholder
+    cat > /tmp/index.html << 'HTML'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -288,9 +299,10 @@ cat > /tmp/index.html << 'HTML'
 </html>
 HTML
 
-docker cp /tmp/index.html temp_html:/usr/share/nginx/html/
-rm /tmp/index.html
-echo "    ✅ index.html copied"
+    docker cp /tmp/index.html temp_html:/usr/share/nginx/html/
+    rm /tmp/index.html
+    echo "    ✅ Basic index.html copied"
+fi
 
 docker rm temp_html > /dev/null
 echo "  ✅ nginx_html volume seeded."
