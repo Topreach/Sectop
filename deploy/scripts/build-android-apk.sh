@@ -86,22 +86,32 @@ patch_plugins() {
       sed -i 's|io\.flutter\.app\.FlutterApplication|io.flutter.embedding.android.FlutterApplication|g' "$gradle_file"
     fi
   done
+# Patch Flutter SDK's Gradle plugin to skip v1 embedding check
+# Flutter 3.16+ checks for v1 embedding and fails the build.
+# We disable this check by patching the Flutter Gradle plugin.
+local FLUTTER_SDK
+# Try multiple possible Flutter SDK locations
+if [ -d "/root/snap/flutter/common/flutter" ]; then
+  FLUTTER_SDK="/root/snap/flutter/common/flutter"
+elif [ -d "/snap/flutter/common/flutter" ]; then
+  FLUTTER_SDK="/snap/flutter/common/flutter"
+else
+  FLUTTER_SDK="$(dirname "$(dirname "$(which flutter 2>/dev/null || echo '')")" 2>/dev/null)"
+fi
 
-  # Patch Flutter SDK's Gradle plugin to skip v1 embedding check
-  # Flutter 3.16+ checks for v1 embedding and fails the build.
-  # We disable this check by patching the Flutter Gradle plugin.
-  local FLUTTER_SDK
-  FLUTTER_SDK="$(dirname "$(dirname "$(which flutter)")")"
-  local FLUTTER_GRADLE_PLUGIN
-  FLUTTER_GRADLE_PLUGIN="$FLUTTER_SDK/packages/flutter_tools/gradle/src/main/groovy/flutter.groovy"
-  if [ -f "$FLUTTER_GRADLE_PLUGIN" ]; then
-    log_info "Patching Flutter Gradle plugin to skip v1 embedding check..."
-    # Comment out the v1 embedding check by wrapping it in a conditional that always skips
-    sed -i 's|if (pluginManifestV1Embedding)|if (false \&\& pluginManifestV1Embedding)|g' "$FLUTTER_GRADLE_PLUGIN" 2>/dev/null || true
-    log_ok "Flutter Gradle plugin patched"
-  else
-    log_warn "Could not find Flutter Gradle plugin at $FLUTTER_GRADLE_PLUGIN"
-    log_warn "Will rely on manifest patching only"
+# Try to find the Gradle plugin source file
+local FLUTTER_GRADLE_PLUGIN
+FLUTTER_GRADLE_PLUGIN=$(find "$FLUTTER_SDK" -path "*/flutter_tools/gradle/src/main/groovy/flutter.groovy" 2>/dev/null | head -1)
+
+if [ -n "$FLUTTER_GRADLE_PLUGIN" ] && [ -f "$FLUTTER_GRADLE_PLUGIN" ]; then
+  log_info "Patching Flutter Gradle plugin at: $FLUTTER_GRADLE_PLUGIN"
+  # Comment out the v1 embedding check by wrapping it in a conditional that always skips
+  sed -i 's|if (pluginManifestV1Embedding)|if (false \&\& pluginManifestV1Embedding)|g' "$FLUTTER_GRADLE_PLUGIN" 2>/dev/null || true
+  log_ok "Flutter Gradle plugin patched"
+else
+  log_warn "Could not find Flutter Gradle plugin source at $FLUTTER_SDK"
+  log_warn "Will rely on manifest patching only"
+fi
   fi
 
   log_ok "Plugin patching complete"
