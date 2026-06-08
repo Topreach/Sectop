@@ -31,12 +31,12 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
     CMD wget -qO- http://localhost:8080/actuator/health || exit 1
 
-ENTRYPOINT ["java", \
-    "-XX:+UseContainerSupport", \
-    "-XX:MaxRAMPercentage=75.0", \
-    "-XX:+UseG1GC", \
-    "-XX:+ParallelRefProcEnabled", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "-Dspring.redis.host=${REDIS_HOST}", \
-    "-Dspring.redis.port=${REDIS_PORT}", \
-    "-jar", "app.jar"]
+ENTRYPOINT java \
+    -XX:+UseContainerSupport \
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:+UseG1GC \
+    -XX:+ParallelRefProcEnabled \
+    -Djava.security.egd=file:/dev/./urandom \
+    -Dspring.redis.host=${REDIS_HOST:-redis} \
+    -Dspring.redis.port=${REDIS_PORT:-6379} \
+    -jar app.jar
