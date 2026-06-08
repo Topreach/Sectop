@@ -75,6 +75,11 @@
         android:usesCleartextTraffic="false"
         tools:targetApi="34">
 
+        <!-- Flutter v2 embedding (required by Flutter 3.16+) -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2"/>
+
         <!-- Flutter engine activity -->
         <activity
             android:name="com.dangeremergence.app.MainActivity"
