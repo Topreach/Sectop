@@ -311,6 +311,21 @@ build_apk() {
   # Patch plugins for compatibility
   patch_plugins
 
+  # Re-apply memory settings (Flutter Gradle plugin may have overwritten gradle.properties)
+  log_info "Re-applying Gradle memory settings..."
+  cat > "$FRONTEND_DIR/android/gradle.properties" << 'GRADLEPROPS'
+android.useAndroidX=true
+android.enableJetifier=true
+org.gradle.caching=true
+org.gradle.configureondemand=false
+# Memory settings for low-RAM build servers
+org.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=256m
+kotlin.daemon.jvmargs=-Xmx512m
+org.gradle.parallel=false
+org.gradle.daemon=false
+GRADLEPROPS
+  log_ok "Gradle memory settings re-applied"
+
   # Clean previous build artifacts (delete directly instead of using ./gradlew clean
   # to avoid triggering Gradle daemon issues)
   log_info "Cleaning previous build artifacts..."
@@ -374,7 +389,7 @@ build_apk() {
   # (JetifyTransform needs significant heap for large AAR/JAR conversions)
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
   export KOTLIN_DAEMON_JVM_OPTS="-Xmx512m"
-  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
+  export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
