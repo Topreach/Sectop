@@ -333,6 +333,21 @@ build_apk() {
   log_info "Building release APK..."
   cd "$FRONTEND_DIR"
 
+  # Delete corrupted workmanager plugin files from pub cache so they get
+  # re-downloaded fresh by flutter pub get, then patched correctly.
+  local PUB_CACHE_DIR
+  if [ -n "${PUB_CACHE:-}" ]; then
+    PUB_CACHE_DIR="$PUB_CACHE"
+  else
+    PUB_CACHE_DIR="/root/.pub-cache"
+  fi
+  local WM_CACHE_DIR="$PUB_CACHE_DIR/hosted/pub.dev/workmanager-0.5.2"
+  if [ -d "$WM_CACHE_DIR" ]; then
+    log_info "Removing cached workmanager plugin for fresh download..."
+    rm -rf "$WM_CACHE_DIR"
+    log_ok "Workmanager cache cleared"
+  fi
+
   # Get dependencies
   flutter pub get
 

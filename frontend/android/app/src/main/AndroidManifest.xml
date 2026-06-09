@@ -131,9 +131,5 @@
                 tools:node="remove"/>
         </provider>
 
-        <meta-data
-            android:name="com.mapbox.token"
-            android:value="@string/mapbox_access_token"/>
-
     </application>
 </manifest>
