@@ -79,14 +79,14 @@ check_config() {
     log_warn "Low disk space (may cause build failures)"
   fi
 
-  # 0.5 Check RAM (need at least 1.5GB available for 1GB Gradle heap + OS overhead)
+  # 0.5 Check RAM (need at least 2GB available for 1.5GB Gradle heap + OS overhead)
   if command -v free &>/dev/null; then
     local avail_mb
     avail_mb=$(free -m 2>/dev/null | grep "Mem:" | awk '{print $7}')
-    if [ -n "$avail_mb" ] && [ "$avail_mb" -gt 1536 ] 2>/dev/null; then
+    if [ -n "$avail_mb" ] && [ "$avail_mb" -gt 2048 ] 2>/dev/null; then
       log_ok "Available RAM: ${avail_mb}MB"
     else
-      log_warn "Low available RAM: ${avail_mb:-?}MB (Gradle allocated to 1GB heap)"
+      log_warn "Low available RAM: ${avail_mb:-?}MB (Gradle allocated to 1.5GB heap)"
     fi
   fi
 
@@ -310,6 +310,15 @@ build_apk() {
   # to avoid triggering Gradle daemon issues)
   log_info "Cleaning previous build artifacts..."
   rm -rf "$FRONTEND_DIR/build/" "$FRONTEND_DIR/android/.gradle/" "$FRONTEND_DIR/android/app/build/" 2>/dev/null || true
+  
+  # Kill any lingering Gradle daemons that may hold cached memory from failed builds
+  log_info "Stopping any running Gradle daemons..."
+  pkill -9 -f "gradle" 2>/dev/null || true
+  sleep 2
+  
+  # Clear Gradle cache entirely (removes corrupted Jetify transforms from previous runs)
+  log_info "Clearing Gradle cache to remove corrupted transforms..."
+  rm -rf "$HOME/.gradle/caches/modules-2/" "$HOME/.gradle/caches/jars-*/" 2>/dev/null || true
 
   # ── Gradle version workaround ──────────────────────────────────────────────
   # The Flutter SDK's Gradle plugin (included via settings.gradle) may override
@@ -356,10 +365,11 @@ build_apk() {
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
   # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
-  # Gradle JVM heap allocation: 1GB for transforming TensorFlow Lite + Flutter native libs
-  # (insufficient heap causes "Java heap space" error during JetifyTransform)
-  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC"
-  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon
+  # Gradle JVM heap allocation: 1.5GB for transforming TensorFlow Lite + Flutter native libs
+  # (JetifyTransform needs significant heap for large AAR/JAR conversions)
+  # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
+  export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=768m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
+  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -- --org.gradle.jvmargs="-Xmx1536m" --org.gradle.workers.max=2 --org.gradle.parallel=false
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
