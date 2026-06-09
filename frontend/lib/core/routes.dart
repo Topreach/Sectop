@@ -7,6 +7,13 @@ import '../modules/sos/screens/dashboard_screen.dart';
 import '../modules/sos/screens/sos_screen.dart';
 import '../modules/sos/screens/inbox_screen.dart';
 import '../modules/sos/screens/offline_resources_screen.dart';
+import '../modules/sos/screens/profile_screen.dart';
+import '../modules/sos/screens/help_screen.dart';
+import '../modules/sos/screens/settings_screen.dart';
+import '../modules/sos/screens/emergency_contacts_screen.dart';
+import '../modules/sos/screens/incident_report_screen.dart';
+import '../modules/sos/screens/zone_details_screen.dart';
+import '../modules/sos/screens/message_detail_screen.dart';
 import '../modules/maps/screens/map_screen.dart';
 import '../modules/mesh/screens/mesh_status_screen.dart';
 
@@ -77,6 +84,41 @@ class AppRoutes {
       case offlineResources:
         return MaterialPageRoute(
           builder: (_) => const OfflineResourcesScreen(),
+          settings: settings,
+        );
+      case profile:
+        return MaterialPageRoute(
+          builder: (_) => const ProfileScreen(),
+          settings: settings,
+        );
+      case help:
+        return MaterialPageRoute(
+          builder: (_) => const HelpScreen(),
+          settings: settings,
+        );
+      case settings:
+        return MaterialPageRoute(
+          builder: (_) => const SettingsScreen(),
+          settings: settings,
+        );
+      case emergencyContacts:
+        return MaterialPageRoute(
+          builder: (_) => const EmergencyContactsScreen(),
+          settings: settings,
+        );
+      case incidentReport:
+        return MaterialPageRoute(
+          builder: (_) => const IncidentReportScreen(),
+          settings: settings,
+        );
+      case zoneDetails:
+        return MaterialPageRoute(
+          builder: (_) => const ZoneDetailsScreen(),
+          settings: settings,
+        );
+      case messageDetail:
+        return MaterialPageRoute(
+          builder: (_) => const MessageDetailScreen(),
           settings: settings,
         );
       default:

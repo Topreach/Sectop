@@ -386,6 +386,77 @@ class BackendApi {
       debugPrint('BackendApi: Failed to send crash report: $e');
     }
   }
+  // ---------------------------------------------------------------------------
+  // Zones
+  // ---------------------------------------------------------------------------
+
+  /// Get active zones.
+  Future<Map<String, dynamic>> getActiveZones() async {
+    return get('/zones/active');
+  }
+
+  /// Get danger zones.
+  Future<Map<String, dynamic>> getDangerZones() async {
+    return get('/zones/danger');
+  }
+
+  /// Get restricted zones.
+  Future<Map<String, dynamic>> getRestrictedZones() async {
+    return get('/zones/restricted');
+  }
+
+  /// Get zones nearby a location.
+  Future<Map<String, dynamic>> getZonesNearby(double lat, double lng, {double radiusDegrees = 0.5}) async {
+    return get('/zones/nearby?latitude=$lat&longitude=$lng&radiusDegrees=$radiusDegrees');
+  }
+
+  /// Create a new zone.
+  Future<Map<String, dynamic>> createZone(Map<String, dynamic> zoneData) async {
+    return post('/zones', body: zoneData);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Messages
+  // ---------------------------------------------------------------------------
+
+  /// Get messages for a user.
+  Future<Map<String, dynamic>> getMessages(String userId) async {
+    return get('/messages/user/$userId');
+  }
+
+  /// Get unread message count for a user.
+  Future<Map<String, dynamic>> getUnreadCount(String userId) async {
+    return get('/messages/unread/$userId');
+  }
+
+  /// Mark a message as read.
+  Future<void> markMessageRead(String messageId) async {
+    await put('/messages/$messageId/read');
+  }
+
+  /// Send a message.
+  Future<Map<String, dynamic>> sendMessage(Map<String, dynamic> messageData) async {
+    return post('/messages', body: messageData);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Alerts
+  // ---------------------------------------------------------------------------
+
+  /// Get active alerts.
+  Future<Map<String, dynamic>> getActiveAlerts() async {
+    return get('/alerts/active');
+  }
+
+  /// Get alerts for a user.
+  Future<Map<String, dynamic>> getUserAlerts(String userId) async {
+    return get('/alerts/user/$userId');
+  }
+
+  /// Get alert count.
+  Future<Map<String, dynamic>> getAlertCount() async {
+    return get('/alerts/count');
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.

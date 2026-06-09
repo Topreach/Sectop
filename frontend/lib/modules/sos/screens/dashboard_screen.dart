@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/sync_manager.dart';
+import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
@@ -377,26 +382,218 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-class _MapView extends StatelessWidget {
+class _MapView extends StatefulWidget {
   const _MapView();
 
   @override
+  State<_MapView> createState() => _MapViewState();
+}
+
+class _MapViewState extends State<_MapView> {
+  List<Map<String, dynamic>> _nearbyZones = [];
+  bool _isLoadingZones = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNearbyZones();
+  }
+
+  Future<void> _loadNearbyZones() async {
+    setState(() => _isLoadingZones = true);
+    try {
+      final mapService = context.read<MapService>();
+      final position = mapService.currentPosition ??
+          await mapService.getCurrentLocation();
+      if (position != null) {
+        final api = context.read<BackendApi>();
+        final result = await api.getZonesNearby(
+          position.latitude,
+          position.longitude,
+        );
+        setState(() {
+          _nearbyZones = result['zones'] is List
+              ? List<Map<String, dynamic>>.from(result['zones'])
+              : [];
+          _isLoadingZones = false;
+        });
+      } else {
+        setState(() => _isLoadingZones = false);
+      }
+    } catch (e) {
+      debugPrint('_MapView: Failed to load zones: $e');
+      setState(() => _isLoadingZones = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final mapService = context.watch<MapService>();
+    final position = mapService.currentPosition;
+    final center = position != null
+        ? LatLng(position.latitude, position.longitude)
+        : const LatLng(9.0820, 8.6753); // Default: Nigeria center
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Map'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.fullscreen),
+            tooltip: 'Open Full Map',
+            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.map),
+          ),
+        ],
       ),
-      body: const Center(
-        child: Text('Map View - Implement with flutter_map'),
+      body: Column(
+        children: [
+          Expanded(
+            child: FlutterMap(
+              options: MapOptions(
+                center: center,
+                zoom: 14.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.dangeremergence.app',
+                ),
+                // Current location marker
+                MarkerLayer(
+                  markers: [
+                    if (position != null)
+                      Marker(
+                        point: center,
+                        width: 30,
+                        height: 30,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.my_location,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    // Zone markers
+                    ..._nearbyZones.map((zone) {
+                      final lat = (zone['latitude'] as num?)?.toDouble() ?? 0;
+                      final lng = (zone['longitude'] as num?)?.toDouble() ?? 0;
+                      final type = zone['type'] as String? ?? 'unknown';
+                      final zoneColor = AppTheme.getZoneColor(type);
+                      return Marker(
+                        point: LatLng(lat, lng),
+                        width: 24,
+                        height: 24,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: zoneColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.warning,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Zone summary bar
+          if (_isLoadingZones)
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: LinearProgressIndicator(),
+            )
+          else if (_nearbyZones.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.grey[100],
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber, size: 16, color: Colors.orange[700]),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_nearbyZones.length} zone(s) nearby',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _InboxView extends StatelessWidget {
+class _InboxView extends StatefulWidget {
   const _InboxView();
+
+  @override
+  State<_InboxView> createState() => _InboxViewState();
+}
+
+class _InboxViewState extends State<_InboxView> {
+  int _unreadCount = 0;
+  int _alertCount = 0;
+  List<Map<String, dynamic>> _recentMessages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInboxSummary();
+  }
+
+  Future<void> _loadInboxSummary() async {
+    setState(() => _isLoading = true);
+    try {
+      final authService = context.read<AuthService>();
+      final userId = authService.currentUser?.id;
+      if (userId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      final api = context.read<BackendApi>();
+
+      final results = await Future.wait([
+        api.getUnreadCount(userId),
+        api.getAlertCount(),
+        api.getMessages(userId),
+      ]);
+
+      final unreadData = results[0];
+      final alertData = results[1];
+      final messagesData = results[2];
+
+      setState(() {
+        _unreadCount = unreadData['count'] as int? ?? 0;
+        _alertCount = alertData['count'] as int? ?? 0;
+        final allMessages = messagesData['messages'] is List
+            ? List<Map<String, dynamic>>.from(messagesData['messages'])
+            : [];
+        _recentMessages = allMessages.take(3).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('_InboxView: Failed to load summary: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -405,9 +602,146 @@ class _InboxView extends StatelessWidget {
         title: const Text('Inbox'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.open_in_new),
+            tooltip: 'Open Inbox',
+            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
+          ),
+        ],
       ),
-      body: const Center(
-        child: Text('Inbox - Messages and alerts'),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadInboxSummary,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // Summary cards row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryCard(
+                          icon: Icons.message_outlined,
+                          label: 'Unread Messages',
+                          count: _unreadCount,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SummaryCard(
+                          icon: Icons.warning_amber_outlined,
+                          label: 'Active Alerts',
+                          count: _alertCount,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Recent messages section
+                  const Text(
+                    'Recent Messages',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+
+                  if (_recentMessages.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'No recent messages',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._recentMessages.map((msg) {
+                      final content = msg['content'] as String? ?? '';
+                      final senderId = msg['sender_id'] as String? ?? 'Unknown';
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppTheme.primaryColor,
+                            child: const Icon(Icons.person, color: Colors.white, size: 20),
+                          ),
+                          title: Text(
+                            senderId,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            content,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          ),
+                        ),
+                      );
+                    }),
+
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Open Inbox'),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int count;
+  final Color color;
+
+  const _SummaryCard({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -458,9 +792,15 @@ class _ProfileView extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             // Profile options
-            _ProfileOption(Icons.person_outline, 'Edit Profile', () {}),
-            _ProfileOption(Icons.medical_services_outlined, 'Medical Info', () {}),
-            _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {}),
+            _ProfileOption(Icons.person_outline, 'Edit Profile', () {
+              _showEditProfileDialog(context, authService);
+            }),
+            _ProfileOption(Icons.medical_services_outlined, 'Medical Info', () {
+              _showMedicalInfoDialog(context);
+            }),
+            _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {
+              _showEmergencyContactsDialog(context);
+            }),
             _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
               _showPrivacySecurityDialog(context);
             }),
@@ -537,6 +877,350 @@ class _ProfileView extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _showEditProfileDialog(BuildContext context, AuthService authService) {
+    final user = authService.currentUser;
+    final nameController = TextEditingController(text: user?.name ?? '');
+    final emailController = TextEditingController(text: user?.email ?? '');
+    final phoneController = TextEditingController(text: user?.phone ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Profile'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final updated = UserProfile(
+                  id: user?.id ?? '',
+                  name: nameController.text.trim(),
+                  email: emailController.text.trim(),
+                  phone: phoneController.text.trim(),
+                  role: user?.role ?? AppConstants.roleCitizen,
+                  emergencyContacts: user?.emergencyContacts ?? [],
+                  medicalInfo: user?.medicalInfo,
+                  createdAt: user?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
+                );
+                await authService.updateProfile(updated);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profile updated')),
+                  );
+                }
+              },
+              child: const Text('SAVE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showMedicalInfoDialog(BuildContext context) {
+    final storage = OfflineStorageService();
+    String bloodType = '';
+    String allergies = '';
+    String medications = '';
+    String conditions = '';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Load existing data
+            storage.getSetting('medical_info').then((value) {
+              if (value != null && value is String) {
+                final data = value.split('||');
+                if (data.length >= 4) {
+                  bloodType = data[0];
+                  allergies = data[1];
+                  medications = data[2];
+                  conditions = data[3];
+                }
+              }
+            });
+
+            return AlertDialog(
+              title: const Text('Medical Info'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: bloodType.isEmpty ? null : bloodType,
+                      decoration: const InputDecoration(
+                        labelText: 'Blood Type',
+                        prefixIcon: Icon(Icons.bloodtype),
+                      ),
+                      items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+                          .map((type) => DropdownMenuItem(
+                                value: type,
+                                child: Text(type),
+                              ))
+                          .toList(),
+                      onChanged: (value) => bloodType = value ?? '',
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Allergies',
+                        prefixIcon: Icon(Icons.warning_amber_outlined),
+                        hintText: 'e.g., Penicillin, Peanuts',
+                      ),
+                      onChanged: (value) => allergies = value,
+                      controller: TextEditingController.fromValue(
+                        TextEditingValue(text: allergies),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Medications',
+                        prefixIcon: Icon(Icons.medication_outlined),
+                        hintText: 'e.g., Metformin 500mg',
+                      ),
+                      onChanged: (value) => medications = value,
+                      controller: TextEditingController.fromValue(
+                        TextEditingValue(text: medications),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Medical Conditions',
+                        prefixIcon: Icon(Icons.health_and_safety_outlined),
+                        hintText: 'e.g., Diabetes, Asthma',
+                      ),
+                      onChanged: (value) => conditions = value,
+                      controller: TextEditingController.fromValue(
+                        TextEditingValue(text: conditions),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CANCEL'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final data = '$bloodType||$allergies||$medications||$conditions';
+                    await storage.saveSetting('medical_info', data);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Medical info saved')),
+                      );
+                    }
+                  },
+                  child: const Text('SAVE'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showEmergencyContactsDialog(BuildContext context) {
+    final storage = OfflineStorageService();
+    List<Map<String, String>> contacts = [];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Load existing contacts
+            storage.getSetting('emergency_contacts').then((value) {
+              if (value != null && value is String) {
+                final decoded = json.decode(value) as List;
+                contacts = decoded.map((e) => Map<String, String>.from(e)).toList();
+              }
+            });
+
+            return AlertDialog(
+              title: const Text('Emergency Contacts'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: contacts.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'No emergency contacts added yet.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: contacts.length,
+                        itemBuilder: (context, index) {
+                          final contact = contacts[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppTheme.primaryColor,
+                              child: const Icon(Icons.person, color: Colors.white, size: 20),
+                            ),
+                            title: Text(contact['name'] ?? ''),
+                            subtitle: Text(contact['phone'] ?? ''),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  onPressed: () {
+                                    _showAddEditContactDialog(
+                                      context,
+                                      (updatedContact) {
+                                        contacts[index] = updatedContact;
+                                        _saveContacts(storage, contacts);
+                                        setDialogState(() {});
+                                      },
+                                      initialData: contact,
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                                  onPressed: () {
+                                    contacts.removeAt(index);
+                                    _saveContacts(storage, contacts);
+                                    setDialogState(() {});
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CLOSE'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    _showAddEditContactDialog(
+                      context,
+                      (newContact) {
+                        contacts.add(newContact);
+                        _saveContacts(storage, contacts);
+                        setDialogState(() {});
+                      },
+                    );
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add Contact'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddEditContactDialog(
+    BuildContext context,
+    void Function(Map<String, String>) onSave, {
+    Map<String, String>? initialData,
+  }) {
+    final nameController = TextEditingController(text: initialData?['name'] ?? '');
+    final phoneController = TextEditingController(text: initialData?['phone'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                onSave({
+                  'name': nameController.text.trim(),
+                  'phone': phoneController.text.trim(),
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('SAVE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _saveContacts(OfflineStorageService storage, List<Map<String, String>> contacts) {
+    storage.saveSetting('emergency_contacts', json.encode(contacts));
   }
 }
 
