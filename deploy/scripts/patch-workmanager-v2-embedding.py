@@ -101,13 +101,17 @@ def patch_workmanager_plugin(filepath: str) -> bool:
 
 
 def patch_background_worker(filepath: str) -> bool:
-    """Rewrite BackgroundWorker.kt from v1 ShimPluginRegistry to v2 direct attachment."""
+    """Rewrite BackgroundWorker.kt from v1 ShimPluginRegistry to v2 direct attachment.
+
+    Uses exact string replacements first, then falls back to regex-based
+    replacements for robustness against minor formatting differences.
+    """
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
     original = content
 
-    # 1. Replace imports
+    # --- 1. Replace imports (exact match) ---
     content = content.replace(
         "import io.flutter.app.FlutterActivity",
         "import io.flutter.embedding.engine.FlutterEngine",
@@ -117,7 +121,7 @@ def patch_background_worker(filepath: str) -> bool:
         "import io.flutter.embedding.engine.dart.DartExecutor",
     )
 
-    # 2. Replace v1 registration block
+    # --- 2. Replace v1 registration block (exact match) ---
     content = content.replace(
         "val shim = ShimPluginRegistry(flutterEngine)",
         "val messenger = flutterEngine.dartExecutor.binaryMessenger",
@@ -137,6 +141,53 @@ def patch_background_worker(filepath: str) -> bool:
     content = content.replace(
         "BackgroundWorker.registerWith(reg)",
         "WorkmanagerPlugin().onAttachedToEngine(messenger)",
+    )
+
+    # --- 3. Regex fallback: catch v1 patterns that exact replacements missed ---
+
+    # 3a. Replace v1 ShimPluginRegistry import if present
+    content = re.sub(
+        r"import\s+io\.flutter\.app\.FlutterActivity",
+        "import io.flutter.embedding.engine.FlutterEngine",
+        content,
+    )
+    content = re.sub(
+        r"import\s+io\.flutter\.plugin\.common\.PluginRegistry",
+        "import io.flutter.embedding.engine.dart.DartExecutor",
+        content,
+    )
+
+    # 3b. Replace ShimPluginRegistry usage
+    content = re.sub(
+        r"val\s+shim\s*=\s*ShimPluginRegistry\s*\(\s*flutterEngine\s*\)",
+        "val messenger = flutterEngine.dartExecutor.binaryMessenger",
+        content,
+    )
+
+    # 3c. Replace key variable declarations
+    content = re.sub(
+        r'val\s+key\s*=\s*"BackgroundWorker"',
+        '// v2 embedding',
+        content,
+    )
+    content = re.sub(
+        r'val\s+key2\s*=\s*"WorkmanagerPlugin"',
+        '// v2 embedding',
+        content,
+    )
+
+    # 3d. Replace registrarFor call
+    content = re.sub(
+        r"val\s+reg\s*=\s*shim\.registrarFor\s*\(\s*key\s*\)",
+        "// v2: register directly",
+        content,
+    )
+
+    # 3e. Replace registerWith call
+    content = re.sub(
+        r"BackgroundWorker\.registerWith\s*\(\s*reg\s*\)",
+        "WorkmanagerPlugin().onAttachedToEngine(messenger)",
+        content,
     )
 
     if content == original:
