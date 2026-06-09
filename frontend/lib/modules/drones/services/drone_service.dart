@@ -15,12 +15,11 @@ class DroneService extends ChangeNotifier {
 
   final BackendApi _api = BackendApi();
 
-  List<DroneInfo> _availableDrones = [];
+  List<Drone> _availableDrones = [];
   bool _isLoading = false;
-  Timer? _fleetUpdateTimer;
 
   /// Available drones from the backend.
-  List<DroneInfo> get availableDrones => _availableDrones;
+  List<Drone> get availableDrones => _availableDrones;
 
   /// Whether drone data is being loaded.
   bool get isLoading => _isLoading;
@@ -31,7 +30,7 @@ class DroneService extends ChangeNotifier {
   }
 
   /// Fetch available drones from backend.
-  Future<List<DroneInfo>> getAvailableDrones({
+  Future<List<Drone>> getAvailableDrones({
     double latitude = 0,
     double longitude = 0,
   }) async {
@@ -48,18 +47,20 @@ class DroneService extends ChangeNotifier {
       if (result['drones'] is List) {
         for (final d in result['drones'] as List) {
           final dMap = d as Map<String, dynamic>;
-          _availableDrones.add(DroneInfo(
+          _availableDrones.add(Drone(
             id: dMap['id'] as String? ?? '',
             name: dMap['name'] as String? ?? '',
-            model: dMap['model'] as String? ?? '',
-            battery: (dMap['battery'] as num?)?.toInt() ?? 0,
-            status: dMap['status'] as String? ?? 'unknown',
-            latitude: (dMap['latitude'] as num?)?.toDouble() ?? 0.0,
-            longitude: (dMap['longitude'] as num?)?.toDouble() ?? 0.0,
-            altitude: (dMap['altitude'] as num?)?.toDouble() ?? 0.0,
-            maxSpeed: (dMap['maxSpeed'] as num?)?.toDouble() ?? 0.0,
-            hasLoRa: dMap['hasLoRa'] as bool? ?? false,
-            hasCamera: dMap['hasCamera'] as bool? ?? false,
+            location: Location(
+              (dMap['latitude'] as num?)?.toDouble() ?? 0.0,
+              (dMap['longitude'] as num?)?.toDouble() ?? 0.0,
+            ),
+            lastSeen: DateTime.now(),
+            status: DroneStatus.values.firstWhere(
+              (e) => e.name == (dMap['status'] as String? ?? 'offline'),
+              orElse: () => DroneStatus.offline,
+            ),
+            batteryPercent: (dMap['battery'] as num?)?.toDouble() ?? 0.0,
+            altitudeAGL: (dMap['altitude'] as num?)?.toDouble() ?? 0.0,
           ));
         }
       }
@@ -127,33 +128,27 @@ class DroneService extends ChangeNotifier {
     try {
       final result = await _api.deploySwarmMesh(zoneId, centerLat, centerLng, radiusKm);
 
-      final deployedDrones = <DroneInfo>[];
+      final deployedDrones = <Drone>[];
       if (result['deployedDrones'] is List) {
         for (final d in result['deployedDrones'] as List) {
           final dMap = d as Map<String, dynamic>;
-          deployedDrones.add(DroneInfo(
+          deployedDrones.add(Drone(
             id: dMap['id'] as String? ?? '',
             name: dMap['name'] as String? ?? '',
-            model: dMap['model'] as String? ?? '',
-            battery: (dMap['battery'] as num?)?.toInt() ?? 0,
-            status: dMap['status'] as String? ?? 'deployed',
-            latitude: (dMap['deployedLatitude'] as num?)?.toDouble() ?? 0.0,
-            longitude: (dMap['deployedLongitude'] as num?)?.toDouble() ?? 0.0,
-            altitude: (dMap['altitude'] as num?)?.toDouble() ?? 0.0,
-            maxSpeed: (dMap['maxSpeed'] as num?)?.toDouble() ?? 0.0,
-            hasLoRa: dMap['hasLoRa'] as bool? ?? false,
-            hasCamera: dMap['hasCamera'] as bool? ?? false,
+            location: Location(
+              (dMap['deployedLatitude'] as num?)?.toDouble() ?? 0.0,
+              (dMap['deployedLongitude'] as num?)?.toDouble() ?? 0.0,
+            ),
+            lastSeen: DateTime.now(),
+            status: DroneStatus.deployed,
+            batteryPercent: (dMap['battery'] as num?)?.toDouble() ?? 0.0,
+            altitudeAGL: (dMap['altitude'] as num?)?.toDouble() ?? 0.0,
           ));
         }
       }
 
       return SwarmMesh(
-        drones: deployedDrones.map((d) => Drone(
-          id: d.id,
-          name: d.name,
-          location: Location(d.latitude, d.longitude),
-          lastSeen: DateTime.now(),
-        )).toList(),
+        drones: deployedDrones,
         coverageArea: [],
         estimatedUptime: Duration(hours: 1),
         averageSignalStrength: (result['estimatedSignalStrength'] as num?)?.toDouble() ?? 0.0,
