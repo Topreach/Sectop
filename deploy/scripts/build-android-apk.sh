@@ -203,20 +203,34 @@ build_apk() {
   # Patch plugins for compatibility
   patch_plugins
 
-  # Clean any previous build artifacts to avoid cache conflicts
+  # Clean previous build artifacts (delete directly instead of using ./gradlew clean
+  # to avoid triggering Gradle's Kotlin DSL cache rebuild with mismatched versions)
   log_info "Cleaning previous build artifacts..."
-  cd "$FRONTEND_DIR/android"
-  ./gradlew clean 2>/dev/null || true
-  cd "$FRONTEND_DIR"
+  rm -rf "$FRONTEND_DIR/build/" "$FRONTEND_DIR/android/.gradle/" "$FRONTEND_DIR/android/app/build/" 2>/dev/null || true
+
+  # Delete entire Gradle cache to ensure a clean state.
+  # The kotlin-dsl accessors cache gets corrupted when Flutter 3.44.1 auto-upgrades
+  # settings.gradle to Kotlin 2.2.20 but Gradle 8.14 embeds Kotlin 2.0.21.
+  log_info "Cleaning Gradle caches..."
+  rm -rf ~/.gradle/caches/ 2>/dev/null || true
+
+  # CRITICAL: Prevent Flutter from auto-upgrading settings.gradle to Kotlin 2.2.20.
+  # Flutter 3.44.1's auto-upgrade process modifies settings.gradle during the build,
+  # changing Kotlin from 2.0.21 to 2.2.20. This causes the kotlin-dsl plugin to fail
+  # because Gradle 8.14 embeds Kotlin 2.0.21. We make the file read-only to prevent
+  # the auto-upgrade, then restore it after the build.
+  log_info "Locking settings.gradle to prevent Flutter auto-upgrade..."
+  local SETTINGS_FILE="$FRONTEND_DIR/android/settings.gradle"
+  chmod 0444 "$SETTINGS_FILE" 2>/dev/null || true
 
   # Build release APK (no tree-shake icons to ensure all Material icons are included)
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
   # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
-  # Gradle 8.14 embeds Kotlin 2.0.21, but Flutter 3.44.1 recommends Kotlin 2.2.20.
-  # The kotlin-dsl plugin cannot handle this version mismatch, causing cache corruption.
-  # Using Kotlin 2.0.21 (matching Gradle's embedded version) with this flag avoids the issue.
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+
+  # Restore settings.gradle permissions after build
+  chmod 0644 "$SETTINGS_FILE" 2>/dev/null || true
 
   # Verify and copy output
   if [ -f "$BUILD_DIR/app-release.apk" ]; then
