@@ -49,13 +49,12 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
-            // CRITICAL: minifyEnabled and shrinkResources are enabled to
-            // reduce APK size. The app uses a thin-client architecture
-            // (ML inference via backend API), so no TFLite native libs
-            // are bundled. Ensure all -keep rules in proguard-rules.pro
-            // are comprehensive and tested.
-            minifyEnabled = true
-            shrinkResources = true
+            // APK size is managed via ABI split (--split-per-abi) and
+            // thin-client architecture (no TFLite native libs bundled).
+            // R8 minification is disabled as it breaks Flutter's plugin
+            // system which uses reflection for MethodChannel dispatch.
+            minifyEnabled = false
+            shrinkResources = false
             proguardFiles(
                 getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
