@@ -336,7 +336,7 @@ org.gradle.caching=true
 org.gradle.configureondemand=false
 # Memory settings for low-RAM build servers
 org.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=256m
-kotlin.daemon.jvmargs=-Xmx512m
+kotlin.daemon.jvmargs=-Xmx768m
 org.gradle.parallel=false
 org.gradle.daemon=false
 GRADLEPROPS
@@ -350,11 +350,19 @@ GRADLEPROPS
   # Kill any lingering Gradle daemons that may hold cached memory from failed builds
   log_info "Stopping any running Gradle daemons..."
   pkill -9 -f "gradle" 2>/dev/null || true
-  sleep 2
+  # Kill any lingering Kotlin daemons from previous failed builds
+  # These may occupy the Kotlin daemon port and prevent new connections
+  pkill -9 -f "kotlin-daemon" 2>/dev/null || true
+  sleep 1
   
-  # Clear Gradle cache entirely (removes corrupted Jetify transforms from previous runs)
-  log_info "Clearing Gradle cache to remove corrupted transforms..."
-  rm -rf "$HOME/.gradle/caches/modules-2/" "$HOME/.gradle/caches/jars-*/" "$HOME/.gradle/caches/8.14/" "$HOME/.gradle/caches/9.1.0/" "$HOME/.gradle/caches/transforms-3/" 2>/dev/null || true
+  # Only remove corrupted transform cache and Kotlin daemon port locks.
+  # Do NOT clear the entire Gradle cache - that forces re-download of ALL
+  # dependencies, which is extremely memory-intensive on low-RAM servers.
+  log_info "Cleaning corrupted transforms and Kotlin daemon port locks..."
+  rm -rf "$HOME/.gradle/caches/transforms-3/" 2>/dev/null || true
+  # Remove Kotlin daemon port lock files from previous failed builds
+  rm -f "$HOME/.gradle/daemon/"*"/kotlin-daemon-ports/"* 2>/dev/null || true
+  rm -f "$HOME/.gradle/kotlin-daemon/"* 2>/dev/null || true
 
   # ── Gradle version workaround ──────────────────────────────────────────────
   # The Flutter SDK's Gradle plugin (included via settings.gradle) may override
@@ -404,7 +412,7 @@ GRADLEPROPS
   # Gradle JVM heap allocation: 1.5GB for transforming TensorFlow Lite + Flutter native libs
   # (JetifyTransform needs significant heap for large AAR/JAR conversions)
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
-  export KOTLIN_DAEMON_JVM_OPTS="-Xmx512m"
+  export KOTLIN_DAEMON_JVM_OPTS="-Xmx768m"
   export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
 
