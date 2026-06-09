@@ -41,8 +41,6 @@ class AppConstants {
   static const int mapTileCacheSize = 500; // MB
 
   // AI/ML
-  static const String distressModelPath = 'models/distress_model.tflite';
-  static const int modelInputSize = 128;
   static const double distressThreshold = 0.8;
   static const int inferenceTimeout = 10000; // milliseconds
 

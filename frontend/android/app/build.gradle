@@ -49,18 +49,27 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
-            // CRITICAL: minifyEnabled must be false for debug builds and
-            // should only be enabled with thorough testing of ProGuard rules.
-            // TFLite native libraries and Google Play Services classes are
-            // easily stripped by R8/ProGuard, causing runtime crashes.
-            // When enabling, ensure all -keep rules in proguard-rules.pro
+            // CRITICAL: minifyEnabled and shrinkResources are enabled to
+            // reduce APK size. The app uses a thin-client architecture
+            // (ML inference via backend API), so no TFLite native libs
+            // are bundled. Ensure all -keep rules in proguard-rules.pro
             // are comprehensive and tested.
-            minifyEnabled = false
-            shrinkResources = false
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles(
                 getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
             )
+        }
+    }
+
+    // Split APK by ABI to reduce per-APK size
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            universalApk false
         }
     }
 
@@ -90,9 +99,4 @@ dependencies {
     // WorkManager
     implementation 'androidx.work:work-runtime-ktx:2.9.0'
 
-    // AI/ML - TensorFlow Lite
-    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
-    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
-    implementation 'org.tensorflow:tensorflow-lite-gpu:2.14.0'
-    implementation 'org.tensorflow:tensorflow-lite-select-tf-ops:2.14.0'
 }
