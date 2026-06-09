@@ -103,94 +103,174 @@ def patch_workmanager_plugin(filepath: str) -> bool:
 def patch_background_worker(filepath: str) -> bool:
     """Rewrite BackgroundWorker.kt from v1 ShimPluginRegistry to v2 direct attachment.
 
-    Uses exact string replacements first, then falls back to regex-based
-    replacements for robustness against minor formatting differences.
+    Uses a generic approach: finds and replaces ALL v1 embedding patterns
+    (shim, ShimPluginRegistry, pluginRegistryCallback, registerWith, Registrar)
+    regardless of the specific variable names or structure used.
     """
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
     original = content
+    any_change = False
 
-    # --- 1. Replace imports (exact match) ---
-    content = content.replace(
+    # --- Debug: print first 120 lines to see actual file structure ---
+    lines = content.split("\n")
+    print(f"  [DEBUG] BackgroundWorker.kt has {len(lines)} lines")
+    print(f"  [DEBUG] First {min(120, len(lines))} lines:")
+    for i, line in enumerate(lines[:120], 1):
+        print(f"  [DEBUG] {i:4d}: {line}")
+
+    # --- 1. Replace v1 imports with v2 equivalents ---
+
+    # Replace import io.flutter.app.FlutterActivity -> import io.flutter.embedding.engine.FlutterEngine
+    new_content = content.replace(
         "import io.flutter.app.FlutterActivity",
         "import io.flutter.embedding.engine.FlutterEngine",
     )
-    content = content.replace(
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced import io.flutter.app.FlutterActivity")
+
+    # Replace import io.flutter.plugin.common.PluginRegistry -> import io.flutter.embedding.engine.dart.DartExecutor
+    new_content = content.replace(
         "import io.flutter.plugin.common.PluginRegistry",
         "import io.flutter.embedding.engine.dart.DartExecutor",
     )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced import io.flutter.plugin.common.PluginRegistry")
 
-    # --- 2. Replace v1 registration block (exact match) ---
-    content = content.replace(
-        "val shim = ShimPluginRegistry(flutterEngine)",
-        "val messenger = flutterEngine.dartExecutor.binaryMessenger",
+    # Remove import io.flutter.plugin.common.ShimPluginRegistry entirely
+    new_content = content.replace("import io.flutter.plugin.common.ShimPluginRegistry", "")
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Removed import io.flutter.plugin.common.ShimPluginRegistry")
+
+    # --- 2. Generic v1 pattern replacements ---
+
+    # 2a. Replace any line containing ShimPluginRegistry(...) construction
+    #     Pattern: val <name> = ShimPluginRegistry(<param>)
+    #     or:      val <name> = ShimPluginRegistry ( <param> )
+    new_content = re.sub(
+        r"val\s+\w+\s*=\s*ShimPluginRegistry\s*\([^)]*\)",
+        "// v2: ShimPluginRegistry no longer needed",
+        content,
     )
-    content = content.replace(
-        'val key = "BackgroundWorker"',
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced ShimPluginRegistry construction")
+
+    # 2b. Replace any line containing .registrarFor(...)
+    #     Pattern: val <name> = <something>.registrarFor(<param>)
+    new_content = re.sub(
+        r"val\s+\w+\s*=\s*\w+\.registrarFor\s*\([^)]*\)",
+        "// v2: register directly without registrar",
+        content,
+    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced registrarFor call")
+
+    # 2c. Replace any line containing BackgroundWorker.registerWith(...)
+    #     Pattern: BackgroundWorker.registerWith(<param>)
+    #     or:      <something>.registerWith(<param>)
+    new_content = re.sub(
+        r"BackgroundWorker\.registerWith\s*\([^)]*\)",
+        "WorkmanagerPlugin().onAttachedToEngine(flutterEngine.dartExecutor.binaryMessenger)",
+        content,
+    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced BackgroundWorker.registerWith")
+
+    # 2d. Replace any line containing pluginRegistryCallback
+    #     This is a v1 pattern where a callback provides a PluginRegistry
+    new_content = re.sub(
+        r".*pluginRegistryCallback.*",
+        "        // v2: pluginRegistryCallback replaced with direct engine access",
+        content,
+    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced pluginRegistryCallback line")
+
+    # 2e. Replace any remaining reference to ShimPluginRegistry (not as import)
+    new_content = re.sub(
+        r"\bShimPluginRegistry\b",
+        "/* ShimPluginRegistry */",
+        content,
+    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced remaining ShimPluginRegistry references")
+
+    # 2f. Replace any remaining reference to .registrarFor(...)
+    new_content = re.sub(
+        r"\w+\.registrarFor\s*\([^)]*\)",
+        "/* registrarFor removed */",
+        content,
+    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced remaining registrarFor calls")
+
+    # 2g. Replace any line containing registerWith (generic)
+    new_content = re.sub(
+        r"\w+\.registerWith\s*\([^)]*\)",
+        "WorkmanagerPlugin().onAttachedToEngine(flutterEngine.dartExecutor.binaryMessenger)",
+        content,
+    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced remaining registerWith calls")
+
+    # 2h. Replace any val key = "BackgroundWorker" or val key2 = "WorkmanagerPlugin"
+    new_content = re.sub(
+        r'val\s+\w+\s*=\s*"(BackgroundWorker|WorkmanagerPlugin)"',
         "// v2 embedding",
-    )
-    content = content.replace(
-        'val key2 = "WorkmanagerPlugin"',
-        "// v2 embedding",
-    )
-    content = content.replace(
-        "val reg = shim.registrarFor(key)",
-        "// v2: register directly",
-    )
-    content = content.replace(
-        "BackgroundWorker.registerWith(reg)",
-        "WorkmanagerPlugin().onAttachedToEngine(messenger)",
-    )
-
-    # --- 3. Regex fallback: catch v1 patterns that exact replacements missed ---
-
-    # 3a. Replace v1 ShimPluginRegistry import if present
-    content = re.sub(
-        r"import\s+io\.flutter\.app\.FlutterActivity",
-        "import io.flutter.embedding.engine.FlutterEngine",
         content,
     )
-    content = re.sub(
-        r"import\s+io\.flutter\.plugin\.common\.PluginRegistry",
-        "import io.flutter.embedding.engine.dart.DartExecutor",
-        content,
-    )
+    if new_content != content:
+        any_change = True
+        content = new_content
+        print("  [DEBUG] Replaced key variable declarations")
 
-    # 3b. Replace ShimPluginRegistry usage
-    content = re.sub(
-        r"val\s+shim\s*=\s*ShimPluginRegistry\s*\(\s*flutterEngine\s*\)",
-        "val messenger = flutterEngine.dartExecutor.binaryMessenger",
-        content,
-    )
+    # --- 3. Debug: check for remaining v1 patterns ---
+    v1_patterns = ["shim", "ShimPluginRegistry", "pluginRegistryCallback",
+                    "registerWith", "Registrar"]
+    remaining_lines = []
+    for i, line in enumerate(content.split("\n"), 1):
+        stripped = line.strip()
+        if stripped and not stripped.startswith("//") and not stripped.startswith("/*"):
+            for pattern in v1_patterns:
+                if pattern in line:
+                    remaining_lines.append((i, line.strip(), pattern))
+                    break
 
-    # 3c. Replace key variable declarations
-    content = re.sub(
-        r'val\s+key\s*=\s*"BackgroundWorker"',
-        '// v2 embedding',
-        content,
-    )
-    content = re.sub(
-        r'val\s+key2\s*=\s*"WorkmanagerPlugin"',
-        '// v2 embedding',
-        content,
-    )
+    if remaining_lines:
+        print(f"  [WARNING] {len(remaining_lines)} line(s) still contain v1 patterns:")
+        for line_no, line_text, pattern in remaining_lines:
+            print(f"  [WARNING]   Line {line_no}: ...{pattern}... -> {line_text}")
+    else:
+        print("  [DEBUG] No remaining v1 patterns detected")
 
-    # 3d. Replace registrarFor call
-    content = re.sub(
-        r"val\s+reg\s*=\s*shim\.registrarFor\s*\(\s*key\s*\)",
-        "// v2: register directly",
-        content,
-    )
+    # --- 4. Clean up double blank lines ---
+    new_content = re.sub(r"\n{3,}", "\n\n", content)
+    if new_content != content:
+        any_change = True
+        content = new_content
 
-    # 3e. Replace registerWith call
-    content = re.sub(
-        r"BackgroundWorker\.registerWith\s*\(\s*reg\s*\)",
-        "WorkmanagerPlugin().onAttachedToEngine(messenger)",
-        content,
-    )
-
-    if content == original:
+    if not any_change:
         print("  No changes needed for BackgroundWorker.kt")
         return False
 
