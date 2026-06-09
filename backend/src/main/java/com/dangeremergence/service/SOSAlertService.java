@@ -31,7 +31,7 @@ public class SOSAlertService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-        // Resolve State and LGA for Nigeria (Mock/Simplified logic)
+        // Resolve State and LGA for Nigeria
         String[] geoInfo = resolveNigeriaGeoInfo(latitude, longitude);
         String state = geoInfo[0];
         String lga = geoInfo[1];
@@ -55,7 +55,7 @@ public class SOSAlertService {
                 .build();
 
         SOSAlert saved = alertRepository.save(alert);
-        log.info("SOS alert created: {} (type={}, priority={})", saved.getId(), alertType, priority);
+        log.info("SOS alert created: {} in {}, {} (silent={})", saved.getId(), lga, state, isSilent);
 
         // Trigger async processing
         processNewAlert(saved);
@@ -66,41 +66,29 @@ public class SOSAlertService {
     @Async
     protected void processNewAlert(SOSAlert alert) {
         // 1. Notify nearby responders via MQTT (fastest) - Localized Topic
-        String geoTopic = String.format("alerts/%s/%s", 
-            alert.getState().toLowerCase().replace(" ", "_"),
-            alert.getLga().toLowerCase().replace(" ", "_"));
+        String stateSlug = alert.getState().toLowerCase().replace(" ", "_");
+        String lgaSlug = alert.getLga().toLowerCase().replace(" ", "_");
         
+        String geoTopic = String.format("alerts/%s/%s", stateSlug, lgaSlug);
         mqttService.publish(geoTopic, alert);
 
-        // Notify Community Guardians (Localized Topic)
-        String guardianTopic = String.format("guardians/%s/%s",
-            alert.getState().toLowerCase().replace(" ", "_"),
-            alert.getLga().toLowerCase().replace(" ", "_"));
+        // Notify Community Guardians
+        String guardianTopic = String.format("guardians/%s/%s", stateSlug, lgaSlug);
         mqttService.publish(guardianTopic, alert);
         
-        // Also publish to a general alerts topic for high-level monitoring
         mqttService.publishAlert(alert);
         
-        // 2. Broadcast via WebSocket to subscribed clients
-        // 3. Trigger push notifications
-        // 4. Trigger Drone Relay if in high-risk area
+        // 2. Trigger Drone Relay if in high-risk area
         droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(), 
             alert.getLatitude(), alert.getLongitude(), alert.getPriority());
 
-        // 5. Log for analytics
-        log.info("Processing new alert: {} in {}, {}", alert.getId(), alert.getLga(), alert.getState());
+        log.info("Processed new alert: {} for LGA: {}", alert.getId(), alert.getLga());
     }
 
-    /**
-     * Simplified reverse geocoding for Nigerian States/LGAs based on coordinates.
-     * In production, this would use a spatial database (PostGIS) or a geocoding API.
-     */
     private String[] resolveNigeriaGeoInfo(Double lat, Double lng) {
-        // Default to "Unknown"
         String state = "Unknown";
         String lga = "Unknown";
 
-        // Simplified Bounding Boxes for demonstration
         if (lat >= 9.0 && lat <= 9.2 && lng >= 7.3 && lng <= 7.6) {
             state = "FCT";
             lga = "Abuja Municipal";
@@ -125,28 +113,20 @@ public class SOSAlertService {
     public SOSAlert acknowledgeAlert(String alertId, String responderId) {
         SOSAlert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found: " + alertId));
-
         alert.setStatus(SOSAlert.AlertStatus.acknowledged);
         alert.setAcknowledgedBy(responderId);
         alert.setUpdatedAt(LocalDateTime.now());
-
-        SOSAlert saved = alertRepository.save(alert);
-        log.info("Alert {} acknowledged by {}", alertId, responderId);
-        return saved;
+        return alertRepository.save(alert);
     }
 
     @Transactional
     public SOSAlert resolveAlert(String alertId) {
         SOSAlert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found: " + alertId));
-
         alert.setStatus(SOSAlert.AlertStatus.resolved);
         alert.setResolvedAt(LocalDateTime.now());
         alert.setUpdatedAt(LocalDateTime.now());
-
-        SOSAlert saved = alertRepository.save(alert);
-        log.info("Alert {} resolved", alertId);
-        return saved;
+        return alertRepository.save(alert);
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +143,6 @@ public class SOSAlertService {
     public List<SOSAlert> getAlertsInArea(double latitude, double longitude, double radiusKm) {
         double latDelta = radiusKm / 111.0;
         double lonDelta = radiusKm / (111.0 * Math.cos(Math.toRadians(latitude)));
-
         return alertRepository.findAlertsInArea(
                 latitude - latDelta, latitude + latDelta,
                 longitude - lonDelta, longitude + lonDelta,
@@ -179,16 +158,12 @@ public class SOSAlertService {
     @Transactional
     public void cleanupExpiredAlerts() {
         LocalDateTime expiryThreshold = LocalDateTime.now().minusHours(24);
-        List<SOSAlert> expired = alertRepository.findExpiredAlerts(
-                SOSAlert.AlertStatus.active, expiryThreshold);
-        
+        List<SOSAlert> expired = alertRepository.findExpiredAlerts(SOSAlert.AlertStatus.active, expiryThreshold);
         for (SOSAlert alert : expired) {
             alert.setStatus(SOSAlert.AlertStatus.expired);
             alert.setUpdatedAt(LocalDateTime.now());
         }
-        
         alertRepository.saveAll(expired);
-        log.info("Expired {} alerts", expired.size());
     }
 
     @Transactional(readOnly = true)

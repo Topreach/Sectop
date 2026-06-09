@@ -303,6 +303,11 @@ build_apk() {
   # Get dependencies
   flutter pub get
 
+  # Ensure local.properties exists with correct SDK path
+  log_info "Ensuring local.properties is configured..."
+  echo "sdk.dir=$ANDROID_SDK_ROOT" > "$FRONTEND_DIR/android/local.properties"
+  echo "flutter.sdk=$(dirname "$(dirname "$(which flutter)")")" >> "$FRONTEND_DIR/android/local.properties"
+
   # Patch plugins for compatibility
   patch_plugins
 
@@ -318,7 +323,7 @@ build_apk() {
   
   # Clear Gradle cache entirely (removes corrupted Jetify transforms from previous runs)
   log_info "Clearing Gradle cache to remove corrupted transforms..."
-  rm -rf "$HOME/.gradle/caches/modules-2/" "$HOME/.gradle/caches/jars-*/" 2>/dev/null || true
+  rm -rf "$HOME/.gradle/caches/modules-2/" "$HOME/.gradle/caches/jars-*/" "$HOME/.gradle/caches/8.14/" "$HOME/.gradle/caches/9.1.0/" "$HOME/.gradle/caches/transforms-3/" 2>/dev/null || true
 
   # ── Gradle version workaround ──────────────────────────────────────────────
   # The Flutter SDK's Gradle plugin (included via settings.gradle) may override
@@ -369,7 +374,7 @@ build_apk() {
   # (JetifyTransform needs significant heap for large AAR/JAR conversions)
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
   export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=768m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
-  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -- --org.gradle.jvmargs="-Xmx1536m" --org.gradle.workers.max=2 --org.gradle.parallel=false
+  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
