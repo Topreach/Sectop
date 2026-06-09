@@ -140,7 +140,7 @@ class DroneService extends ChangeNotifier {
               (dMap['deployedLongitude'] as num?)?.toDouble() ?? 0.0,
             ),
             lastSeen: DateTime.now(),
-            status: DroneStatus.deployed,
+            status: DroneStatus.airborne,
             batteryPercent: (dMap['battery'] as num?)?.toDouble() ?? 0.0,
             altitudeAGL: (dMap['altitude'] as num?)?.toDouble() ?? 0.0,
           ));
