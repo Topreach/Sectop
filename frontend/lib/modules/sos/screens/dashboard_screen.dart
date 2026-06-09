@@ -72,6 +72,8 @@ class _DashboardHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOnline = context.select<SyncManager, bool>((s) => s.isOnline);
+    final isSyncing = context.select<SyncManager, bool>((s) => s.isSyncing);
+    final pendingCount = context.select<SyncManager, int>((s) => s.pendingCount);
     final peerCount = context.select<MeshManager, int>((m) => m.discoveredPeers.length);
     final isTracking = context.select<MapService, bool>((m) => m.isTracking);
 
@@ -245,10 +247,10 @@ class _DashboardHome extends StatelessWidget {
               _StatusCard(
                 icon: Icons.sync,
                 title: 'Data Sync',
-                subtitle: syncManager.isSyncing
+                subtitle: isSyncing
                     ? 'Syncing...'
-                    : '${syncManager.pendingCount} pending items',
-                color: syncManager.pendingCount > 0 ? Colors.orange : Colors.green,
+                    : '$pendingCount pending items',
+                color: pendingCount > 0 ? Colors.orange : Colors.green,
               ),
               const SizedBox(height: 24),
 

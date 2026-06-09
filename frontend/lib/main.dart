@@ -60,7 +60,7 @@ T safeInit<T>(T Function() create) {
 
     // If the created instance has an async initialize() method, catch
     // any Future rejections so they don't become unhandled errors.
-    if (instance is dynamic && instance.initialize is Function) {
+    if (instance.initialize is Function) {
       final future = instance.initialize() as Future?;
       if (future != null) {
         future.catchError((Object e, StackTrace stack) {
