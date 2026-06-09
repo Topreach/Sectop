@@ -90,6 +90,16 @@ check_config() {
     fi
   fi
 
+  # 0.5b Check swap availability
+  if command -v free &>/dev/null; then
+    local swap_total
+    swap_total=$(free -m | awk '/^Swap:/ {print $2}')
+    if [ -n "$swap_total" ] && [ "$swap_total" -le 0 ] 2>/dev/null; then
+      log_warn "No swap space available. Build may fail with OOM on low-RAM servers."
+      log_warn "Consider adding swap: fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile"
+    fi
+  fi
+
   # 0.6 Check gradle-wrapper.properties exists
   local WRAPPER_PROPS="$FRONTEND_DIR/android/gradle/wrapper/gradle-wrapper.properties"
   if [ -f "$WRAPPER_PROPS" ]; then
@@ -367,8 +377,8 @@ android.enableJetifier=false
 org.gradle.caching=true
 org.gradle.configureondemand=false
 # Memory settings for low-RAM build servers
-org.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=256m
-kotlin.daemon.jvmargs=-Xmx768m
+org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=192m
+kotlin.daemon.jvmargs=-Xmx384m
 org.gradle.parallel=false
 org.gradle.daemon=false
 GRADLEPROPS
@@ -444,8 +454,8 @@ GRADLEPROPS
   # Gradle JVM heap allocation: 1.5GB for transforming TensorFlow Lite + Flutter native libs
   # (JetifyTransform needs significant heap for large AAR/JAR conversions)
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
-  export KOTLIN_DAEMON_JVM_OPTS="-Xmx768m"
-  export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
+  export KOTLIN_DAEMON_JVM_OPTS="-Xmx384m"
+  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=192m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
