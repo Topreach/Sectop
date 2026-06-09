@@ -36,15 +36,15 @@ public class MessageController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Message>> getMessagesForUser(@PathVariable String userId) {
-        return ResponseEntity.ok(messageService.getMessagesForUser(userId));
+    public ResponseEntity<Map<String, Object>> getMessagesForUser(@PathVariable String userId) {
+        return ResponseEntity.ok(Map.of("messages", messageService.getMessagesForUser(userId)));
     }
 
     @GetMapping("/sync")
-    public ResponseEntity<List<Message>> getMessagesSince(
+    public ResponseEntity<Map<String, Object>> getMessagesSince(
             @RequestParam String userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime since) {
-        return ResponseEntity.ok(messageService.getMessagesSince(userId, since));
+        return ResponseEntity.ok(Map.of("messages", messageService.getMessagesSince(userId, since)));
     }
 
     @PutMapping("/{messageId}/deliver")
@@ -64,8 +64,8 @@ public class MessageController {
     }
 
     @GetMapping("/pending-sync")
-    public ResponseEntity<List<Message>> getPendingSyncMessages() {
-        return ResponseEntity.ok(messageService.getPendingSyncMessages());
+    public ResponseEntity<Map<String, Object>> getPendingSyncMessages() {
+        return ResponseEntity.ok(Map.of("messages", messageService.getPendingSyncMessages()));
     }
 
     @GetMapping("/unread/{userId}")

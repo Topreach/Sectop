@@ -42,25 +42,25 @@ public class ZoneController {
     }
 
     @GetMapping("/active")
-    public ResponseEntity<List<Zone>> getActiveZones() {
+    public ResponseEntity<Map<String, Object>> getActiveZones() {
         List<Zone> zones = zoneService.getActiveZones();
-        return ResponseEntity.ok(zones);
+        return ResponseEntity.ok(Map.of("zones", zones));
     }
 
     @GetMapping("/danger")
-    public ResponseEntity<List<Zone>> getDangerZones() {
+    public ResponseEntity<Map<String, Object>> getDangerZones() {
         List<Zone> zones = zoneService.getDangerZones();
-        return ResponseEntity.ok(zones);
+        return ResponseEntity.ok(Map.of("zones", zones));
     }
 
     @GetMapping("/restricted")
-    public ResponseEntity<List<Zone>> getRestrictedZones() {
+    public ResponseEntity<Map<String, Object>> getRestrictedZones() {
         List<Zone> zones = zoneService.getRestrictedZones();
-        return ResponseEntity.ok(zones);
+        return ResponseEntity.ok(Map.of("zones", zones));
     }
 
     @GetMapping("/nearby")
-    public ResponseEntity<List<Zone>> getZonesNearby(
+    public ResponseEntity<Map<String, Object>> getZonesNearby(
             @RequestParam double latitude,
             @RequestParam double longitude,
             @RequestParam(defaultValue = "0.5") double radiusDegrees) {
@@ -69,14 +69,14 @@ public class ZoneController {
         double east = longitude + radiusDegrees;
         double west = longitude - radiusDegrees;
         List<Zone> zones = zoneService.getZonesInArea(north, south, east, west);
-        return ResponseEntity.ok(zones);
+        return ResponseEntity.ok(Map.of("zones", zones));
     }
 
     @GetMapping("/sync")
-    public ResponseEntity<List<Zone>> getZonesSince(@RequestParam(required = false) String since) {
+    public ResponseEntity<Map<String, Object>> getZonesSince(@RequestParam(required = false) String since) {
         LocalDateTime sinceTime = since != null ? LocalDateTime.parse(since) : LocalDateTime.now().minusHours(24);
         List<Zone> zones = zoneService.getZonesSince(sinceTime);
-        return ResponseEntity.ok(zones);
+        return ResponseEntity.ok(Map.of("zones", zones));
     }
 
     @PutMapping("/{zoneId}")

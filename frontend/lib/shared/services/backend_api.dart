@@ -158,7 +158,11 @@ class BackendApi {
   Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return {};
-      return json.decode(response.body) as Map<String, dynamic>;
+      final decoded = json.decode(response.body);
+      if (decoded is List) {
+        return {'data': decoded};
+      }
+      return decoded as Map<String, dynamic>;
     }
     throw ApiException(response.statusCode, response.body);
   }

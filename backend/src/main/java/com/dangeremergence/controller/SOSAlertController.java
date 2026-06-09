@@ -34,27 +34,27 @@ public class SOSAlertController {
     }
 
     @GetMapping("/active")
-    public ResponseEntity<List<SOSAlert>> getActiveAlerts() {
-        return ResponseEntity.ok(alertService.getActiveAlerts());
+    public ResponseEntity<Map<String, Object>> getActiveAlerts() {
+        return ResponseEntity.ok(Map.of("alerts", alertService.getActiveAlerts()));
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<SOSAlert>> getAlertsForUser(@PathVariable String userId) {
-        return ResponseEntity.ok(alertService.getAlertsForUser(userId));
+    public ResponseEntity<Map<String, Object>> getAlertsForUser(@PathVariable String userId) {
+        return ResponseEntity.ok(Map.of("alerts", alertService.getAlertsForUser(userId)));
     }
 
     @GetMapping("/nearby")
-    public ResponseEntity<List<SOSAlert>> getAlertsInArea(
+    public ResponseEntity<Map<String, Object>> getAlertsInArea(
             @RequestParam double latitude,
             @RequestParam double longitude,
             @RequestParam(defaultValue = "5.0") double radiusKm) {
-        return ResponseEntity.ok(alertService.getAlertsInArea(latitude, longitude, radiusKm));
+        return ResponseEntity.ok(Map.of("alerts", alertService.getAlertsInArea(latitude, longitude, radiusKm)));
     }
 
     @GetMapping("/sync")
-    public ResponseEntity<List<SOSAlert>> getAlertsSince(
+    public ResponseEntity<Map<String, Object>> getAlertsSince(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime since) {
-        return ResponseEntity.ok(alertService.getAlertsSince(since));
+        return ResponseEntity.ok(Map.of("alerts", alertService.getAlertsSince(since)));
     }
 
     @PostMapping("/{alertId}/acknowledge")
@@ -71,6 +71,6 @@ public class SOSAlertController {
 
     @GetMapping("/count")
     public ResponseEntity<Map<String, Long>> getAlertCount() {
-        return ResponseEntity.ok(Map.of("active_count", alertService.getActiveAlertCount()));
+        return ResponseEntity.ok(Map.of("count", alertService.getActiveAlertCount()));
     }
 }
