@@ -25,7 +25,7 @@ plugins {
     // com.android.library is needed by plugin subprojects (e.g. background_fetch)
     // that use the library plugin in their own build.gradle files.
     id "com.android.library" version "8.11.1" apply false
-    id "org.jetbrains.kotlin.android" version "2.2.20" apply false
+    id "org.jetbrains.kotlin.android" version "2.0.21" apply false
 }
 
 include ":app"
