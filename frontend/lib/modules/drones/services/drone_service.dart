@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/models/location.dart';
 import '../models/drone_models.dart';
 
 /// Thin API wrapper for drone orchestration.
@@ -98,17 +99,21 @@ class DroneService extends ChangeNotifier {
       final result = await _api.assessDamage(zoneId, centerLat, centerLng, radiusKm);
 
       return DamageAssessment(
-        zoneId: result['zoneId'] as String? ?? zoneId,
         damagedBuildings: _parseDamagedBuildings(result['damagedBuildings']),
         fireHotspots: _parseFireHotspots(result['fireHotspots']),
         blockedRoads: _parseBlockedRoads(result['blockedRoads']),
-        casualties: _parseCasualties(result['casualties']),
-        assessmentComplete: result['assessmentComplete'] as bool? ?? false,
-        estimatedCasualties: (result['estimatedCasualties'] as num?)?.toInt() ?? 0,
+        casualtiesDetected: _parseCasualties(result['casualties']),
+        timestamp: DateTime.now(),
       );
     } catch (e) {
       debugPrint('DroneService: assessDamage failed: $e');
-      return DamageAssessment(zoneId: zoneId);
+      return DamageAssessment(
+        damagedBuildings: [],
+        fireHotspots: [],
+        blockedRoads: [],
+        casualtiesDetected: [],
+        timestamp: DateTime.now(),
+      );
     }
   }
 
@@ -143,15 +148,19 @@ class DroneService extends ChangeNotifier {
       }
 
       return SwarmMesh(
-        zoneId: zoneId,
-        deployedDrones: deployedDrones,
-        coverageRadiusKm: (result['coverageRadiusKm'] as num?)?.toDouble() ?? 0.0,
-        estimatedSignalStrength: (result['estimatedSignalStrength'] as num?)?.toDouble() ?? 0.0,
-        meshEstablished: result['meshEstablished'] as bool? ?? false,
+        drones: deployedDrones.map((d) => Drone(
+          id: d.id,
+          name: d.name,
+          location: Location(d.latitude, d.longitude),
+          lastSeen: DateTime.now(),
+        )).toList(),
+        coverageArea: [],
+        estimatedUptime: Duration(hours: 1),
+        averageSignalStrength: (result['estimatedSignalStrength'] as num?)?.toDouble() ?? 0.0,
       );
     } catch (e) {
       debugPrint('DroneService: deploySwarmMesh failed: $e');
-      return SwarmMesh(zoneId: zoneId, deployedDrones: []);
+      return SwarmMesh(drones: [], coverageArea: [], estimatedUptime: Duration.zero, averageSignalStrength: 0.0);
     }
   }
 
@@ -164,11 +173,16 @@ class DroneService extends ChangeNotifier {
     return data.map((b) {
       final bMap = b as Map<String, dynamic>;
       return DamagedBuilding(
-        id: bMap['id'] as String? ?? '',
-        latitude: (bMap['latitude'] as num).toDouble(),
-        longitude: (bMap['longitude'] as num).toDouble(),
-        damageLevel: bMap['damageLevel'] as String? ?? 'unknown',
-        type: bMap['type'] as String? ?? 'unknown',
+        buildingId: bMap['id'] as String? ?? '',
+        location: Location(
+          (bMap['latitude'] as num).toDouble(),
+          (bMap['longitude'] as num).toDouble(),
+        ),
+        damageLevel: DamageLevel.values.firstWhere(
+          (e) => e.name == (bMap['damageLevel'] as String? ?? 'none'),
+          orElse: () => DamageLevel.none,
+        ),
+        confidence: (bMap['confidence'] as num?)?.toDouble() ?? 0.0,
       );
     }).toList();
   }
@@ -178,11 +192,13 @@ class DroneService extends ChangeNotifier {
     return data.map((h) {
       final hMap = h as Map<String, dynamic>;
       return FireHotspot(
-        id: hMap['id'] as String? ?? '',
-        latitude: (hMap['latitude'] as num).toDouble(),
-        longitude: (hMap['longitude'] as num).toDouble(),
+        center: Location(
+          (hMap['latitude'] as num).toDouble(),
+          (hMap['longitude'] as num).toDouble(),
+        ),
+        radiusMeters: (hMap['area'] as num?)?.toDouble() ?? 0.0,
         intensity: (hMap['intensity'] as num).toDouble(),
-        area: (hMap['area'] as num?)?.toInt() ?? 0,
+        temperatureCelsius: (hMap['temperatureCelsius'] as num?)?.toDouble() ?? 100.0,
       );
     }).toList();
   }
@@ -192,12 +208,19 @@ class DroneService extends ChangeNotifier {
     return data.map((r) {
       final rMap = r as Map<String, dynamic>;
       return BlockedRoad(
-        id: rMap['id'] as String? ?? '',
-        startLat: (rMap['startLat'] as num).toDouble(),
-        startLng: (rMap['startLng'] as num).toDouble(),
-        endLat: (rMap['endLat'] as num).toDouble(),
-        endLng: (rMap['endLng'] as num).toDouble(),
-        blockageType: rMap['blockageType'] as String? ?? 'unknown',
+        roadId: rMap['id'] as String? ?? '',
+        start: Location(
+          (rMap['startLat'] as num).toDouble(),
+          (rMap['startLng'] as num).toDouble(),
+        ),
+        end: Location(
+          (rMap['endLat'] as num).toDouble(),
+          (rMap['endLng'] as num).toDouble(),
+        ),
+        type: ObstructionType.values.firstWhere(
+          (e) => e.name == (rMap['blockageType'] as String? ?? 'unknown'),
+          orElse: () => ObstructionType.unknown,
+        ),
       );
     }).toList();
   }
@@ -207,10 +230,13 @@ class DroneService extends ChangeNotifier {
     return data.map((c) {
       final cMap = c as Map<String, dynamic>;
       return Casualty(
-        id: cMap['id'] as String? ?? '',
-        latitude: (cMap['latitude'] as num).toDouble(),
-        longitude: (cMap['longitude'] as num).toDouble(),
-        severity: cMap['severity'] as String? ?? 'minor',
+        location: Location(
+          (cMap['latitude'] as num).toDouble(),
+          (cMap['longitude'] as num).toDouble(),
+        ),
+        description: cMap['severity'] as String?,
+        confidence: (cMap['confidence'] as num?)?.toDouble() ?? 0.5,
+        detectedAt: DateTime.tryParse(cMap['detectedAt'] as String? ?? '') ?? DateTime.now(),
       );
     }).toList();
   }

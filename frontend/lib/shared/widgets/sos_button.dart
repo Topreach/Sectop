@@ -111,4 +111,3 @@ class _SOSButtonState extends State<SOSButton>
     );
   }
 }
-}

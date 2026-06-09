@@ -41,6 +41,23 @@ Replace all placeholder/stub screens in the Danger Emergence Flutter app with fu
 
 ## Tasks
 
+### Task 8: Fix 3 critical Dart compilation errors causing app crash on launch 🔴 ✅
+**Files to modify:**
+- `frontend/lib/modules/drones/services/drone_service.dart` (fix model constructor parameters)
+- `frontend/lib/shared/utils/location_utils.dart` (add missing `import 'dart:math'`)
+- `frontend/lib/shared/widgets/sos_button.dart` (remove extra closing brace)
+
+**What to do:**
+1. **drone_service.dart**: Fix all model constructor calls to match actual model definitions in `drone_models.dart`:
+   - `SwarmMesh`: Change from `zoneId`, `deployedDrones`, `coverageRadiusKm`, `estimatedSignalStrength`, `meshEstablished` → `drones`, `coverageArea`, `estimatedUptime`, `averageSignalStrength`
+   - `DamagedBuilding`: Change from `id`, `latitude`, `longitude`, `damageLevel` (String), `type` → `buildingId`, `location` (Location object), `damageLevel` (DamageLevel enum), `confidence`
+   - `FireHotspot`: Change from `id`, `latitude`, `longitude`, `intensity`, `area` → `center` (Location), `radiusMeters`, `intensity`, `temperatureCelsius`
+   - `BlockedRoad`: Change from `id`, `startLat`, `startLng`, `endLat`, `endLng`, `blockageType` → `roadId`, `start` (Location), `end` (Location), `type` (ObstructionType enum)
+   - `Casualty`: Change from `id`, `latitude`, `longitude`, `severity` → `location` (Location), `description`, `confidence`, `detectedAt` (DateTime)
+   - `DamageAssessment` catch block: Change from `DamageAssessment(zoneId: zoneId)` to proper constructor with all required fields
+2. **location_utils.dart**: Add `import 'dart:math' as math;` at the top of the file
+3. **sos_button.dart**: Remove the extra closing brace `}` at line 114
+
 ### Task 1: Implement MapScreen with flutter_map and zone overlay (HIGH PRIORITY) ✅
 **Files to modify:**
 - `frontend/lib/modules/maps/screens/map_screen.dart` (rewrite)
@@ -126,6 +143,26 @@ dependencies:
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
 ```
+
+### Task 6: Fix API response format mismatch (critical runtime crashes) ✅
+**Files modified:**
+- `backend/.../controller/ZoneController.java` - Wrapped list responses in `Map.of("zones", ...)`
+- `backend/.../controller/MessageController.java` - Wrapped list responses in `Map.of("messages", ...)`
+- `backend/.../controller/SOSAlertController.java` - Wrapped list responses in `Map.of("alerts", ...)` + fixed `/count` field name
+- `frontend/lib/shared/services/backend_api.dart` - Updated `_handleResponse()` to handle both Map and List
+
+**What was fixed:**
+1. 12 backend endpoints changed from `ResponseEntity<List<...>>` to `ResponseEntity<Map<String, Object>>`
+2. `_handleResponse()` now wraps List responses in `{'data': decoded}` before casting to Map
+3. `/alerts/count` field name fixed: `active_count` → `count`
+
+### Task 7: Build verification ✅
+**Result:** BUILD SUCCESSFUL - APK generated at 63.0MB
+
+**Build bugs found & fixed on server:**
+1. `routes.dart:99` - `case settings:` conflicted with `RouteSettings settings` parameter. Fixed to `case AppRoutes.settings:`
+2. `dashboard_screen.dart:455` - `MapOptions(center:)` doesn't exist in flutter_map 7.0.2. Fixed to `MapOptions(initialCenter:)` and `zoom:` → `initialZoom:`
+3. `dashboard_screen.dart:589` - Empty list `[]` fallback inferred as `List<dynamic>`. Fixed to `<Map<String, dynamic>>[]`
 
 ## Acceptance Criteria
 1. MapScreen shows real OpenStreetMap tiles with zone markers

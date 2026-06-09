@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 /// Utility functions for location calculations.
 
 class LocationUtils {
