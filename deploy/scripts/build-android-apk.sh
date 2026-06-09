@@ -126,6 +126,21 @@ patch_plugins() {
   find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/targetSdkVersion [0-9][0-9]*/targetSdkVersion 34/g' {} + 2>/dev/null || true
   find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" -exec sed -i 's/compileSdk [0-9][0-9]*/compileSdk 34/g' {} + 2>/dev/null || true
 
+  # Replace jcenter() with mavenCentral() in all plugin build.gradle files
+  # Gradle 9.x removed jcenter() support entirely
+  log_info "Replacing jcenter() with mavenCentral() in plugin build.gradle files..."
+  local JCENTER_LIST="/tmp/sectop_jcenter_$$.txt"
+  find "$PUB_CACHE_DIR/hosted/pub.dev/" -name "build.gradle" 2>/dev/null > "$JCENTER_LIST" || true
+  while read -r gradle_file; do
+    [ -z "$gradle_file" ] && continue
+    if grep -q "jcenter()" "$gradle_file" 2>/dev/null; then
+      sed -i 's/jcenter()/mavenCentral()/g' "$gradle_file" 2>/dev/null || true
+      log_info "  Replaced jcenter() in: $(basename "$(dirname "$gradle_file")")"
+    fi
+  done < "$JCENTER_LIST"
+  rm -f "$JCENTER_LIST"
+  log_ok "jcenter() replacement complete"
+
   # Fix Android v1 embedding → v2 embedding for all plugins
   # Flutter 3.16+ requires all plugins to use the v2 Android embedding.
   # The v1 embedding uses io.flutter.app.FlutterActivity (deprecated).
