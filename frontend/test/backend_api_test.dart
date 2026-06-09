@@ -13,10 +13,9 @@ void main() {
       // Default: return empty success
       return http.Response(json.encode({'status': 'ok'}), 200);
     });
-    // Note: BackendApi uses http package directly via singleton.
-    // For proper testing, we'd need dependency injection.
-    // This test validates the URL construction and request format.
     api = BackendApi();
+    api.setClient(mockClient);
+    api.resetCircuitBreaker();
   });
 
   group('BackendApi - URL Construction', () {

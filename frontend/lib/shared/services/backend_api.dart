@@ -18,6 +18,18 @@ class BackendApi {
   final String _baseUrl = '${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}';
   final Duration _timeout = Duration(seconds: AppConstants.apiTimeout);
 
+  http.Client _client = http.Client();
+
+  @visibleForTesting
+  void setClient(http.Client client) => _client = client;
+
+  @visibleForTesting
+  void resetCircuitBreaker() {
+    _circuitState = CircuitState.closed;
+    _consecutiveFailures = 0;
+    _lastFailureTime = null;
+  }
+
   CircuitState _circuitState = CircuitState.closed;
   int _consecutiveFailures = 0;
   static const int _failureThreshold = 5;
@@ -90,7 +102,7 @@ class BackendApi {
   Future<Map<String, dynamic>> get(String path) async {
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
-      final response = await http
+      final response = await _client
           .get(uri, headers: await _headers())
           .timeout(_timeout);
       return _handleResponse(response);
@@ -104,7 +116,7 @@ class BackendApi {
   }) async {
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
-      final response = await http
+      final response = await _client
           .post(
             uri,
             headers: await _headers(),
@@ -122,7 +134,7 @@ class BackendApi {
   }) async {
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
-      final response = await http
+      final response = await _client
           .put(
             uri,
             headers: await _headers(),
@@ -137,7 +149,7 @@ class BackendApi {
   Future<void> delete(String path) async {
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
-      await http
+      await _client
           .delete(uri, headers: await _headers())
           .timeout(_timeout);
     });
