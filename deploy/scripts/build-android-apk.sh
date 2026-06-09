@@ -466,15 +466,25 @@ GRADLEPROPS
   if [ -f "$WRAPPER_PROPS" ]; then
     sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip|' "$WRAPPER_PROPS"
   fi
-  # Verify and copy output
-  if [ -f "$BUILD_DIR/app-release.apk" ]; then
-    local size
-    size=$(du -h "$BUILD_DIR/app-release.apk" | cut -f1)
-    log_ok "APK built successfully! Size: $size"
-    cp "$BUILD_DIR/app-release.apk" "$OUTPUT_APK"
-    log_ok "APK copied to: $OUTPUT_APK"
-  else
-    log_error "Build failed - APK not found at $BUILD_DIR/app-release.apk"
+  # Verify and copy output (supports split APKs with --split-per-abi)
+  local apk_found=false
+  for apk in "$BUILD_DIR"/app-*-release.apk; do
+    if [ -f "$apk" ]; then
+      local size
+      size=$(du -h "$apk" | cut -f1)
+      local basename
+      basename=$(basename "$apk")
+      log_ok "APK built: $basename ($size)"
+      # Copy arm64-v8a as the primary APK (most common modern architecture)
+      if echo "$basename" | grep -q "arm64-v8a"; then
+        cp "$apk" "$OUTPUT_APK"
+        log_ok "Primary APK (arm64-v8a) copied to: $OUTPUT_APK"
+      fi
+      apk_found=true
+    fi
+  done
+  if [ "$apk_found" = false ]; then
+    log_error "Build failed - no APK found in $BUILD_DIR"
     exit 1
   fi
 }
