@@ -459,32 +459,25 @@ GRADLEPROPS
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
   export KOTLIN_DAEMON_JVM_OPTS="-Xmx384m"
   export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
-  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon --split-per-abi -t lib/main.dart
+  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
   if [ -f "$WRAPPER_PROPS" ]; then
     sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip|' "$WRAPPER_PROPS"
   fi
-  # Verify and copy output (supports split APKs with --split-per-abi)
-  local apk_found=false
-  for apk in "$BUILD_DIR"/app-*-release.apk; do
-    if [ -f "$apk" ]; then
-      local size
-      size=$(du -h "$apk" | cut -f1)
-      local basename
-      basename=$(basename "$apk")
-      log_ok "APK built: $basename ($size)"
-      # Copy arm64-v8a as the primary APK (most common modern architecture)
-      if echo "$basename" | grep -q "arm64-v8a"; then
-        cp "$apk" "$OUTPUT_APK"
-        log_ok "Primary APK (arm64-v8a) copied to: $OUTPUT_APK"
-      fi
-      apk_found=true
-    fi
-  done
-  if [ "$apk_found" = false ]; then
-    log_error "Build failed - no APK found in $BUILD_DIR"
+  # Verify and copy the universal APK
+  local UNIVERSAL_APK="$BUILD_DIR/app-release.apk"
+  if [ -f "$UNIVERSAL_APK" ]; then
+    local size
+    size=$(du -h "$UNIVERSAL_APK" | cut -f1)
+    log_ok "Universal APK built: $size"
+    cp "$UNIVERSAL_APK" "$OUTPUT_APK"
+    log_ok "APK copied to: $OUTPUT_APK"
+  else
+    log_error "Build failed - no APK found at $UNIVERSAL_APK"
+    log_info "Available files in $BUILD_DIR:"
+    ls -la "$BUILD_DIR" 2>/dev/null || true
     exit 1
   fi
 }

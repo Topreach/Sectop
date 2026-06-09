@@ -62,13 +62,13 @@ android {
         }
     }
 
-    // Split APK by ABI to reduce per-APK size
+    // Produce a single universal APK that works on all architectures
     splits {
         abi {
             enable true
             reset()
             include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
-            universalApk false
+            universalApk true
         }
     }
 
