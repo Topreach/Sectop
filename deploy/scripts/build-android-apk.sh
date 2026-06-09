@@ -79,14 +79,14 @@ check_config() {
     log_warn "Low disk space (may cause build failures)"
   fi
 
-  # 0.5 Check RAM (need at least 1GB available)
+  # 0.5 Check RAM (need at least 1.5GB available for 1GB Gradle heap + OS overhead)
   if command -v free &>/dev/null; then
     local avail_mb
     avail_mb=$(free -m 2>/dev/null | grep "Mem:" | awk '{print $7}')
-    if [ -n "$avail_mb" ] && [ "$avail_mb" -gt 1024 ] 2>/dev/null; then
+    if [ -n "$avail_mb" ] && [ "$avail_mb" -gt 1536 ] 2>/dev/null; then
       log_ok "Available RAM: ${avail_mb}MB"
     else
-      log_warn "Low available RAM: ${avail_mb:-?}MB (Gradle limited to 512MB heap)"
+      log_warn "Low available RAM: ${avail_mb:-?}MB (Gradle allocated to 1GB heap)"
     fi
   fi
 
@@ -356,9 +356,10 @@ build_apk() {
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
   # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
-  # Limit Gradle JVM heap to 512MB for low-RAM build servers
-  export GRADLE_OPTS="-Xmx512m -XX:MaxMetaspaceSize=256m"
-  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+  # Gradle JVM heap allocation: 1GB for transforming TensorFlow Lite + Flutter native libs
+  # (insufficient heap causes "Java heap space" error during JetifyTransform)
+  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC"
+  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
