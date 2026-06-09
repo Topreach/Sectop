@@ -253,6 +253,8 @@ build_apk() {
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
   # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
+  # Limit Gradle JVM heap to 512MB for low-RAM build servers
+  export GRADLE_OPTS="-Xmx512m -XX:MaxMetaspaceSize=256m"
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
