@@ -212,7 +212,11 @@ build_apk() {
   # Build release APK (no tree-shake icons to ensure all Material icons are included)
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
-  flutter build apk --release --no-tree-shake-icons
+  # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
+  # Gradle 8.14 embeds Kotlin 2.0.21, but Flutter 3.44.1 recommends Kotlin 2.2.20.
+  # The kotlin-dsl plugin cannot handle this version mismatch, causing cache corruption.
+  # Using Kotlin 2.0.21 (matching Gradle's embedded version) with this flag avoids the issue.
+  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
   # Verify and copy output
   if [ -f "$BUILD_DIR/app-release.apk" ]; then
