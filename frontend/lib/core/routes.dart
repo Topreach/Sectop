@@ -96,7 +96,7 @@ class AppRoutes {
           builder: (_) => const HelpScreen(),
           settings: settings,
         );
-      case settings:
+      case AppRoutes.settings:
         return MaterialPageRoute(
           builder: (_) => const SettingsScreen(),
           settings: settings,

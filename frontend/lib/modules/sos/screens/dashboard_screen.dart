@@ -452,8 +452,8 @@ class _MapViewState extends State<_MapView> {
           Expanded(
             child: FlutterMap(
               options: MapOptions(
-                center: center,
-                zoom: 14.0,
+                initialCenter: center,
+                initialZoom: 14.0,
               ),
               children: [
                 TileLayer(
@@ -585,7 +585,7 @@ class _InboxViewState extends State<_InboxView> {
         _alertCount = alertData['count'] as int? ?? 0;
         final allMessages = messagesData['messages'] is List
             ? List<Map<String, dynamic>>.from(messagesData['messages'])
-            : [];
+            : <Map<String, dynamic>>[];
         _recentMessages = allMessages.take(3).toList();
         _isLoading = false;
       });
