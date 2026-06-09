@@ -373,7 +373,8 @@ build_apk() {
   # Gradle JVM heap allocation: 1.5GB for transforming TensorFlow Lite + Flutter native libs
   # (JetifyTransform needs significant heap for large AAR/JAR conversions)
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
-  export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=768m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
+  export KOTLIN_DAEMON_JVM_OPTS="-Xmx512m"
+  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
