@@ -209,11 +209,8 @@ build_apk() {
   rm -rf "$FRONTEND_DIR/build/" "$FRONTEND_DIR/android/.gradle/" "$FRONTEND_DIR/android/app/build/" 2>/dev/null || true
 
   # Delete Gradle caches to ensure a clean state for the new Gradle version.
-  # Gradle 8.17 embeds Kotlin 2.2.x which is required by Flutter 3.44.1's
+  # Gradle 8.14 embeds Kotlin 2.0.x which is required by Flutter 3.44.1's
   # kotlin-dsl plugin. Old caches from Gradle 8.14 (Kotlin 2.0.21) are incompatible.
-  log_info "Cleaning Gradle caches..."
-  rm -rf ~/.gradle/caches/ 2>/dev/null || true
-  rm -rf ~/.gradle/wrapper/dists/ 2>/dev/null || true
 
   # Build release APK (no tree-shake icons to ensure all Material icons are included)
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
