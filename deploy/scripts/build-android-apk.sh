@@ -31,6 +31,94 @@ log_ok()    { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 log_warn()  { echo -e "\033[1;33m[WARN]\033[0m  $*"; }
 log_error() { echo -e "\033[0;31m[ERROR]\033[0m $*"; }
 
+# ── Step 0: Pre-build Configuration Validation ────────────────────────────
+check_config() {
+  log_info "=== Pre-build Configuration Validation ==="
+  local errors=0
+
+  # 0.1 Check Flutter
+  if command -v flutter &>/dev/null; then
+    local flutter_version
+    flutter_version=$(flutter --version 2>/dev/null | head -1)
+    log_ok "Flutter: $flutter_version"
+  else
+    log_error "Flutter is not installed or not in PATH"
+    errors=$((errors + 1))
+  fi
+
+  # 0.2 Check Android SDK
+  if [ -d "$ANDROID_SDK_ROOT" ]; then
+    log_ok "Android SDK: $ANDROID_SDK_ROOT"
+  else
+    log_warn "Android SDK not found at $ANDROID_SDK_ROOT (will try ANDROID_HOME)"
+    if [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME" ]; then
+      log_ok "Android SDK: $ANDROID_HOME"
+    else
+      log_error "Android SDK not found. Set ANDROID_HOME or ANDROID_SDK_ROOT"
+      errors=$((errors + 1))
+    fi
+  fi
+
+  # 0.3 Check Java
+  if command -v java &>/dev/null; then
+    local java_version
+    java_version=$(java -version 2>&1 | head -1)
+    log_ok "Java: $java_version"
+  else
+    log_error "Java is not installed or not in PATH (required by Gradle)"
+    errors=$((errors + 1))
+  fi
+
+  # 0.4 Check disk space (need at least 2GB free)
+  local free_kb
+  free_kb=$(df "$PROJECT_DIR" 2>/dev/null | tail -1 | awk '{print $4}')
+  if [ -n "$free_kb" ] && [ "$free_kb" -gt 2097152 ] 2>/dev/null; then
+    local free_mb=$((free_kb / 1024))
+    log_ok "Disk space: ${free_mb}MB free"
+  else
+    log_warn "Low disk space (may cause build failures)"
+  fi
+
+  # 0.5 Check RAM (need at least 1GB available)
+  if command -v free &>/dev/null; then
+    local avail_mb
+    avail_mb=$(free -m 2>/dev/null | grep "Mem:" | awk '{print $7}')
+    if [ -n "$avail_mb" ] && [ "$avail_mb" -gt 1024 ] 2>/dev/null; then
+      log_ok "Available RAM: ${avail_mb}MB"
+    else
+      log_warn "Low available RAM: ${avail_mb:-?}MB (Gradle limited to 512MB heap)"
+    fi
+  fi
+
+  # 0.6 Check gradle-wrapper.properties exists
+  local WRAPPER_PROPS="$FRONTEND_DIR/android/gradle/wrapper/gradle-wrapper.properties"
+  if [ -f "$WRAPPER_PROPS" ]; then
+    local gradle_url
+    gradle_url=$(grep "distributionUrl" "$WRAPPER_PROPS" 2>/dev/null | sed 's/.*=//')
+    log_ok "Gradle wrapper: $gradle_url"
+  else
+    log_error "gradle-wrapper.properties not found at $WRAPPER_PROPS"
+    errors=$((errors + 1))
+  fi
+
+  # 0.7 Check pubspec.yaml exists
+  if [ -f "$FRONTEND_DIR/pubspec.yaml" ]; then
+    log_ok "Project pubspec.yaml found"
+  else
+    log_error "pubspec.yaml not found at $FRONTEND_DIR/pubspec.yaml"
+    errors=$((errors + 1))
+  fi
+
+  echo ""
+  if [ "$errors" -gt 0 ]; then
+    log_error "Configuration check failed with $errors error(s)"
+    exit 1
+  else
+    log_ok "All configuration checks passed"
+    echo ""
+  fi
+}
+
 # ── Step 1: Plugin Compatibility Patching ────────────────────────────────────
 patch_plugins() {
   log_info "Patching plugin compatibility for AGP 8+ and v2 embedding..."
@@ -297,6 +385,10 @@ main() {
   log_info "Android SDK: $ANDROID_SDK_ROOT"
   echo ""
 
+  # Phase 0: Configuration validation (check environment before building)
+  check_config
+
+  # Phase 1: Build the APK
   build_apk
 
   log_ok "=== Build Complete ==="
