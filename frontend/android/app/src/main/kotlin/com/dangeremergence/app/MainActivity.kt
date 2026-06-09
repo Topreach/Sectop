@@ -115,7 +115,7 @@ class MainActivity : FlutterActivity() {
                 result.success(true)
             }
             "getTrackingStatus" -> {
-                result.success(LocationService.isTracking)
+                result.success(LocationService.isRunning)
             }
             "updateInterval" -> {
                 val intervalMs = call.argument<Long>("intervalMs") ?: 30000L

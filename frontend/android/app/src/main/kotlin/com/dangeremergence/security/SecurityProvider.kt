@@ -429,12 +429,22 @@ class SecurityProvider(private val context: android.content.Context) {
             val hashBytes: ByteArray
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val sig = info.signingInfo.signingCertificateHistory[0]
-                hashBytes = digest.digest(sig.toByteArray())
+                val sig = info.signingInfo?.signingCertificateHistory?.getOrNull(0)
+                hashBytes = if (sig != null) {
+                    digest.digest(sig.toByteArray())
+                } else {
+                    result.error("SIG_HASH_ERROR", "No signing certificate history available", null)
+                    return
+                }
             } else {
                 @Suppress("DEPRECATION")
-                val sig = info.signatures[0]
-                hashBytes = digest.digest(sig.toByteArray())
+                val sig = info.signatures?.getOrNull(0)
+                hashBytes = if (sig != null) {
+                    digest.digest(sig.toByteArray())
+                } else {
+                    result.error("SIG_HASH_ERROR", "No signatures available", null)
+                    return
+                }
             }
 
             val hashHex = hashBytes.joinToString("") { "%02x".format(it) }
@@ -522,8 +532,8 @@ private fun handleTfliteLoadModel(call: MethodCall, result: MethodChannel.Result
         response["modelId"] = modelId
         response["inputShape"] = interpreter.getInputTensor(0).shape()
         response["outputShape"] = interpreter.getOutputTensor(0).shape()
-        response["inputType"] = interpreter.getInputTensor(0).dataType().name()
-        response["outputType"] = interpreter.getOutputTensor(0).dataType().name()
+        response["inputType"] = interpreter.getInputTensor(0).dataType().name
+        response["outputType"] = interpreter.getOutputTensor(0).dataType().name
 
         Log.d(TAG, "TFLite model loaded successfully: $modelPath (id=$modelId)")
         result.success(response)
