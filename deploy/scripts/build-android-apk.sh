@@ -229,6 +229,22 @@ patch_plugins() {
   rm -f "$JCENTER_LIST"
   log_ok "jcenter() replacement complete"
 
+  # Fix flutter_local_notifications ambiguous bigLargeIcon(null) call
+  # Newer Android SDKs added bigLargeIcon(Icon) alongside bigLargeIcon(Bitmap),
+  # making a null argument ambiguous. Cast to Bitmap to resolve.
+  log_info "Patching flutter_local_notifications ambiguous bigLargeIcon call..."
+  local FLN_FILE="$PUB_CACHE_DIR/hosted/pub.dev/flutter_local_notifications-16.3.3/android/src/main/java/com/dexterous/flutterlocalnotifications/FlutterLocalNotificationsPlugin.java"
+  if [ -f "$FLN_FILE" ]; then
+    if grep -q "bigPictureStyle.bigLargeIcon(null)" "$FLN_FILE" 2>/dev/null; then
+      sed -i 's/bigPictureStyle\.bigLargeIcon(null)/bigPictureStyle.bigLargeIcon((Bitmap) null)/' "$FLN_FILE"
+      log_info "  Patched bigLargeIcon(null) -> bigLargeIcon((Bitmap) null)"
+    else
+      log_info "  bigLargeIcon(null) not found (may already be patched)"
+    fi
+  else
+    log_warn "  flutter_local_notifications plugin file not found at $FLN_FILE"
+  fi
+
   # Fix Android v1 embedding → v2 embedding for all plugins
   # Flutter 3.16+ requires all plugins to use the v2 Android embedding.
   # The v1 embedding uses io.flutter.app.FlutterActivity (deprecated).
