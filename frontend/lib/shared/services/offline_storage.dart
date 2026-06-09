@@ -18,10 +18,13 @@ class OfflineStorageService {
 
   Database? _database;
   bool _initialized = false;
+  Completer<void>? _initCompleter;
 
   /// Initialize the database and create all required tables.
   Future<void> initialize() async {
     if (_initialized) return;
+    if (_initCompleter != null) return _initCompleter!.future;
+    _initCompleter = Completer<void>();
 
     // SQLite is not available on web; skip database initialization.
     // SharedPreferences-based methods (getSetting, saveSetting) still work.
@@ -43,6 +46,7 @@ class OfflineStorageService {
     }
 
     _initialized = true;
+    _initCompleter!.complete();
   }
 
   Future<void> _createTables(Database db, int version) async {
@@ -209,6 +213,7 @@ class OfflineStorageService {
 
   /// Insert a record into the specified table.
   Future<int> insert(String table, Map<String, dynamic> data) async {
+    if (!_initialized) await _initCompleter?.future;
     final db = _database;
     if (db == null) return 0; // Web: SQLite not available
     return await db.insert(table, data, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -216,6 +221,7 @@ class OfflineStorageService {
 
   /// Update records matching the where clause.
   Future<int> update(String table, Map<String, dynamic> data, {required String where, List<dynamic>? whereArgs}) async {
+    if (!_initialized) await _initCompleter?.future;
     final db = _database;
     if (db == null) return 0; // Web: SQLite not available
     return await db.update(table, data, where: where, whereArgs: whereArgs);
@@ -223,6 +229,7 @@ class OfflineStorageService {
 
   /// Delete records matching the where clause.
   Future<int> delete(String table, {required String where, List<dynamic>? whereArgs}) async {
+    if (!_initialized) await _initCompleter?.future;
     final db = _database;
     if (db == null) return 0; // Web: SQLite not available
     return await db.delete(table, where: where, whereArgs: whereArgs);
@@ -231,6 +238,7 @@ class OfflineStorageService {
   /// Query records from the specified table.
   Future<List<Map<String, dynamic>>> query(String table,
       {String? where, List<dynamic>? whereArgs, String? orderBy, int? limit, int? offset}) async {
+    if (!_initialized) await _initCompleter?.future;
     final db = _database;
     if (db == null) return []; // Web: SQLite not available, return empty results
     return await db.query(table,
@@ -239,6 +247,7 @@ class OfflineStorageService {
 
   /// Get a single record by id.
   Future<Map<String, dynamic>?> getById(String table, String id) async {
+    if (!_initialized) await _initCompleter?.future;
     final db = _database;
     if (db == null) return null; // Web: SQLite not available
     final results = await db.query(table, where: 'id = ?', whereArgs: [id]);
@@ -247,6 +256,7 @@ class OfflineStorageService {
 
   /// Insert or update a record by its 'id' field.
   Future<void> upsert(String table, Map<String, dynamic> data) async {
+    if (!_initialized) await _initCompleter?.future;
     final db = _database;
     if (db == null) return;
 
@@ -268,22 +278,22 @@ class OfflineStorageService {
 
   /// Save a message to local storage.
   Future<void> saveMessage(Map<String, dynamic> message) async {
-    await insert('messages', message);
-    await _logSync('messages', message['id'], 'create', message);
+    await insert(AppConstants.tableMessages, message);
+    await _logSync(AppConstants.tableMessages, message['id'], AppConstants.opCreate, message);
   }
 
   /// Get pending (unsent) messages.
   Future<List<Map<String, dynamic>>> getPendingMessages() async {
-    return await query('messages',
+    return await query(AppConstants.tableMessages,
         where: 'sync_state = ? AND status = ?',
-        whereArgs: ['offline', 'pending'],
+        whereArgs: [AppConstants.msgSyncOffline, AppConstants.syncPending],
         orderBy: 'priority DESC, created_at ASC');
   }
 
   /// Get messages for a specific user.
   Future<List<Map<String, dynamic>>> getMessagesForUser(String userId,
       {int limit = 50, int offset = 0}) async {
-    return await query('messages',
+    return await query(AppConstants.tableMessages,
         where: 'sender_id = ? OR receiver_id = ?',
         whereArgs: [userId, userId],
         orderBy: 'created_at DESC',
@@ -293,8 +303,8 @@ class OfflineStorageService {
 
   /// Mark message as delivered.
   Future<void> markMessageDelivered(String messageId) async {
-    await update('messages',
-        {'status': 'delivered', 'delivered_at': DateTime.now().millisecondsSinceEpoch},
+    await update(AppConstants.tableMessages,
+        {'status': AppConstants.msgStatusDelivered, 'delivered_at': DateTime.now().millisecondsSinceEpoch},
         where: 'id = ?',
         whereArgs: [messageId]);
   }
@@ -303,22 +313,22 @@ class OfflineStorageService {
 
   /// Save an SOS alert locally.
   Future<void> saveSOSAlert(Map<String, dynamic> alert) async {
-    await insert('sos_alerts', alert);
-    await _logSync('sos_alerts', alert['id'], 'create', alert);
+    await insert(AppConstants.tableSOSAlerts, alert);
+    await _logSync(AppConstants.tableSOSAlerts, alert['id'], AppConstants.opCreate, alert);
   }
 
   /// Get active SOS alerts.
   Future<List<Map<String, dynamic>>> getActiveSOSAlerts() async {
-    return await query('sos_alerts',
+    return await query(AppConstants.tableSOSAlerts,
         where: 'status = ?',
-        whereArgs: ['active'],
+        whereArgs: [AppConstants.alertActive],
         orderBy: 'priority DESC, created_at DESC');
   }
 
   /// Resolve an SOS alert.
   Future<void> resolveSOSAlert(String alertId, {String? resolvedBy}) async {
-    await update('sos_alerts', {
-      'status': 'resolved',
+    await update(AppConstants.tableSOSAlerts, {
+      'status': AppConstants.alertResolved,
       'acknowledged_by': resolvedBy,
       'resolved_at': DateTime.now().millisecondsSinceEpoch,
       'updated_at': DateTime.now().millisecondsSinceEpoch,
@@ -329,7 +339,7 @@ class OfflineStorageService {
 
   /// Save a zone (safe/danger/evacuation).
   Future<void> saveZone(Map<String, dynamic> zone) async {
-    await insert('zones', zone);
+    await insert(AppConstants.tableZones, zone);
   }
 
   /// Get zones near a location.
@@ -339,14 +349,14 @@ class OfflineStorageService {
     final latDelta = radiusKm / 111.0;
     final lonDelta = radiusKm / (111.0 * _cosDegrees(latitude));
 
-    return await query('zones',
+    return await query(AppConstants.tableZones,
         where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ? AND status = ?',
         whereArgs: [
           latitude - latDelta,
           latitude + latDelta,
           longitude - lonDelta,
           longitude + lonDelta,
-          'active'
+          AppConstants.alertActive
         ]);
   }
 
@@ -362,19 +372,19 @@ class OfflineStorageService {
 
   /// Save or update a mesh peer.
   Future<void> upsertPeer(Map<String, dynamic> peer) async {
-    final existing = await query('mesh_peers',
+    final existing = await query(AppConstants.tableMeshPeers,
         where: 'device_id = ?', whereArgs: [peer['device_id']]);
     if (existing.isNotEmpty) {
-      await update('mesh_peers', peer, where: 'device_id = ?', whereArgs: [peer['device_id']]);
+      await update(AppConstants.tableMeshPeers, peer, where: 'device_id = ?', whereArgs: [peer['device_id']]);
     } else {
-      await insert('mesh_peers', peer);
+      await insert(AppConstants.tableMeshPeers, peer);
     }
   }
 
   /// Get recently seen peers.
   Future<List<Map<String, dynamic>>> getRecentPeers({int minutes = 30}) async {
     final cutoff = DateTime.now().millisecondsSinceEpoch - (minutes * 60 * 1000);
-    return await query('mesh_peers',
+    return await query(AppConstants.tableMeshPeers,
         where: 'last_seen > ?',
         whereArgs: [cutoff],
         orderBy: 'signal_strength DESC');
@@ -383,12 +393,12 @@ class OfflineStorageService {
   // ==================== Sync Operations ====================
 
   Future<void> _logSync(String entityType, String entityId, String operation, Map<String, dynamic>? payload) async {
-    await insert('sync_log', {
+    await insert(AppConstants.tableSyncLog, {
       'entity_type': entityType,
       'entity_id': entityId,
       'operation': operation,
       'payload': payload != null ? payload.toString() : null,
-      'status': 'pending',
+      'status': AppConstants.syncPending,
       'retry_count': 0,
       'created_at': DateTime.now().millisecondsSinceEpoch,
     });
@@ -396,25 +406,25 @@ class OfflineStorageService {
 
   /// Get pending sync items.
   Future<List<Map<String, dynamic>>> getPendingSyncItems({int limit = 50}) async {
-    return await query('sync_log',
+    return await query(AppConstants.tableSyncLog,
         where: 'status = ? AND retry_count < ?',
-        whereArgs: ['pending', AppConstants.apiRetryCount],
+        whereArgs: [AppConstants.syncPending, AppConstants.apiRetryCount],
         orderBy: 'created_at ASC',
         limit: limit);
   }
 
   /// Mark sync item as completed.
   Future<void> markSyncCompleted(int syncId) async {
-    await update('sync_log', {'status': 'completed'}, where: 'id = ?', whereArgs: [syncId]);
+    await update(AppConstants.tableSyncLog, {'status': AppConstants.syncCompleted}, where: 'id = ?', whereArgs: [syncId]);
   }
 
   /// Increment retry count for a sync item.
   Future<void> incrementSyncRetry(int syncId) async {
-    final item = await query('sync_log', where: 'id = ?', whereArgs: [syncId]);
+    final item = await query(AppConstants.tableSyncLog, where: 'id = ?', whereArgs: [syncId]);
     if (item.isNotEmpty) {
       final retryCount = (item.first['retry_count'] as int) + 1;
-      final status = retryCount >= AppConstants.apiRetryCount ? 'failed' : 'pending';
-      await update('sync_log', {
+      final status = retryCount >= AppConstants.apiRetryCount ? AppConstants.syncFailed : AppConstants.syncPending;
+      await update(AppConstants.tableSyncLog, {
         'retry_count': retryCount,
         'status': status,
         'last_attempt': DateTime.now().millisecondsSinceEpoch,
@@ -513,18 +523,18 @@ class OfflineStorageService {
     final now = DateTime.now().millisecondsSinceEpoch;
 
     // Delete expired messages
-    await delete('messages',
+    await delete(AppConstants.tableMessages,
         where: 'expires_at IS NOT NULL AND expires_at < ?',
         whereArgs: [now]);
 
     // Delete expired zones
-    await delete('zones',
+    await delete(AppConstants.tableZones,
         where: 'expires_at IS NOT NULL AND expires_at < ?',
         whereArgs: [now]);
 
     // Delete old sync logs (keep last 7 days)
     final weekAgo = now - (7 * 24 * 60 * 60 * 1000);
-    await delete('sync_log',
+    await delete(AppConstants.tableSyncLog,
         where: 'created_at < ?',
         whereArgs: [weekAgo]);
   }

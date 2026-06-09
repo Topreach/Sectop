@@ -71,9 +71,9 @@ class _DashboardHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final syncManager = context.watch<SyncManager>();
-    final meshManager = context.watch<MeshManager>();
-    final mapService = context.watch<MapService>();
+    final isOnline = context.select<SyncManager, bool>((s) => s.isOnline);
+    final peerCount = context.select<MeshManager, int>((m) => m.discoveredPeers.length);
+    final isTracking = context.select<MapService, bool>((m) => m.isTracking);
 
     return Scaffold(
       appBar: AppBar(
@@ -86,15 +86,15 @@ class _DashboardHome extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Icon(
-              syncManager.isOnline ? Icons.cloud_done : Icons.cloud_off,
-              color: syncManager.isOnline ? Colors.green[300] : Colors.orange[300],
+              isOnline ? Icons.cloud_done : Icons.cloud_off,
+              color: isOnline ? Colors.green[300] : Colors.orange[300],
               size: 20,
             ),
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => syncManager.triggerSync(),
+        onRefresh: () => context.read<SyncManager>().triggerSync(),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
@@ -191,11 +191,7 @@ class _DashboardHome extends StatelessWidget {
                       icon: Icons.inbox_outlined,
                       label: 'Messages',
                       color: Colors.purple,
-                      onTap: () {
-                        // Switch to inbox tab
-                        final dashboard = context.findAncestorStateOfType<State>();
-                        dashboard?.setState(() {});
-                      },
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -220,10 +216,10 @@ class _DashboardHome extends StatelessWidget {
 
               // Connection status
               _StatusCard(
-                icon: syncManager.isOnline ? Icons.cloud_done : Icons.cloud_off,
+                icon: isOnline ? Icons.cloud_done : Icons.cloud_off,
                 title: 'Cloud Connection',
-                subtitle: syncManager.isOnline ? 'Connected' : 'Offline',
-                color: syncManager.isOnline ? Colors.green : Colors.orange,
+                subtitle: isOnline ? 'Connected' : 'Offline',
+                color: isOnline ? Colors.green : Colors.orange,
               ),
               const SizedBox(height: 8),
 
@@ -231,8 +227,8 @@ class _DashboardHome extends StatelessWidget {
               _StatusCard(
                 icon: Icons.wifi_tethering,
                 title: 'Mesh Network',
-                subtitle: '${meshManager.discoveredPeers.length} peers connected',
-                color: meshManager.discoveredPeers.isNotEmpty ? Colors.blue : Colors.grey,
+                subtitle: '$peerCount peers connected',
+                color: peerCount > 0 ? Colors.blue : Colors.grey,
               ),
               const SizedBox(height: 8),
 
@@ -240,8 +236,8 @@ class _DashboardHome extends StatelessWidget {
               _StatusCard(
                 icon: Icons.my_location,
                 title: 'Location Tracking',
-                subtitle: mapService.isTracking ? 'Active' : 'Inactive',
-                color: mapService.isTracking ? Colors.green : Colors.grey,
+                subtitle: isTracking ? 'Active' : 'Inactive',
+                color: isTracking ? Colors.green : Colors.grey,
               ),
               const SizedBox(height: 8),
 

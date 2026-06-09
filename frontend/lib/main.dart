@@ -19,6 +19,7 @@ import 'modules/maps/services/map_service.dart';
 import 'modules/security/services/security_manager.dart';
 import 'modules/observability/services/observability_service.dart';
 import 'shared/services/hardware_trigger_service.dart';
+import 'shared/services/crash_reporter.dart';
 
 /// Background task dispatcher for Workmanager.
 @pragma('vm:entry-point')
@@ -39,6 +40,7 @@ void callbackDispatcher() {
 
 /// Global service health monitor — tracks which services are degraded.
 final ServiceHealthNotifier serviceHealth = ServiceHealthNotifier();
+final CrashReporter crashReporter = ConsoleCrashReporter();
 
 /// Helper that wraps a service creation + initialization call in a try-catch.
 /// Catches both synchronous throws AND async (Future) rejections by chaining
@@ -97,16 +99,11 @@ T _createFallback<T>() {
 
 void main() async {
   // Capture all unhandled errors globally so they don't crash the app silently.
+  FlutterError.onError = (details) {
+    crashReporter.recordFlutterError(details);
+  };
+
   runZonedGuarded(() async {
-    FlutterError.onError = (details) {
-      debugPrint('══════════════════════════════════════════════════');
-      debugPrint('🚨 FlutterError caught: ${details.exception}');
-      debugPrint('Stack: ${details.stack}');
-      serviceHealth.markDegraded(
-        FlutterError,
-        'Flutter framework error: ${details.exception}',
-      );
-    };
 
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -134,13 +131,7 @@ void main() async {
 
     runApp(const DangerEmergenceApp());
   }, (error, stack) {
-    debugPrint('══════════════════════════════════════════════════');
-    debugPrint('💥 Unhandled async error: $error');
-    debugPrint('Stack: $stack');
-    serviceHealth.markUnavailable(
-      Object,
-      'Unhandled async error: $error',
-    );
+    crashReporter.recordError(error, stack, context: 'runZonedGuarded');
   });
 }
 

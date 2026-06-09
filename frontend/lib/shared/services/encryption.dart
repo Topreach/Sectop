@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:pointycastle/export.dart';
@@ -31,11 +32,10 @@ class EncryptionService {
 
   /// Generate a secure random seed.
   Uint8List _generateSecureSeed() {
-    final random = SecureRandom('Fortuna')
-      ..seed(KeyParameter(Uint8List.fromList(
-        List.generate(32, (_) => DateTime.now().microsecondsSinceEpoch % 256),
-      )));
-    return random.nextBytes(32);
+    final secureRand = math.Random.secure();
+    return Uint8List.fromList(
+      List.generate(32, (_) => secureRand.nextInt(256))
+    );
   }
 
   /// Encrypt a message using AES-256-GCM.

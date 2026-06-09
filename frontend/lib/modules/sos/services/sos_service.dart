@@ -155,7 +155,9 @@ class SOSService extends ChangeNotifier {
       } catch (e) {
         debugPrint('Mesh broadcast attempt $i failed: $e');
         // Exponential backoff: 2s, 4s, 8s, 16s, 32s
-        await Future.delayed(Duration(seconds: pow(2, i + 1).toInt()));
+        const maxDelaySeconds = 60;
+        final delay = min(pow(2, i + 1).toInt(), maxDelaySeconds);
+        await Future.delayed(Duration(seconds: delay));
       }
     }
   }

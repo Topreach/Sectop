@@ -25,12 +25,10 @@ class SecurityConfig {
   ///     openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | \
   ///     base64
   static const List<String> pinnedCertificates = [
-    // Production API server
-    '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
-    // Backup API server
-    'm2J5sP7QVm7Q4Z8f9K2h3L0qR1vW4xY6zA8bC0dE1fI=',
-    // ML inference server
-    'q3R6t9Y2u5I8o1p4s7w0x3v6z9c2f5h8k1n4q7t0w3y6=',
+    // TODO: Generate real certificate pins using:
+    //   openssl s_client -connect your-api.com:443 -servername your-api.com \
+    //     </dev/null 2>/dev/null | openssl x509 -pubkey -noout | \
+    //     openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
   ];
 
   /// Hostnames that require certificate pinning.

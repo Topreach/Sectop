@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/constants.dart';
 import '../../../shared/services/offline_storage.dart';
@@ -49,8 +51,21 @@ class MeshManager extends ChangeNotifier {
   bool get isBatterySaverEnabled => _isBatterySaverEnabled;
 
   /// Start scanning for nearby peers.
-  void startScanning() {
+  Future<void> startScanning() async {
     if (_isScanning) return;
+    
+    // Check Bluetooth permissions (required for Android 12+)
+    if (Platform.isAndroid) {
+      final status = await Permission.bluetoothScan.status;
+      if (!status.isGranted) {
+        final result = await Permission.bluetoothScan.request();
+        if (!result.isGranted) {
+          debugPrint('MeshManager: BLUETOOTH_SCAN permission denied');
+          return;
+        }
+      }
+    }
+    
     _isScanning = true;
     debugPrint('MeshManager: Scanning started');
     notifyListeners();

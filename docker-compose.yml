@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: danger_emergence
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD} # REQUIRED: Must be set in .env file
     ports:
       - "5432:5432"
     volumes:
@@ -19,6 +19,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
   # Redis Cache
   redis:
@@ -36,6 +41,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   # MQTT Broker for IoT/Mesh communication
   mosquitto:
@@ -50,7 +60,18 @@ services:
       - mosquitto_config:/mosquitto/config
     networks:
       - danger-emergence-network
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$SYS/#' -C 1 --quiet 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
 
   # Spring Boot Backend
   backend:
@@ -60,13 +81,13 @@ services:
     container_name: danger-emergence-backend
     environment:
       DB_USERNAME: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD} # REQUIRED: Must be set in .env file
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JDBC_DATABASE_URL: jdbc:postgresql://danger-emergence-db:5432/danger_emergence
       ML_SERVICE_URL: http://ml-service:8000
       MQTT_BROKER: tcp://mosquitto:1883
-      JWT_SECRET: ${JWT_SECRET:-d2FybmktZGFuZ2VyLWVtZXJnZW5jZS1zZWNyZXQta2V5LWZvci1obWFjLXNoYTI1Ng}
+      JWT_SECRET: ${JWT_SECRET} # REQUIRED: Must be set in .env file
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8080:8080"
@@ -77,9 +98,20 @@ services:
         condition: service_healthy
       ml-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || curl --fail http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       - danger-emergence-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
   # FastAPI ML Service
   ml-service:
@@ -96,9 +128,20 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8000/health || curl --fail http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
     networks:
       - danger-emergence-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
 
   # Nginx Reverse Proxy
   nginx:
@@ -112,9 +155,20 @@ services:
     depends_on:
       - backend
       - ml-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - danger-emergence-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
 
 networks:
   danger-emergence-network:

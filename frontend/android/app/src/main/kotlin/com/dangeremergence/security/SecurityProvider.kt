@@ -310,6 +310,8 @@ class SecurityProvider(private val context: android.content.Context) {
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                     .setKeySize(256)
+                    .setUserAuthenticationRequired(true)
+                    .setUserAuthenticationValidityDurationSeconds(30)
                     .build()
                 keyGenerator.init(spec)
                 keyGenerator.generateKey()

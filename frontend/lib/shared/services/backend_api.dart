@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants.dart';
@@ -17,6 +18,12 @@ class BackendApi {
   final String _baseUrl = '${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}';
   final Duration _timeout = Duration(seconds: AppConstants.apiTimeout);
 
+  CircuitState _circuitState = CircuitState.closed;
+  int _consecutiveFailures = 0;
+  static const int _failureThreshold = 5;
+  static const Duration _resetTimeout = Duration(seconds: 30);
+  DateTime? _lastFailureTime;
+
   // ---------------------------------------------------------------------------
   // Auth headers
   // ---------------------------------------------------------------------------
@@ -33,16 +40,61 @@ class BackendApi {
   }
 
   // ---------------------------------------------------------------------------
+  // Resilience: retry with exponential backoff + circuit breaker
+  // ---------------------------------------------------------------------------
+
+  Future<T> _retryWithBackoff<T>(Future<T> Function() request) async {
+    int attempt = 0;
+    while (true) {
+      try {
+        return await request();
+      } catch (e) {
+        attempt++;
+        if (attempt >= AppConstants.apiRetryCount) rethrow;
+        final delay = Duration(seconds: min(pow(2, attempt).toInt(), 10));
+        debugPrint('BackendApi: Retry $attempt/${AppConstants.apiRetryCount} after $delay: $e');
+        await Future.delayed(delay);
+      }
+    }
+  }
+
+  Future<T> _executeWithCircuitBreaker<T>(Future<T> Function() request) async {
+    if (_circuitState == CircuitState.open) {
+      if (DateTime.now().difference(_lastFailureTime!) > _resetTimeout) {
+        _circuitState = CircuitState.halfOpen;
+      } else {
+        throw ApiException(503, 'Circuit breaker is open - backend unavailable');
+      }
+    }
+    try {
+      final result = await _retryWithBackoff(request);
+      _consecutiveFailures = 0;
+      _circuitState = CircuitState.closed;
+      return result;
+    } catch (e) {
+      _consecutiveFailures++;
+      _lastFailureTime = DateTime.now();
+      if (_consecutiveFailures >= _failureThreshold) {
+        _circuitState = CircuitState.open;
+        debugPrint('BackendApi: Circuit breaker opened after $_consecutiveFailures failures');
+      }
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Generic HTTP methods
   // ---------------------------------------------------------------------------
 
   /// Perform a GET request and parse the JSON response.
   Future<Map<String, dynamic>> get(String path) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final response = await http
-        .get(uri, headers: await _headers())
-        .timeout(_timeout);
-    return _handleResponse(response);
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl$path');
+      final response = await http
+          .get(uri, headers: await _headers())
+          .timeout(_timeout);
+      return _handleResponse(response);
+    });
   }
 
   /// Perform a POST request with an optional JSON body.
@@ -50,15 +102,17 @@ class BackendApi {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final response = await http
-        .post(
-          uri,
-          headers: await _headers(),
-          body: body != null ? json.encode(body) : null,
-        )
-        .timeout(_timeout);
-    return _handleResponse(response);
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl$path');
+      final response = await http
+          .post(
+            uri,
+            headers: await _headers(),
+            body: body != null ? json.encode(body) : null,
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    });
   }
 
   /// Perform a PUT request with an optional JSON body.
@@ -66,23 +120,27 @@ class BackendApi {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final response = await http
-        .put(
-          uri,
-          headers: await _headers(),
-          body: body != null ? json.encode(body) : null,
-        )
-        .timeout(_timeout);
-    return _handleResponse(response);
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl$path');
+      final response = await http
+          .put(
+            uri,
+            headers: await _headers(),
+            body: body != null ? json.encode(body) : null,
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    });
   }
 
   /// Perform a DELETE request.
   Future<void> delete(String path) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    await http
-        .delete(uri, headers: await _headers())
-        .timeout(_timeout);
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl$path');
+      await http
+          .delete(uri, headers: await _headers())
+          .timeout(_timeout);
+    });
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
@@ -328,3 +386,5 @@ class ApiException implements Exception {
   @override
   String toString() => 'ApiException($statusCode): $body';
 }
+
+enum CircuitState { closed, open, halfOpen }

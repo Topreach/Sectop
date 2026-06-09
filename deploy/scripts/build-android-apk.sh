@@ -90,13 +90,13 @@ patch_plugins() {
   while read -r gradle_file; do
     [ -z "$gradle_file" ] && continue
     # Fix: "compileSdk 34safeExtGet(...)" -> "compileSdk 34"
-    sed -i 's/\(compileSdk \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$gradle_file" 2>/dev/null || true
+    sed -i 's/\(compileSdk \)[0-9][0-9]*safeExtGet([^)]*)/\1 34/g' "$gradle_file" 2>/dev/null || true
     # Fix: "compileSdkVersion 34safeExtGet(...)" -> "compileSdkVersion 34"
-    sed -i 's/\(compileSdkVersion \)[0-9][0-9]*safeExtGet([^)]*)/\134/g' "$gradle_file" 2>/dev/null || true
+    sed -i 's/\(compileSdkVersion \)[0-9][0-9]*safeExtGet([^)]*)/\1 34/g' "$gradle_file" 2>/dev/null || true
     # Fix: "compileSdk 34= 36 // ..." -> "compileSdk 34"
-    sed -i 's/\(compileSdk \)[0-9][0-9]*= [0-9][0-9]*.*/\134/g' "$gradle_file" 2>/dev/null || true
+    sed -i 's/\(compileSdk \)[0-9][0-9]*= [0-9][0-9]*.*/\1 34/g' "$gradle_file" 2>/dev/null || true
     # Fix: "compileSdkVersion 34= 36 // ..." -> "compileSdkVersion 34"
-    sed -i 's/\(compileSdkVersion \)[0-9][0-9]*= [0-9][0-9]*.*/\134/g' "$gradle_file" 2>/dev/null || true
+    sed -i 's/\(compileSdkVersion \)[0-9][0-9]*= [0-9][0-9]*.*/\1 34/g' "$gradle_file" 2>/dev/null || true
   done < "$CORRUPTED_LIST"
   rm -f "$CORRUPTED_LIST"
 

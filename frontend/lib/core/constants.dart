@@ -56,6 +56,40 @@ class AppConstants {
   static const String apiVersion = 'v1';
   static const int apiTimeout = 30; // seconds
   static const int apiRetryCount = 3;
+
+  // Table names
+  static const String tableUsers = 'users';
+  static const String tableMessages = 'messages';
+  static const String tableSOSAlerts = 'sos_alerts';
+  static const String tableZones = 'zones';
+  static const String tableMeshPeers = 'mesh_peers';
+  static const String tableIncidents = 'incidents';
+  static const String tableResourceCache = 'resource_cache';
+  static const String tableSyncLog = 'sync_log';
+
+  // Sync operations
+  static const String opCreate = 'create';
+  static const String opUpdate = 'update';
+  static const String opDelete = 'delete';
+
+  // Sync statuses
+  static const String syncPending = 'pending';
+  static const String syncSynced = 'synced';
+  static const String syncFailed = 'failed';
+  static const String syncCompleted = 'completed';
+
+  // Alert statuses
+  static const String alertActive = 'active';
+  static const String alertResolved = 'resolved';
+  static const String alertAcknowledged = 'acknowledged';
+  static const String alertExpired = 'expired';
+
+  // Message sync states
+  static const String msgSyncOffline = 'offline';
+  static const String msgSyncPending = 'pending';
+  static const String msgSyncSynced = 'synced';
+  static const String msgStatusDelivered = 'delivered';
+
   static const String defaultMavlinkUrl = 'ws://drone-hub.dangeremergence.com:5760';
 
   // UI

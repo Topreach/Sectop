@@ -641,6 +641,7 @@ class AppIntegrity {
   }
 
   Future<bool> _fileExists(String path) async {
+    if (kIsWeb) return false;
     try {
       return await File(path).exists();
     } catch (_) {

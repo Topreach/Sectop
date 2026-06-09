@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -31,7 +32,7 @@ class SecurityManager extends ChangeNotifier {
   bool _isCompromised = false;
   Timer? _integrityTimer;
   Timer? _keyRotationTimer;
-  final List<SecurityEvent> _auditLog = [];
+  final Queue<SecurityEvent> _auditLog = Queue<SecurityEvent>();
   static const int _maxAuditLogSize = 1000;
 
   /// Whether the security manager has been initialized.
@@ -47,7 +48,7 @@ class SecurityManager extends ChangeNotifier {
   AppIntegrity get integrity => _integrity;
 
   /// The audit log of security events.
-  List<SecurityEvent> get auditLog => List.unmodifiable(_auditLog);
+  List<SecurityEvent> get auditLog => List.unmodifiable(_auditLog.toList());
 
   /// Initialize all security services.
   Future<void> initialize() async {
@@ -323,9 +324,9 @@ class SecurityManager extends ChangeNotifier {
 
     _auditLog.add(event);
 
-    // Trim audit log if too large
-    if (_auditLog.length > _maxAuditLogSize) {
-      _auditLog.removeRange(0, _auditLog.length - _maxAuditLogSize);
+    // Trim audit log if too large (O(1) removal from front)
+    while (_auditLog.length > _maxAuditLogSize) {
+      _auditLog.removeFirst();
     }
 
     // Report to backend if enabled
