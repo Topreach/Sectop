@@ -315,7 +315,7 @@ build_apk() {
   log_info "Re-applying Gradle memory settings..."
   cat > "$FRONTEND_DIR/android/gradle.properties" << 'GRADLEPROPS'
 android.useAndroidX=true
-android.enableJetifier=true
+android.enableJetifier=false
 org.gradle.caching=true
 org.gradle.configureondemand=false
 # Memory settings for low-RAM build servers
