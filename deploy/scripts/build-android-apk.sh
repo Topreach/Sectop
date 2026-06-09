@@ -245,39 +245,18 @@ patch_plugins() {
     log_warn "  flutter_local_notifications plugin file not found at $FLN_FILE"
   fi
 
-  # Fix workmanager v1 embedding → v2 embedding
+  # Fix workmanager v1 embedding → v2 embedding using Python script
   # workmanager 0.5.2 uses the old v1 Android embedding API (ShimPluginRegistry,
   # PluginRegistrantCallback, Registrar) which has been removed in Flutter 3.16+.
   # We patch the Kotlin source files to use v2 embedding.
   log_info "Patching workmanager plugin v1→v2 embedding..."
   local WM_DIR="$PUB_CACHE_DIR/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager"
-
   if [ -d "$WM_DIR" ]; then
-    # Patch BackgroundWorker.kt - Replace v1 ShimPluginRegistry with v2 direct attachment
-    local BW_FILE="$WM_DIR/BackgroundWorker.kt"
-    if [ -f "$BW_FILE" ] && grep -q "ShimPluginRegistry" "$BW_FILE" 2>/dev/null; then
-      # Replace imports
-      sed -i 's|import io.flutter.app.FlutterActivity|import io.flutter.embedding.engine.FlutterEngine|' "$BW_FILE"
-      sed -i 's|import io.flutter.plugin.common.PluginRegistry|import io.flutter.embedding.engine.dart.DartExecutor|' "$BW_FILE"
-      # Replace the v1 registration block (single line replacement for reliability)
-      sed -i 's|val shim = ShimPluginRegistry(flutterEngine)|val messenger = flutterEngine.dartExecutor.binaryMessenger|' "$BW_FILE"
-      sed -i 's|val key = "BackgroundWorker"|// v2 embedding|' "$BW_FILE"
-      sed -i 's|val key2 = "WorkmanagerPlugin"|// v2 embedding|' "$BW_FILE"
-      sed -i 's|val reg = shim.registrarFor(key)|// v2: register directly|' "$BW_FILE"
-      sed -i 's|BackgroundWorker.registerWith(reg)|WorkmanagerPlugin().onAttachedToEngine(messenger)|' "$BW_FILE"
-      log_info "  Patched BackgroundWorker.kt"
-    fi
-
-    # Patch WorkmanagerPlugin.kt - Replace v1 Registrar with v2 FlutterPlugin
-    local WP_FILE="$WM_DIR/WorkmanagerPlugin.kt"
-    if [ -f "$WP_FILE" ] && grep -q "PluginRegistrantCallback" "$WP_FILE" 2>/dev/null; then
-      # Replace class declaration to implement FlutterPlugin
-      sed -i 's|class WorkmanagerPlugin|class WorkmanagerPlugin : io.flutter.embedding.engine.plugins.FlutterPlugin|' "$WP_FILE"
-      # Remove the v1 registerWith function and add v2 methods
-      sed -i '/companion object {/,/^    }/c\    override fun onAttachedToEngine(binding: io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding) {\n        channel = MethodChannel(binding.binaryMessenger, "be.tramckrijte.workmanager")\n        channel.setMethodCallHandler(this)\n    }\n\n    override fun onDetachedFromEngine(binding: io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding) {\n        channel.setMethodCallHandler(null)\n    }' "$WP_FILE"
-      # Remove the v1 registerWith function
-      sed -i '/fun registerWith(registrar: Registrar) {/,/^    }/d' "$WP_FILE"
-      log_info "  Patched WorkmanagerPlugin.kt"
+    python3 "$SCRIPT_DIR/patch-workmanager-v2-embedding.py" "$WM_DIR"
+    if [ $? -eq 0 ]; then
+      log_ok "Workmanager plugin patched successfully"
+    else
+      log_warn "Workmanager plugin patching may have issues"
     fi
   else
     log_warn "  workmanager plugin directory not found at $WM_DIR"
