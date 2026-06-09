@@ -208,15 +208,58 @@ build_apk() {
   log_info "Cleaning previous build artifacts..."
   rm -rf "$FRONTEND_DIR/build/" "$FRONTEND_DIR/android/.gradle/" "$FRONTEND_DIR/android/app/build/" 2>/dev/null || true
 
-  # Delete Gradle caches to ensure a clean state for the new Gradle version.
-  # Gradle 8.14 embeds Kotlin 2.0.x which is required by Flutter 3.44.1's
-  # kotlin-dsl plugin. Old caches from Gradle 8.14 (Kotlin 2.0.21) are incompatible.
+  # ── Gradle version workaround ──────────────────────────────────────────────
+  # The Flutter SDK's Gradle plugin (included via settings.gradle) may override
+  # gradle-wrapper.properties with an incorrect distribution URL pointing to a
+  # non-existent Gradle version (e.g. 8.17.0 on github.com).
+  #
+  # We work around this by:
+  #   1. Pre-downloading the correct Gradle 8.14 distribution so the wrapper
+  #      finds it cached and skips the download even if the URL is wrong.
+  #   2. Fixing the wrapper URL after Flutter overwrites it, so subsequent
+  #      Gradle invocations use the correct URL.
+  #
+  # Step 1: Pre-cache Gradle 8.14 if not already cached
+  local GRADLE_CACHE_DIR="$HOME/.gradle/wrapper/dists/gradle-8.14-all"
+  if [ ! -d "$GRADLE_CACHE_DIR" ]; then
+    log_info "Pre-caching Gradle 8.14 distribution..."
+    mkdir -p "$GRADLE_CACHE_DIR" 2>/dev/null || true
+    # Download Gradle 8.14 from the official distribution server
+    GRADLE_URL="https://services.gradle.org/distributions/gradle-8.14-all.zip"
+    GRADLE_ZIP="/tmp/gradle-8.14-all.zip"
+    if command -v curl &>/dev/null; then
+      curl -fsSL "$GRADLE_URL" -o "$GRADLE_ZIP" || true
+    elif command -v wget &>/dev/null; then
+      wget -q "$GRADLE_URL" -O "$GRADLE_ZIP" || true
+    fi
+    if [ -f "$GRADLE_ZIP" ] && [ -s "$GRADLE_ZIP" ]; then
+      unzip -qo "$GRADLE_ZIP" -d "$GRADLE_CACHE_DIR/" 2>/dev/null || true
+      rm -f "$GRADLE_ZIP"
+      log_ok "Gradle 8.14 pre-cached successfully"
+    else
+      log_warn "Could not pre-download Gradle 8.14 (will try via wrapper)"
+    fi
+  else
+    log_info "Gradle 8.14 already cached"
+  fi
+
+  # Step 2: Fix the wrapper URL (in case Flutter's Gradle plugin overwrote it)
+  local WRAPPER_PROPS="$FRONTEND_DIR/android/gradle/wrapper/gradle-wrapper.properties"
+  if [ -f "$WRAPPER_PROPS" ]; then
+    sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14-all.zip|' "$WRAPPER_PROPS"
+  fi
 
   # Build release APK (no tree-shake icons to ensure all Material icons are included)
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
   # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
   flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+
+  # Step 3: After Flutter build (which may have overwritten the wrapper), restore
+  # the correct URL so any post-build Gradle tasks use the right version.
+  if [ -f "$WRAPPER_PROPS" ]; then
+    sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14-all.zip|' "$WRAPPER_PROPS"
+  fi
 
   # Verify and copy output
   if [ -f "$BUILD_DIR/app-release.apk" ]; then

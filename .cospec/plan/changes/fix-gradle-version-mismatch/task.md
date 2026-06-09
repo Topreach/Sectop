@@ -22,3 +22,17 @@
         - Keep the `log_info "Cleaning Gradle caches..."` line if it exists, or remove it along with the rm commands
         - Boundary case: If the file structure differs from expected (e.g., lines shifted due to prior edits), search for the exact patterns `rm -rf ~/.gradle/caches/` and `rm -rf ~/.gradle/wrapper/dists/` to locate the correct lines
         - Error handling: Use `2>/dev/null || true` pattern (already present) to silently handle non-existent directories; no additional error handling needed
+
+- [x] 1.3 Add Gradle pre-caching and wrapper URL restoration to build script
+     【Target Object】`deploy/scripts/build-android-apk.sh` (build_apk function)
+     【Purpose】Work around the Flutter SDK Gradle plugin that overrides gradle-wrapper.properties with an incorrect distribution URL during build. Pre-cache Gradle 8.14 so the wrapper finds it cached even if the URL is wrong, and restore the correct URL before/after the Flutter build.
+     【Method】Add pre-caching logic and sed-based URL restoration in the build_apk function
+     【Dependencies】Task 1.2 (removed cache clearing)
+     【Content】
+        - Add pre-caching of Gradle 8.14 distribution before `flutter build apk`:
+          - Check if `~/.gradle/wrapper/dists/gradle-8.14-all` exists
+          - If not, download from `https://services.gradle.org/distributions/gradle-8.14-all.zip` using curl or wget
+          - Unzip into the Gradle wrapper cache directory
+        - Fix wrapper URL before `flutter build apk` (in case Flutter already overwrote it)
+        - Fix wrapper URL after `flutter build apk` (in case Flutter overwrote it during build)
+        - Use `2>/dev/null || true` pattern for error resilience
