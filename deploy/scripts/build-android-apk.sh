@@ -377,7 +377,7 @@ android.enableJetifier=false
 org.gradle.caching=true
 org.gradle.configureondemand=false
 # Memory settings for low-RAM build servers
-org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=192m
+org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m
 kotlin.daemon.jvmargs=-Xmx384m
 org.gradle.parallel=false
 org.gradle.daemon=false
@@ -455,8 +455,8 @@ GRADLEPROPS
   # (JetifyTransform needs significant heap for large AAR/JAR conversions)
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
   export KOTLIN_DAEMON_JVM_OPTS="-Xmx384m"
-  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=192m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
-  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
+  export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
+  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon --no-android-lint -t lib/main.dart
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
