@@ -145,13 +145,13 @@ services:
 
   # Nginx Reverse Proxy
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./deploy/nginx
+      dockerfile: Dockerfile
     container_name: danger-emergence-nginx
     ports:
       - "8081:80"
-    volumes:
-      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - nginx_html:/usr/share/nginx/html
+    volumes: []
     depends_on:
       - backend
       - ml-service
@@ -180,4 +180,3 @@ volumes:
   mosquitto_data:
   mosquitto_log:
   mosquitto_config:
-  nginx_html:
