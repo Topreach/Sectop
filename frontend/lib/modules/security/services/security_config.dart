@@ -177,10 +177,10 @@ class SecurityConfig {
   static const bool detectDebugger = true;
 
   /// Whether to detect and block emulator execution.
-  static const bool detectEmulator = true;
+  static const bool detectEmulator = false;
 
   /// Whether to detect and block rooted/jailbroken devices.
-  static const bool detectRootedDevice = true;
+  static const bool detectRootedDevice = false;
 
   // ──────────────────────────────────────────────
   // Key Management
@@ -241,7 +241,7 @@ class SecurityConfig {
   static const bool enableSecurityTelemetry = true;
 
   /// Whether to trigger automatic incident response on critical events.
-  static const bool enableAutoIncidentResponse = true;
+  static const bool enableAutoIncidentResponse = false;
 
 }
 

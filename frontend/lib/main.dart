@@ -86,16 +86,23 @@ T safeInit<T>(T Function() create) {
   }
 }
 
+/// Registry of fallback constructors for all service types.
+final Map<Type, Object Function()> _fallbackRegistry = {
+  AuthService: () => AuthService(),
+  SOSService: () => SOSService(),
+  SecurityManager: () => SecurityManager.instance,
+  ObservabilityService: () => ObservabilityService.instance,
+  OfflineStorageService: () => OfflineStorageService(),
+  SyncManager: () => SyncManager(),
+  MapService: () => MapService(),
+  BackendApi: () => BackendApi(),
+  HardwareTriggerService: () => HardwareTriggerService(),
+};
+
 /// Creates a fallback instance for a service type when initialization fails.
 T _createFallback<T>() {
-  if (T == AuthService) return AuthService() as T;
-  if (T == SOSService) return SOSService() as T;
-  if (T == SecurityManager) return SecurityManager.instance as T;
-  if (T == ObservabilityService) return ObservabilityService.instance as T;
-  if (T == OfflineStorageService) return OfflineStorageService() as T;
-  if (T == SyncManager) return SyncManager() as T;
-  if (T == MapService) return MapService() as T;
-  if (T == BackendApi) return BackendApi() as T;
+  final factory = _fallbackRegistry[T];
+  if (factory != null) return factory() as T;
   throw StateError('No fallback constructor for $T');
 }
 

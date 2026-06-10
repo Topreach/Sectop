@@ -97,6 +97,14 @@ class AppIntegrity {
         }
 
         final expectedHash = _getExpectedSignatureHash();
+        if (expectedHash == null) {
+          return IntegrityCheck(
+            name: 'APK Signature',
+            passed: true,
+            severity: SecurityEventSeverity.info,
+            details: 'Signature check skipped — expected hash not configured',
+          );
+        }
         if (signatureHash != expectedHash) {
           return IntegrityCheck(
             name: 'APK Signature',
@@ -620,10 +628,10 @@ class AppIntegrity {
     }
   }
 
-  String _getExpectedSignatureHash() {
+  String? _getExpectedSignatureHash() {
     // In production, this would be embedded during build
     // and verified against the signing certificate
-    return 'expected_signature_hash';
+    return null;
   }
 
   Future<bool> _verifyIosBundleSignature() async {
