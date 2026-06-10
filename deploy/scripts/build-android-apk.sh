@@ -2,11 +2,12 @@
 # =============================================================================
 # Danger Emergence System - Android APK Build Script
 # =============================================================================
-# Builds a release APK for the Danger Emergence mobile app.
+# Builds a release or debug APK for the Danger Emergence mobile app.
 # The frontend is a thin client that communicates with the backend via REST API.
 #
 # Usage:
-#   ./deploy/scripts/build-android-apk.sh
+#   ./deploy/scripts/build-android-apk.sh              # release build
+#   ./deploy/scripts/build-android-apk.sh --debug       # debug build
 #
 # Environment variables:
 #   MAPBOX_ACCESS_TOKEN  - (optional) Mapbox token for map tiles
@@ -24,6 +25,7 @@ FRONTEND_DIR="$PROJECT_DIR/frontend"
 ANDROID_SDK_ROOT="${ANDROID_HOME:-/opt/android-sdk}"
 BUILD_DIR="$FRONTEND_DIR/build/app/outputs/flutter-apk"
 OUTPUT_APK="$PROJECT_DIR/danger-emergence.apk"
+DEBUG_MODE=false
 
 # ── Loggers ──────────────────────────────────────────────────────────────────
 log_info()  { echo -e "\033[0;34m[INFO]\033[0m  $*"; }
@@ -340,7 +342,11 @@ patch_plugins() {
 
 # ── Step 2: Build APK ────────────────────────────────────────────────────────
 build_apk() {
-  log_info "Building release APK..."
+  if [ "$DEBUG_MODE" = true ]; then
+    log_info "Building debug APK..."
+  else
+    log_info "Building release APK..."
+  fi
   cd "$FRONTEND_DIR"
 
   # Delete corrupted workmanager plugin files from pub cache so they get
@@ -459,7 +465,11 @@ GRADLEPROPS
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
   export KOTLIN_DAEMON_JVM_OPTS="-Xmx384m"
   export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
-  flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
+  if [ "$DEBUG_MODE" = true ]; then
+    flutter build apk --debug --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
+  else
+    flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
+  fi
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
@@ -467,13 +477,19 @@ GRADLEPROPS
     sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip|' "$WRAPPER_PROPS"
   fi
   # Verify and copy the universal APK
-  local UNIVERSAL_APK="$BUILD_DIR/app-release.apk"
+  if [ "$DEBUG_MODE" = true ]; then
+    local UNIVERSAL_APK="$BUILD_DIR/app-debug.apk"
+    local OUTPUT_APK_FINAL="${OUTPUT_APK%.apk}-debug.apk"
+  else
+    local UNIVERSAL_APK="$BUILD_DIR/app-release.apk"
+    local OUTPUT_APK_FINAL="$OUTPUT_APK"
+  fi
   if [ -f "$UNIVERSAL_APK" ]; then
     local size
     size=$(du -h "$UNIVERSAL_APK" | cut -f1)
     log_ok "Universal APK built: $size"
-    cp "$UNIVERSAL_APK" "$OUTPUT_APK"
-    log_ok "APK copied to: $OUTPUT_APK"
+    cp "$UNIVERSAL_APK" "$OUTPUT_APK_FINAL"
+    log_ok "APK copied to: $OUTPUT_APK_FINAL"
   else
     log_error "Build failed - no APK found at $UNIVERSAL_APK"
     log_info "Available files in $BUILD_DIR:"
@@ -482,9 +498,32 @@ GRADLEPROPS
   fi
 }
 
+# ── Argument Parsing ─────────────────────────────────────────────────────────
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --debug)
+        DEBUG_MODE=true
+        shift
+        ;;
+      *)
+        log_error "Unknown argument: $1"
+        log_info "Usage: $0 [--debug]"
+        exit 1
+        ;;
+    esac
+  done
+}
+
 # ── Main ────────────────────────────────────────────────────────────────────
 main() {
-  log_info "=== Danger Emergence Android APK Build ==="
+  parse_args "$@"
+
+  if [ "$DEBUG_MODE" = true ]; then
+    log_info "=== Danger Emergence Android APK Build (DEBUG) ==="
+  else
+    log_info "=== Danger Emergence Android APK Build (RELEASE) ==="
+  fi
   log_info "Project: $PROJECT_DIR"
   log_info "Android SDK: $ANDROID_SDK_ROOT"
   echo ""
@@ -495,9 +534,18 @@ main() {
   # Phase 1: Build the APK
   build_apk
 
-  log_ok "=== Build Complete ==="
-  log_info "Install the APK on your device:"
-  log_info "  adb install $OUTPUT_APK"
+  if [ "$DEBUG_MODE" = true ]; then
+    local OUTPUT_APK_FINAL="${OUTPUT_APK%.apk}-debug.apk"
+    log_ok "=== Debug Build Complete ==="
+    log_info "Install the debug APK on your device:"
+    log_info "  adb install $OUTPUT_APK_FINAL"
+    log_info "Then capture crash logs with:"
+    log_info "  adb logcat -s flutter:* dangeremergence:*"
+  else
+    log_ok "=== Release Build Complete ==="
+    log_info "Install the APK on your device:"
+    log_info "  adb install $OUTPUT_APK"
+  fi
 }
 
 main "$@"
