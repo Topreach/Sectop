@@ -13,6 +13,10 @@ frontend/android/local.properties
 frontend/android/key.properties
 frontend/android/app/src/main/res/values/secrets.xml
 
+# Release keystore (DO NOT COMMIT)
+frontend/android/keystore.properties
+frontend/android/release-keystore.jks
+
 # Build artifacts
 danger-emergence.apk
 

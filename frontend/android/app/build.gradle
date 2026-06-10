@@ -22,6 +22,15 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// Release signing configuration
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 android {
     namespace = "com.dangeremergence.app"
     compileSdk = 36
@@ -48,7 +57,14 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            signingConfig = keystorePropertiesFile.exists() ?
+                signingConfigs.create("release", {
+                    keyAlias = keystoreProperties['keyAlias']
+                    keyPassword = keystoreProperties['keyPassword']
+                    storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                    storePassword = keystoreProperties['storePassword']
+                }) :
+                signingConfigs.debug
             // APK size is managed via ABI split (--split-per-abi) and
             // thin-client architecture (no TFLite native libs bundled).
             // R8 minification is disabled as it breaks Flutter's plugin
