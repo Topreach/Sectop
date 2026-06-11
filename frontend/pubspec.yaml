@@ -50,7 +50,7 @@ dependencies:
 
   # Evidence Collection
   image_picker: ^1.0.4
-  record: ^4.0.0
+  record: ^5.2.1
   video_player: ^2.8.1
 
   # Real-time Delivery (WebSocket/STOMP)
