@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/evidence_service.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
 
 /// Screen to submit an anonymous tip-off / intelligence report.
@@ -25,6 +29,56 @@ class _TipOffScreenState extends State<TipOffScreen> {
   double? _latitude;
   double? _longitude;
   String? _locationName;
+
+  // Evidence capture state
+  final EvidenceService _evidenceService = EvidenceService();
+  final ImagePicker _picker = ImagePicker();
+  List<EvidenceFile> _capturedEvidence = [];
+  bool _isCapturing = false;
+
+  // ---------------------------------------------------------------------------
+  // Evidence Capture Methods
+  // ---------------------------------------------------------------------------
+
+  Future<void> _capturePhoto() async {
+    setState(() => _isCapturing = true);
+    try {
+      final evidence = await _evidenceService.capturePhoto();
+      if (evidence != null) {
+        setState(() => _capturedEvidence.add(evidence));
+      }
+    } finally {
+      setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<void> _captureVideo() async {
+    setState(() => _isCapturing = true);
+    try {
+      final evidence = await _evidenceService.captureVideo();
+      if (evidence != null) {
+        setState(() => _capturedEvidence.add(evidence));
+      }
+    } finally {
+      setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<void> _recordAudio() async {
+    setState(() => _isCapturing = true);
+    try {
+      final evidence = await _evidenceService.recordAudio(durationSeconds: 30);
+      if (evidence != null) {
+        setState(() => _capturedEvidence.add(evidence));
+      }
+    } finally {
+      setState(() => _isCapturing = false);
+    }
+  }
+
+  void _removeEvidence(int index) {
+    setState(() => _capturedEvidence.removeAt(index));
+  }
 
   @override
   void dispose() {
@@ -180,6 +234,103 @@ class _TipOffScreenState extends State<TipOffScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Evidence Capture Section
+              const Text(
+                'Attach Evidence (Optional)',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildEvidenceButton(
+                      icon: Icons.camera_alt,
+                      label: 'Photo',
+                      color: Colors.blue,
+                      onTap: _capturePhoto,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildEvidenceButton(
+                      icon: Icons.videocam,
+                      label: 'Video',
+                      color: Colors.purple,
+                      onTap: _captureVideo,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildEvidenceButton(
+                      icon: Icons.mic,
+                      label: 'Audio',
+                      color: Colors.teal,
+                      onTap: _recordAudio,
+                    ),
+                  ),
+                ],
+              ),
+              if (_isCapturing)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: LinearProgressIndicator(),
+                ),
+
+              // Evidence Preview Thumbnails
+              if (_capturedEvidence.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 80,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _capturedEvidence.length,
+                    itemBuilder: (context, index) {
+                      final ev = _capturedEvidence[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey[300]!),
+                                color: Colors.grey[100],
+                              ),
+                              child: _buildEvidenceThumbnail(ev),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () => _removeEvidence(index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+
               SwitchListTile(
                 title: const Text('Submit Anonymously'),
                 subtitle: const Text('Your identity will not be shared'),
@@ -212,5 +363,88 @@ class _TipOffScreenState extends State<TipOffScreen> {
         ),
       ),
     );
+  }
+  // ---------------------------------------------------------------------------
+  // Evidence Capture Helper Widgets
+  // ---------------------------------------------------------------------------
+
+  Widget _buildEvidenceButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: _isCapturing ? null : onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEvidenceThumbnail(EvidenceFile evidence) {
+    switch (evidence.type) {
+      case EvidenceType.photo:
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(evidence.filePath),
+            fit: BoxFit.cover,
+            width: 80,
+            height: 80,
+          ),
+        );
+      case EvidenceType.video:
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(evidence.filePath),
+                fit: BoxFit.cover,
+                width: 80,
+                height: 80,
+              ),
+            ),
+            Icon(
+              Icons.play_circle_fill,
+              color: Colors.white.withOpacity(0.8),
+              size: 28,
+            ),
+          ],
+        );
+      case EvidenceType.audio:
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.audio_file, color: Colors.teal, size: 32),
+            Text(
+              'Audio',
+              style: TextStyle(fontSize: 10, color: Colors.teal[700]),
+            ),
+          ],
+        );
+    }
   }
 }

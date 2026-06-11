@@ -55,6 +55,9 @@ class AppConstants {
   static const int apiTimeout = 30; // seconds
   static const int apiRetryCount = 3;
 
+  // WebSocket / STOMP
+  static const String wsBaseUrl = 'wss://sectop.resultscaleai.com/ws';
+
   // Table names
   static const String tableUsers = 'users';
   static const String tableMessages = 'messages';

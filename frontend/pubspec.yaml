@@ -47,6 +47,18 @@ dependencies:
   http: ^1.1.2
   web_socket_channel: ^2.4.0
   json_annotation: ^4.8.1
+
+  # Evidence Collection
+  image_picker: ^1.0.4
+  record: ^5.0.0
+  video_player: ^2.8.1
+
+  # Real-time Delivery (WebSocket/STOMP)
+  stomp_dart_client: ^1.0.0
+
+  # Push Notifications
+  firebase_core: ^2.24.2
+  firebase_messaging: ^14.7.10
   # AI/ML
   # NOTE: tflite_flutter and tflite_flutter_helper are intentionally removed.
   # These Flutter plugins bundle native .so libraries that cause

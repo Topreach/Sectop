@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../../../core/constants.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../security/services/security_manager.dart';
@@ -14,6 +16,7 @@ import '../../../shared/services/evidence_service.dart';
 
 /// SOS Service - Handles emergency alert creation, broadcasting, and tracking.
 /// Implements multi-channel delivery: cloud API, Bluetooth mesh, Wi-Fi Direct, LoRa.
+/// Also provides real-time delivery confirmation via WebSocket/STOMP.
 class SOSService extends ChangeNotifier {
   static final SOSService _instance = SOSService._internal();
   factory SOSService() => _instance;
@@ -29,6 +32,18 @@ class SOSService extends ChangeNotifier {
   bool _isSending = false;
   Timer? _locationTimer;
 
+  // WebSocket/STOMP client for real-time delivery confirmation
+  StompClient? _stompClient;
+  bool _isStompConnected = false;
+  final List<Map<String, dynamic>> _deliveryConfirmations = [];
+
+  /// Whether the STOMP/WebSocket connection is active.
+  bool get isStompConnected => _isStompConnected;
+
+  /// Delivery confirmations received via WebSocket.
+  List<Map<String, dynamic>> get deliveryConfirmations =>
+      List.unmodifiable(_deliveryConfirmations);
+
   List<SOSAlert> get activeAlerts => _activeAlerts;
   SOSAlert? get currentAlert => _currentAlert;
   bool get isSending => _isSending;
@@ -37,6 +52,95 @@ class SOSService extends ChangeNotifier {
   Future<void> initialize() async {
     final alerts = await _storage.getActiveSOSAlerts();
     _activeAlerts = alerts.map((a) => SOSAlert.fromMap(a)).toList();
+    notifyListeners();
+
+    // Connect to WebSocket/STOMP for real-time delivery confirmation
+    unawaited(_connectStomp());
+  }
+
+  // ---------------------------------------------------------------------------
+  // WebSocket / STOMP Real-Time Delivery
+  // ---------------------------------------------------------------------------
+
+  /// Connect to the backend STOMP WebSocket for real-time alert delivery.
+  Future<void> _connectStomp() async {
+    try {
+      final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl; // e.g., ws://10.0.2.2:8080/ws
+
+      _stompClient = StompClient(
+        config: StompConfig(
+          url: wsUrl,
+          onConnect: (StompFrame frame) {
+            _isStompConnected = true;
+            debugPrint('SOSService: STOMP connected');
+            notifyListeners();
+
+            // Subscribe to personal delivery queue
+            _stompClient?.subscribe(
+              destination: '/user/queue/alerts',
+              callback: (StompFrame frame) {
+                _handleDeliveryConfirmation(frame.body);
+              },
+            );
+
+            // Subscribe to global alert topic
+            _stompClient?.subscribe(
+              destination: '/topic/alerts',
+              callback: (StompFrame frame) {
+                _handleDeliveryConfirmation(frame.body);
+              },
+            );
+          },
+          onDisconnect: (StompFrame frame) {
+            _isStompConnected = false;
+            debugPrint('SOSService: STOMP disconnected');
+            notifyListeners();
+          },
+          onStompError: (StompFrame frame) {
+            debugPrint('SOSService: STOMP error: ${frame.body}');
+          },
+          onWebSocketError: (dynamic error) {
+            debugPrint('SOSService: WebSocket error: $error');
+          },
+          beforeConnect: () async {
+            // Wait a moment before connecting
+            await Future.delayed(const Duration(milliseconds: 500));
+          },
+          stompConnectHeaders: {
+            'Authorization': 'Bearer $token',
+          },
+          webSocketConnectHeaders: {
+            'Authorization': 'Bearer $token',
+          },
+        ),
+      );
+
+      _stompClient?.activate();
+    } catch (e) {
+      debugPrint('SOSService: STOMP connection failed: $e');
+    }
+  }
+
+  /// Handle delivery confirmation messages from the backend.
+  void _handleDeliveryConfirmation(String? body) {
+    if (body == null || body.isEmpty) return;
+    try {
+      final data = json.decode(body) as Map<String, dynamic>;
+      _deliveryConfirmations.insert(0, data);
+      debugPrint('SOSService: Delivery confirmation: $data');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('SOSService: Failed to parse delivery confirmation: $e');
+    }
+  }
+
+  /// Disconnect STOMP client.
+  void disconnectStomp() {
+    _stompClient?.deactivate();
+    _isStompConnected = false;
     notifyListeners();
   }
 

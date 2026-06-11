@@ -703,6 +703,54 @@ class BackendApi {
           .timeout(_timeout);
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Evidence (Photo/Video/Audio Upload)
+  // ---------------------------------------------------------------------------
+
+  /// Upload evidence file (base64) associated with a parent entity.
+  Future<Map<String, dynamic>> uploadEvidence({
+    required String parentId,
+    required String evidenceType,
+    required String fileName,
+    required String fileBytes,
+    required String mimeType,
+    String parentType = 'alert',
+    double? latitude,
+    double? longitude,
+  }) async {
+    return post('/evidence', body: {
+      'parentId': parentId,
+      'parentType': parentType,
+      'evidenceType': evidenceType,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'sizeBytes': fileBytes.length,
+      'fileContent': fileBytes,
+      'latitude': latitude,
+      'longitude': longitude,
+    });
+  }
+
+  /// Get all evidence for a parent entity.
+  Future<Map<String, dynamic>> getEvidence(String parentId) async {
+    return get('/evidence/parent/$parentId');
+  }
+
+  /// Get a single evidence record by ID.
+  Future<Map<String, dynamic>> getEvidenceById(String id) async {
+    return get('/evidence/$id');
+  }
+
+  /// Delete evidence by ID.
+  Future<void> deleteEvidence(String id) async {
+    await delete('/evidence/$id');
+  }
+
+  /// Delete all evidence for a parent entity.
+  Future<void> deleteEvidenceForParent(String parentId) async {
+    await delete('/evidence/parent/$parentId');
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.

@@ -6,6 +6,7 @@ import com.dangeremergence.repository.SOSAlertRepository;
 import com.dangeremergence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class SOSAlertService {
     private final UserRepository userRepository;
     private final MqttService mqttService;
     private final DroneService droneService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public SOSAlert createAlert(String userId, String alertType, String description,
@@ -79,8 +81,26 @@ public class SOSAlertService {
         mqttService.publishAlert(alert);
         
         // 2. Trigger Drone Relay if in high-risk area
-        droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(), 
+        droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(),
             alert.getLatitude(), alert.getLongitude(), alert.getPriority());
+
+        // 3. Push via WebSocket/STOMP for real-time delivery to connected clients
+        try {
+            // Push to global alert topic (all connected clients)
+            messagingTemplate.convertAndSend("/topic/alerts/new", alert);
+
+            // Push to geo-specific topic for state/LGA filtering
+            String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
+            messagingTemplate.convertAndSend(geoDest, alert);
+
+            // Push to user-specific queue for the alert creator
+            String userId = alert.getUser().getId();
+            messagingTemplate.convertAndSendToUser(userId, "/queue/alerts", alert);
+
+            log.info("WebSocket push sent for alert: {} to user: {}", alert.getId(), userId);
+        } catch (Exception e) {
+            log.warn("WebSocket push failed for alert {}: {}", alert.getId(), e.getMessage());
+        }
 
         log.info("Processed new alert: {} for LGA: {}", alert.getId(), alert.getLga());
     }
