@@ -29,22 +29,26 @@ public class BroadcastController {
      */
     @PostMapping
     @PreAuthorize("hasAnyAuthority('coordinator', 'admin')")
-    public ResponseEntity<Broadcast> createBroadcast(@RequestBody Map<String, Object> request) {
-        Broadcast broadcast = broadcastService.createBroadcast(
-                (String) request.get("title"),
-                (String) request.get("message"),
-                (String) request.get("severity"),
-                (String) request.get("broadcastType"),
-                (String) request.get("targetState"),
-                (String) request.get("targetLga"),
-                (String) request.get("targetRoles"),
-                request.get("latitude") != null ? ((Number) request.get("latitude")).doubleValue() : null,
-                request.get("longitude") != null ? ((Number) request.get("longitude")).doubleValue() : null,
-                request.get("radiusKm") != null ? ((Number) request.get("radiusKm")).doubleValue() : null,
-                (String) request.get("createdById"),
-                request.get("expiresAt") != null ? LocalDateTime.parse((String) request.get("expiresAt")) : null
-        );
-        return ResponseEntity.ok(broadcast);
+    public ResponseEntity<?> createBroadcast(@RequestBody Map<String, Object> request) {
+        try {
+            Broadcast broadcast = broadcastService.createBroadcast(
+                    (String) request.get("title"),
+                    (String) request.get("message"),
+                    (String) request.get("severity"),
+                    (String) request.get("broadcastType"),
+                    (String) request.get("targetState"),
+                    (String) request.get("targetLga"),
+                    (String) request.get("targetRoles"),
+                    request.get("latitude") != null ? ((Number) request.get("latitude")).doubleValue() : null,
+                    request.get("longitude") != null ? ((Number) request.get("longitude")).doubleValue() : null,
+                    request.get("radiusKm") != null ? ((Number) request.get("radiusKm")).doubleValue() : null,
+                    (String) request.get("createdById"),
+                    request.get("expiresAt") != null ? LocalDateTime.parse((String) request.get("expiresAt")) : null
+            );
+            return ResponseEntity.ok(broadcast);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**

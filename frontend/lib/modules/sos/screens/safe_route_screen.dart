@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/widgets/nigeria_location_picker.dart';
 
 /// Screen to plan a safe route avoiding danger zones.
+/// Users select start and destination locations by place name (state/town)
+/// instead of entering raw latitude/longitude coordinates.
 class SafeRouteScreen extends StatefulWidget {
   const SafeRouteScreen({Key? key}) : super(key: key);
 
@@ -11,34 +14,52 @@ class SafeRouteScreen extends StatefulWidget {
 }
 
 class _SafeRouteScreenState extends State<SafeRouteScreen> {
-  final _fromLatController = TextEditingController();
-  final _fromLngController = TextEditingController();
-  final _toLatController = TextEditingController();
-  final _toLngController = TextEditingController();
   final BackendApi _api = BackendApi();
+
+  // From location
+  double? _fromLat;
+  double? _fromLng;
+  String? _fromName;
+
+  // To location
+  double? _toLat;
+  double? _toLng;
+  String? _toName;
 
   Map<String, dynamic>? _routeResult;
   bool _isLoading = false;
   String? _error;
 
-  @override
-  void dispose() {
-    _fromLatController.dispose();
-    _fromLngController.dispose();
-    _toLatController.dispose();
-    _toLngController.dispose();
-    super.dispose();
+  void _onFromLocationSelected(double? lat, double? lng, String? name) {
+    setState(() {
+      _fromLat = lat;
+      _fromLng = lng;
+      _fromName = name;
+      _error = null;
+      _routeResult = null;
+    });
+  }
+
+  void _onToLocationSelected(double? lat, double? lng, String? name) {
+    setState(() {
+      _toLat = lat;
+      _toLng = lng;
+      _toName = name;
+      _error = null;
+      _routeResult = null;
+    });
   }
 
   Future<void> _planRoute() async {
-    final fromLat = double.tryParse(_fromLatController.text);
-    final fromLng = double.tryParse(_fromLngController.text);
-    final toLat = double.tryParse(_toLatController.text);
-    final toLng = double.tryParse(_toLngController.text);
-
-    if (fromLat == null || fromLng == null || toLat == null || toLng == null) {
+    if (_fromLat == null || _fromLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter valid coordinates')),
+        const SnackBar(content: Text('Please select a starting location')),
+      );
+      return;
+    }
+    if (_toLat == null || _toLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a destination location')),
       );
       return;
     }
@@ -50,8 +71,8 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
 
     try {
       final result = await _api.planSafeRoute(
-        fromLat: fromLat, fromLng: fromLng,
-        toLat: toLat, toLng: toLng,
+        fromLat: _fromLat!, fromLng: _fromLng!,
+        toLat: _toLat!, toLng: _toLng!,
       );
       setState(() {
         _routeResult = result;
@@ -63,6 +84,22 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
         _error = 'Failed to plan route: $e';
       });
     }
+  }
+
+  void _swapLocations() {
+    setState(() {
+      final tempLat = _fromLat;
+      final tempLng = _fromLng;
+      final tempName = _fromName;
+      _fromLat = _toLat;
+      _fromLng = _toLng;
+      _fromName = _toName;
+      _toLat = tempLat;
+      _toLng = tempLng;
+      _toName = tempName;
+      _error = null;
+      _routeResult = null;
+    });
   }
 
   Color _dangerColor(String level) {
@@ -89,72 +126,78 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Enter start and destination coordinates',
+              'Select your start and destination locations',
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 16),
-            // From coordinates
-            const Text('From', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _fromLatController,
-                    decoration: const InputDecoration(
-                      labelText: 'Latitude',
-                      border: OutlineInputBorder(),
-                      hintText: '9.0765',
+
+            // From location picker
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.trip_origin, color: Colors.green, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('From', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const Spacer(),
+                        if (_fromName != null)
+                          Text(_fromName!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
                     ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _fromLngController,
-                    decoration: const InputDecoration(
-                      labelText: 'Longitude',
-                      border: OutlineInputBorder(),
-                      hintText: '7.3986',
+                    const SizedBox(height: 8),
+                    NigeriaLocationPicker(
+                      label: 'Starting Location',
+                      onLocationSelected: _onFromLocationSelected,
                     ),
-                    keyboardType: TextInputType.number,
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 16),
-            // To coordinates
-            const Text('To', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _toLatController,
-                    decoration: const InputDecoration(
-                      labelText: 'Latitude',
-                      border: OutlineInputBorder(),
-                      hintText: '6.5244',
+
+            // Swap button
+            Center(
+              child: IconButton(
+                onPressed: _fromLat != null || _toLat != null ? _swapLocations : null,
+                icon: const Icon(Icons.swap_vert, color: AppTheme.primaryColor),
+                tooltip: 'Swap start and destination',
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // To location picker
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('To', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const Spacer(),
+                        if (_toName != null)
+                          Text(_toName!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
                     ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _toLngController,
-                    decoration: const InputDecoration(
-                      labelText: 'Longitude',
-                      border: OutlineInputBorder(),
-                      hintText: '3.3792',
+                    const SizedBox(height: 8),
+                    NigeriaLocationPicker(
+                      label: 'Destination',
+                      onLocationSelected: _onToLocationSelected,
                     ),
-                    keyboardType: TextInputType.number,
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 24),
+
+            // Plan route button
             ElevatedButton.icon(
               onPressed: _isLoading ? null : _planRoute,
               icon: _isLoading
@@ -172,7 +215,7 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Results
+            // Error display
             if (_error != null)
               Card(
                 color: Colors.red[50],
@@ -182,6 +225,7 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
                 ),
               ),
 
+            // Results
             if (_routeResult != null) ...[
               const Text('Route Results', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),

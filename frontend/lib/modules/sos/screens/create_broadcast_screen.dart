@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
@@ -20,6 +21,7 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
   String _severity = 'urgent';
   String _broadcastType = 'general';
   bool _isSubmitting = false;
+  String? _backendError;
 
   @override
   void dispose() {
@@ -33,7 +35,10 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _backendError = null;
+    });
     try {
       await BackendApi().createBroadcast({
         'title': _titleController.text.trim(),
@@ -54,9 +59,19 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create broadcast: $e')),
-        );
+        // Extract backend validation error message from ApiException
+        String errorMsg;
+        if (e is ApiException) {
+          try {
+            final body = json.decode(e.body);
+            errorMsg = body['error'] as String? ?? e.body;
+          } catch (_) {
+            errorMsg = e.body;
+          }
+        } else {
+          errorMsg = e.toString();
+        }
+        setState(() => _backendError = errorMsg);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -151,6 +166,26 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
                   prefixIcon: Icon(Icons.location_city),
                 ),
               ),
+              // Backend validation error display
+              if (_backendError != null)
+                Card(
+                  color: Colors.red[50],
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _backendError!,
+                            style: const TextStyle(color: Colors.red, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: _isSubmitting ? null : _submit,
