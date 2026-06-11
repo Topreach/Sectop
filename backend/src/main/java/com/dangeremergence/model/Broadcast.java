@@ -60,7 +60,7 @@ public class Broadcast {
     private User createdBy;
 
     @Column(name = "is_active")
-    private boolean active;
+    private boolean isActive;
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;

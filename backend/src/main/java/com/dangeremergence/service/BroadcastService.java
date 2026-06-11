@@ -30,34 +30,91 @@ public class BroadcastService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * Create a new broadcast and publish via MQTT + WebSocket.
+     * Create a new broadcast with backend validation and publish via MQTT + WebSocket.
+     *
+     * @throws IllegalArgumentException if validation fails
      */
     @Transactional
     public Broadcast createBroadcast(String title, String message, String severity,
                                       String broadcastType, String targetState, String targetLga,
                                       String targetRoles, Double latitude, Double longitude,
                                       Double radiusKm, String createdById, LocalDateTime expiresAt) {
+        // --- Validation ---
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Title is required");
+        }
+        if (title.length() > 200) {
+            throw new IllegalArgumentException("Title must be 200 characters or less");
+        }
+        if (message == null || message.trim().isEmpty()) {
+            throw new IllegalArgumentException("Message is required");
+        }
+        if (message.length() > 5000) {
+            throw new IllegalArgumentException("Message must be 5000 characters or less");
+        }
+
+        // Validate severity
+        BroadcastSeverity sev;
+        if (severity == null || severity.trim().isEmpty()) {
+            throw new IllegalArgumentException("Severity is required (info, warning, urgent, critical)");
+        }
+        try {
+            sev = BroadcastSeverity.valueOf(severity.toLowerCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid severity: '" + severity
+                    + "'. Must be one of: info, warning, urgent, critical");
+        }
+
+        // Validate broadcast type
+        BroadcastType type;
+        if (broadcastType == null || broadcastType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Broadcast type is required");
+        }
+        try {
+            type = BroadcastType.valueOf(broadcastType.toLowerCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid broadcast type: '" + broadcastType
+                    + "'. Must be one of: general, evacuation, curfew, manhunt, school_closure, weather, security");
+        }
+
+        // Validate target state/LGA (if provided, they should be reasonable)
+        if (targetState != null && targetState.trim().isEmpty()) {
+            targetState = null;
+        }
+        if (targetLga != null && targetLga.trim().isEmpty()) {
+            targetLga = null;
+        }
+        if (targetState != null && targetState.length() > 100) {
+            throw new IllegalArgumentException("Target state name is too long");
+        }
+        if (targetLga != null && targetLga.length() > 100) {
+            throw new IllegalArgumentException("Target LGA name is too long");
+        }
+
+        // Validate coordinates (if provided)
+        if (latitude != null && (latitude < -90 || latitude > 90)) {
+            throw new IllegalArgumentException("Invalid latitude: must be between -90 and 90");
+        }
+        if (longitude != null && (longitude < -180 || longitude > 180)) {
+            throw new IllegalArgumentException("Invalid longitude: must be between -180 and 180");
+        }
+        if (radiusKm != null && (radiusKm < 0 || radiusKm > 1000)) {
+            throw new IllegalArgumentException("Radius must be between 0 and 1000 km");
+        }
+
+        // Validate expiration
+        if (expiresAt != null && expiresAt.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Expiration time must be in the future");
+        }
+
+        // Resolve creator
         User creator = createdById != null ?
                 userRepository.findById(createdById).orElse(null) : null;
 
-        BroadcastSeverity sev;
-        try {
-            sev = BroadcastSeverity.valueOf(severity != null ? severity.toLowerCase() : "urgent");
-        } catch (IllegalArgumentException e) {
-            sev = BroadcastSeverity.urgent;
-        }
-
-        BroadcastType type;
-        try {
-            type = BroadcastType.valueOf(broadcastType != null ? broadcastType.toLowerCase() : "general");
-        } catch (IllegalArgumentException e) {
-            type = BroadcastType.general;
-        }
-
         Broadcast broadcast = Broadcast.builder()
                 .id(UUID.randomUUID().toString())
-                .title(title)
-                .message(message)
+                .title(title.trim())
+                .message(message.trim())
                 .severity(sev)
                 .broadcastType(type)
                 .targetState(targetState)
@@ -75,7 +132,7 @@ public class BroadcastService {
 
         Broadcast saved = broadcastRepository.save(broadcast);
         log.info("Broadcast created: {} severity={} type={} target={}/{}",
-                saved.getId(), severity, broadcastType, targetState, targetLga);
+                saved.getId(), sev, type, targetState, targetLga);
 
         // Publish via MQTT for IoT/mesh devices
         publishToMqtt(saved);
@@ -112,7 +169,7 @@ public class BroadcastService {
     @Transactional
     public void expireBroadcast(String id) {
         broadcastRepository.findById(id).ifPresent(broadcast -> {
-            broadcast.setActive(false);
+            broadcast.setIsActive(false);
             broadcast.setUpdatedAt(LocalDateTime.now());
             broadcastRepository.save(broadcast);
             log.info("Broadcast expired: {}", id);
