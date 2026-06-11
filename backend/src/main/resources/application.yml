@@ -71,6 +71,19 @@ spring:
       fail-on-unknown-properties: false
     default-property-inclusion: non_null
 
+# FCM Push Notification Configuration
+fcm:
+  server-key: ${FCM_SERVER_KEY:}
+  api-url: https://fcm.googleapis.com/fcm/send
+
+# SMS Gateway Configuration (Twilio)
+sms:
+  twilio:
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    from-number: ${TWILIO_FROM_NUMBER:}
+    api-url: https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json
+
 # ML Service Configuration
 ml:
   service:

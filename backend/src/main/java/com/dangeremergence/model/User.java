@@ -54,6 +54,10 @@ public class User {
     @Column(name = "is_active")
     private boolean active = true;
 
+    // FCM push notification token for offline delivery
+    @Column(name = "fcm_token", length = 512)
+    private String fcmToken;
+
     // Password reset
     @Column(name = "password_reset_token", length = 36)
     private String passwordResetToken;

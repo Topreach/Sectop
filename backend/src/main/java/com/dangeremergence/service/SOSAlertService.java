@@ -25,10 +25,13 @@ public class SOSAlertService {
     private final MqttService mqttService;
     private final DroneService droneService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AlertPubSubService alertPubSubService;
+    private final FcmPushService fcmPushService;
+    private final SmsGatewayService smsGatewayService;
 
     @Transactional
     public SOSAlert createAlert(String userId, String alertType, String description,
-                                 Double latitude, Double longitude, Double accuracy, 
+                                 Double latitude, Double longitude, Double accuracy,
                                  int priority, boolean isSilent) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
@@ -102,7 +105,50 @@ public class SOSAlertService {
             log.warn("WebSocket push failed for alert {}: {}", alert.getId(), e.getMessage());
         }
 
+        // 4. Publish to Redis pub/sub for cross-server broadcast (all instances)
+        alertPubSubService.publishAlert(alert);
+        alertPubSubService.publishGeoAlert(alert, stateSlug, lgaSlug);
+
+        // 5. Send FCM push notifications to nearby users (offline delivery)
+        fcmPushService.notifyAlertToNearbyUsers(alert, 10.0);
+
+        // 6. Send SMS to the alert creator's phone as last-resort confirmation
+        User alertUser = alert.getUser();
+        if (alertUser.getPhone() != null && !alertUser.getPhone().isEmpty()) {
+            smsGatewayService.sendAlertSms(alert, alertUser.getPhone());
+        }
+
         log.info("Processed new alert: {} for LGA: {}", alert.getId(), alert.getLga());
+    }
+
+    /**
+     * Push an alert to WebSocket/STOMP clients on this server instance.
+     * Called by AlertPubSubService when an alert is received via Redis pub/sub
+     * from another server instance.
+     */
+    public void pushAlertToWebSocket(SOSAlert alert) {
+        try {
+            String stateSlug = alert.getState() != null
+                    ? alert.getState().toLowerCase().replace(" ", "_") : "unknown";
+            String lgaSlug = alert.getLga() != null
+                    ? alert.getLga().toLowerCase().replace(" ", "_") : "unknown";
+
+            // Push to global alert topic
+            messagingTemplate.convertAndSend("/topic/alerts/new", alert);
+
+            // Push to geo-specific topic
+            String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
+            messagingTemplate.convertAndSend(geoDest, alert);
+
+            // Push to user-specific queue if user is available
+            if (alert.getUser() != null && alert.getUser().getId() != null) {
+                messagingTemplate.convertAndSendToUser(alert.getUser().getId(), "/queue/alerts", alert);
+            }
+
+            log.debug("Cross-server WebSocket push for alert: {}", alert.getId());
+        } catch (Exception e) {
+            log.warn("Cross-server WebSocket push failed for alert {}: {}", alert.getId(), e.getMessage());
+        }
     }
 
     private String[] resolveNigeriaGeoInfo(Double lat, Double lng) {

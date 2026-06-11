@@ -6,6 +6,7 @@ import com.dangeremergence.repository.MessageRepository;
 import com.dangeremergence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,8 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final PriorityMessageQueue priorityMessageQueue;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public Message sendMessage(String senderId, String receiverId, String content,
@@ -51,6 +54,29 @@ public class MessageService {
 
         Message saved = messageRepository.save(message);
         log.info("Message saved: {} (type={}, priority={})", saved.getId(), type, priority);
+
+        // Enqueue in priority message queue for instant delivery
+        priorityMessageQueue.enqueue(saved);
+
+        // Also push directly via WebSocket for immediate delivery to connected clients
+        if (receiver != null) {
+            try {
+                messagingTemplate.convertAndSendToUser(receiver.getId(), "/queue/messages", saved);
+                log.debug("Direct WebSocket push for message {} to user {}", saved.getId(), receiver.getId());
+            } catch (Exception e) {
+                log.warn("Direct WebSocket push failed for message {}: {}", saved.getId(), e.getMessage());
+            }
+        }
+
+        // For high-priority messages, also push to global urgent topic
+        if (priority >= 8) {
+            try {
+                messagingTemplate.convertAndSend("/topic/messages/urgent", saved);
+            } catch (Exception e) {
+                log.warn("Global urgent topic push failed: {}", e.getMessage());
+            }
+        }
+
         return saved;
     }
 

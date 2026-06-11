@@ -34,4 +34,26 @@ public interface UserRepository extends JpaRepository<User, String> {
     List<User> findPendingDeletions(@Param("cutoff") LocalDateTime cutoff);
 
     long countByRole(User.UserRole role);
+
+    /**
+     * Find active users within a geographic bounding box.
+     * Used by FcmPushService to find nearby users for push notifications.
+     */
+    @Query("SELECT u FROM User u WHERE u.active = true AND u.fcmToken IS NOT NULL AND u.fcmToken <> ''")
+    List<User> findUsersWithFcmToken();
+
+    /**
+     * Find active users within a geographic bounding box.
+     * Used by FcmPushService to notify nearby users of SOS alerts.
+     * Note: This requires users to have location data stored.
+     * For now, returns all active users with FCM tokens as a fallback.
+     * In production, integrate with a geospatial query or add lat/lng to User entity.
+     */
+    @Query("SELECT u FROM User u WHERE u.active = true AND u.fcmToken IS NOT NULL AND u.fcmToken <> ''")
+    List<User> findUsersInArea(
+            @Param("minLat") double minLat,
+            @Param("maxLat") double maxLat,
+            @Param("minLng") double minLng,
+            @Param("maxLng") double maxLng
+    );
 }
