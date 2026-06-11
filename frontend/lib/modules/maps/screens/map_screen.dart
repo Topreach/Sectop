@@ -6,6 +6,7 @@ import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../auth/services/auth_service.dart';
+import '../../incidents/services/incident_service.dart';
 import '../services/map_service.dart';
 
 class MapScreen extends StatefulWidget {
@@ -19,10 +20,14 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   List<Map<String, dynamic>> _allZones = [];
   List<Map<String, dynamic>> _allAlerts = [];
+  List<Map<String, dynamic>> _allIncidents = [];
+  List<Map<String, dynamic>> _heatmapCells = [];
   Map<String, dynamic>? _selectedMarker;
   String _filterMode = 'all'; // 'all', 'safe', 'danger'
   bool _isLoading = true;
   bool _isOffline = false;
+  bool _showIncidents = true;
+  bool _showHeatmap = false;
 
   @override
   void initState() {
@@ -62,9 +67,34 @@ class _MapScreenState extends State<MapScreen> {
         alerts.addAll(List<Map<String, dynamic>>.from(activeAlerts['alerts']));
       }
 
+      // Load incidents (kidnapping, terrorism, etc.)
+      List<Map<String, dynamic>> incidents = [];
+      List<Map<String, dynamic>> heatmap = [];
+      try {
+        final mapService = context.read<MapService>();
+        final pos = mapService.currentPosition;
+        if (pos != null) {
+          final incidentService = IncidentService();
+          incidents = await incidentService.getNearbyIncidents(
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            radiusKm: 50,
+          );
+          heatmap = await incidentService.getHeatmapData(
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            radiusKm: 50,
+          );
+        }
+      } catch (e) {
+        debugPrint('MapScreen: Failed to load incidents: $e');
+      }
+
       setState(() {
         _allZones = zones;
         _allAlerts = alerts;
+        _allIncidents = incidents;
+        _heatmapCells = heatmap;
         _isLoading = false;
         _isOffline = false;
       });
@@ -270,6 +300,16 @@ class _MapScreenState extends State<MapScreen> {
                           ),
                         ],
                       ),
+                    // Heatmap overlay (semi-transparent grid cells)
+                    if (_showHeatmap && _heatmapCells.isNotEmpty)
+                      PolygonLayer(
+                        polygons: _buildHeatmapPolygons(),
+                      ),
+                    // Incident markers (kidnapping, terrorism, etc.)
+                    if (_showIncidents)
+                      MarkerLayer(
+                        markers: _buildIncidentMarkers(),
+                      ),
                     // Zone markers
                     MarkerLayer(
                       markers: _buildZoneMarkers(),
@@ -354,6 +394,43 @@ class _MapScreenState extends State<MapScreen> {
                                 content: Text(_filterMode == 'danger'
                                     ? 'Showing danger zones'
                                     : 'Showing all zones')),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _MapControlButton(
+                        icon: Icons.people_outline,
+                        label: 'Incidents',
+                        color: _showIncidents
+                            ? Colors.deepPurple
+                            : Colors.grey[700],
+                        onTap: () {
+                          setState(() => _showIncidents = !_showIncidents);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(_showIncidents
+                                    ? 'Showing incident reports'
+                                    : 'Hiding incident reports')),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _MapControlButton(
+                        icon: Icons.grid_on,
+                        label: 'Heatmap',
+                        color: _showHeatmap
+                            ? Colors.red
+                            : Colors.grey[700],
+                        onTap: () {
+                          setState(() => _showHeatmap = !_showHeatmap);
+                          if (_showHeatmap) {
+                            _loadHeatmapData();
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(_showHeatmap
+                                    ? 'Showing danger heatmap'
+                                    : 'Hiding heatmap')),
                           );
                         },
                       ),
@@ -517,23 +594,212 @@ class _MapScreenState extends State<MapScreen> {
     return markers;
   }
 
+  /// Build markers for crowdsourced incidents (kidnapping, terrorism, etc.)
+  List<Marker> _buildIncidentMarkers() {
+    final markers = <Marker>[];
+    for (final incident in _allIncidents) {
+      final lat = (incident['latitude'] as num?)?.toDouble();
+      final lng = (incident['longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+
+      final type = incident['incidentType'] as String? ?? 'other';
+      final severity = incident['severity'] as String? ?? 'medium';
+      final label = IncidentService.getIncidentTypeLabel(type);
+
+      // Color based on severity
+      Color markerColor;
+      double opacity;
+      switch (severity) {
+        case 'critical':
+          markerColor = Colors.red;
+          opacity = 0.8;
+          break;
+        case 'high':
+          markerColor = Colors.deepOrange;
+          opacity = 0.7;
+          break;
+        case 'medium':
+          markerColor = Colors.orange;
+          opacity = 0.6;
+          break;
+        default:
+          markerColor = Colors.amber;
+          opacity = 0.5;
+      }
+
+      markers.add(
+        Marker(
+          point: LatLng(lat, lng),
+          width: 32,
+          height: 32,
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedMarker = {
+              ...incident,
+              '_type': 'incident',
+            }),
+            child: Container(
+              decoration: BoxDecoration(
+                color: markerColor.withOpacity(opacity),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: markerColor.withOpacity(0.5),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  _getIncidentEmoji(type),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return markers;
+  }
+
+  /// Get emoji icon for incident type.
+  String _getIncidentEmoji(String type) {
+    switch (type) {
+      case 'kidnapping': return '🔗';
+      case 'terrorism': return '💣';
+      case 'banditry': return '🔫';
+      case 'armed_robbery': return '💰';
+      case 'suspicious_activity': return '👁️';
+      case 'herdsmen_attack': return '🐄';
+      case 'cult_violence': return '⚔️';
+      case 'ritual_killings': return '🕯️';
+      case 'political_violence': return '🏛️';
+      case 'communal_clash': return '🔥';
+      case 'fire': return '🔥';
+      case 'flood': return '🌊';
+      case 'medical': return '🏥';
+      case 'accident': return '🚗';
+      default: return '⚠️';
+    }
+  }
+
+  /// Build heatmap polygons from aggregated grid cell data.
+  List<Polygon> _buildHeatmapPolygons() {
+    final polygons = <Polygon>[];
+    for (final cell in _heatmapCells) {
+      final lat = (cell['latitude'] as num?)?.toDouble();
+      final lng = (cell['longitude'] as num?)?.toDouble();
+      final count = (cell['count'] as num?)?.toInt() ?? 0;
+      final severity = cell['severity'] as String? ?? 'low';
+      if (lat == null || lng == null || count == 0) continue;
+
+      // Grid cell size ~0.01 degrees (~1km)
+      const double cellSize = 0.01;
+      final points = [
+        LatLng(lat - cellSize, lng - cellSize),
+        LatLng(lat - cellSize, lng + cellSize),
+        LatLng(lat + cellSize, lng + cellSize),
+        LatLng(lat + cellSize, lng - cellSize),
+      ];
+
+      // Color based on severity and count
+      Color fillColor;
+      if (severity == 'critical' || count >= 10) {
+        fillColor = Colors.red.withOpacity(0.3);
+      } else if (severity == 'high' || count >= 5) {
+        fillColor = Colors.deepOrange.withOpacity(0.25);
+      } else if (severity == 'medium' || count >= 3) {
+        fillColor = Colors.orange.withOpacity(0.2);
+      } else {
+        fillColor = Colors.amber.withOpacity(0.15);
+      }
+
+      polygons.add(Polygon(
+        points: points,
+        color: fillColor,
+        borderColor: fillColor.withOpacity(0.5),
+        borderStrokeWidth: 0.5,
+        isFilled: true,
+      ));
+    }
+    return polygons;
+  }
+
+  /// Load heatmap data from the incident service.
+  Future<void> _loadHeatmapData() async {
+    try {
+      final mapService = context.read<MapService>();
+      final pos = mapService.currentPosition;
+      if (pos != null) {
+        final incidentService = IncidentService();
+        final heatmap = await incidentService.getHeatmapData(
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          radiusKm: 50,
+        );
+        if (mounted) {
+          setState(() => _heatmapCells = heatmap);
+        }
+      }
+    } catch (e) {
+      debugPrint('MapScreen: Failed to load heatmap: $e');
+    }
+  }
+
   Widget _buildMarkerInfoCard() {
     final marker = _selectedMarker!;
-    final isAlert = marker['_type'] == 'alert';
-    final title = isAlert
-        ? (marker['type'] as String? ?? 'Alert')
-        : (marker['name'] as String? ?? 'Zone');
-    final status = marker['status'] as String? ?? 'active';
-    final severity = marker['severity'] as String?;
-    final description = marker['description'] as String?;
+    final markerType = marker['_type'] as String? ?? 'zone';
+    final isAlert = markerType == 'alert';
+    final isIncident = markerType == 'incident';
+
+    String title;
+    String status;
+    String? severity;
+    String? description;
+    IconData icon;
+    Color iconColor;
+
+    if (isIncident) {
+      final type = marker['incidentType'] as String? ?? 'other';
+      title = IncidentService.getIncidentTypeLabel(type);
+      status = marker['status'] as String? ?? 'reported';
+      severity = marker['severity'] as String?;
+      description = marker['description'] as String?;
+      icon = Icons.person_pin_circle;
+      iconColor = Colors.deepPurple;
+    } else if (isAlert) {
+      title = marker['type'] as String? ?? 'Alert';
+      status = marker['status'] as String? ?? 'active';
+      severity = marker['severity'] as String?;
+      description = marker['description'] as String?;
+      icon = Icons.warning_amber;
+      iconColor = Colors.red;
+    } else {
+      title = marker['name'] as String? ?? 'Zone';
+      status = marker['status'] as String? ?? 'active';
+      severity = marker['severity'] as String?;
+      description = marker['description'] as String?;
+      icon = Icons.place;
+      iconColor = AppTheme.primaryColor;
+    }
 
     Color statusColor;
-    if (status == 'active') {
-      statusColor = Colors.red;
-    } else if (status == 'resolved') {
-      statusColor = Colors.green;
-    } else {
-      statusColor = Colors.orange;
+    switch (status) {
+      case 'active':
+      case 'reported':
+        statusColor = Colors.red;
+        break;
+      case 'resolved':
+      case 'verified':
+        statusColor = Colors.green;
+        break;
+      case 'under_review':
+        statusColor = Colors.orange;
+        break;
+      default:
+        statusColor = Colors.orange;
     }
 
     return Card(
@@ -550,8 +816,8 @@ class _MapScreenState extends State<MapScreen> {
             Row(
               children: [
                 Icon(
-                  isAlert ? Icons.warning_amber : Icons.place,
-                  color: isAlert ? Colors.red : AppTheme.primaryColor,
+                  icon,
+                  color: iconColor,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -596,12 +862,32 @@ class _MapScreenState extends State<MapScreen> {
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
             ],
-            if (!isAlert) ...[
+            if (!isAlert && !isIncident) ...[
               const SizedBox(height: 4),
               Text(
                 'Type: ${marker['type'] ?? 'unknown'}',
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
+            ],
+            if (isIncident) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Upvotes: ${marker['upvoteCount'] ?? 0}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+              if (marker['isAnonymous'] == true) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.visibility_off, size: 14, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Reported anonymously',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ],
         ),

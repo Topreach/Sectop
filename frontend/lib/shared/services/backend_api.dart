@@ -461,6 +461,70 @@ class BackendApi {
   Future<Map<String, dynamic>> getAlertCount() async {
     return get('/alerts/count');
   }
+
+  // ---------------------------------------------------------------------------
+  // Incidents (Kidnapper/Danger Location Detection)
+  // ---------------------------------------------------------------------------
+
+  /// Report a new incident (kidnapping, terrorism, suspicious activity, etc.)
+  Future<Map<String, dynamic>> reportIncident({
+    String? reporterId,
+    required String incidentType,
+    String? description,
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    String? occurredAt,
+    String severity = 'medium',
+    bool isAnonymous = false,
+  }) async {
+    return post('/incidents', body: {
+      'reporterId': reporterId,
+      'incidentType': incidentType,
+      'description': description,
+      'latitude': latitude,
+      'longitude': longitude,
+      'accuracy': accuracy,
+      'occurredAt': occurredAt ?? DateTime.now().toIso8601String(),
+      'severity': severity,
+      'isAnonymous': isAnonymous,
+    });
+  }
+
+  /// Get verified incidents near a location.
+  Future<Map<String, dynamic>> getNearbyIncidents({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 10,
+    List<String>? types,
+  }) async {
+    String typesParam = '';
+    if (types != null && types.isNotEmpty) {
+      typesParam = '&types=${types.join(',')}';
+    }
+    return get('/incidents/nearby?latitude=$latitude&longitude=$longitude&radiusKm=$radiusKm$typesParam');
+  }
+
+  /// Get heatmap data for danger zone visualization.
+  Future<Map<String, dynamic>> getIncidentHeatmap({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 20,
+    String? since,
+  }) async {
+    String sinceParam = since != null ? '&since=$since' : '';
+    return get('/incidents/heatmap?latitude=$latitude&longitude=$longitude&radiusKm=$radiusKm$sinceParam');
+  }
+
+  /// Upvote an incident (community validation).
+  Future<void> upvoteIncident(String incidentId) async {
+    await post('/incidents/$incidentId/upvote');
+  }
+
+  /// Get incident statistics.
+  Future<Map<String, dynamic>> getIncidentStats() async {
+    return get('/incidents/stats');
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.

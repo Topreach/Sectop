@@ -19,6 +19,15 @@ frontend/android/release-keystore.jks
 
 # Build artifacts
 danger-emergence.apk
+danger-emergence-debug.apk
+*.apk
+
+# Debug logs
+crash_log.txt
+logcat.txt
+
+# Local assets
+sectoplogo.png
 
 # Java/Backend
 backend/target/
