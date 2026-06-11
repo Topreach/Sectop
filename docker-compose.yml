@@ -151,7 +151,8 @@ services:
     container_name: danger-emergence-nginx
     ports:
       - "8081:80"
-    volumes: []
+    volumes:
+      - /var/www/sites/Sectop/danger-emergence-debug.apk:/var/www/sites/Sectop/danger-emergence-debug.apk:ro
     depends_on:
       - backend
       - ml-service
