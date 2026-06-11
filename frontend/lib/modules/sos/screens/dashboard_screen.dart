@@ -13,6 +13,7 @@ import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
+import '../widgets/terrorist_location_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -309,6 +310,9 @@ class _DashboardHome extends StatelessWidget {
                 color: pendingCount > 0 ? Colors.orange : Colors.green,
               ),
               const SizedBox(height: 24),
+
+              // Terrorist / Danger Location Finder
+              const TerroristLocationCard(),
 
               // Recent Alerts
               const Text(

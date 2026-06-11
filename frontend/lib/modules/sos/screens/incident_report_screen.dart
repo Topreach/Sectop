@@ -32,6 +32,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
   bool _useManualLocation = false;
 
   /// Nigeria-specific incident types for insecurity tracking.
+  /// Nigeria-specific incident types for insecurity tracking.
   final List<Map<String, dynamic>> _incidentTypes = [
     {'value': 'kidnapping', 'label': 'Kidnapping', 'icon': Icons.people_outline, 'color': 0xFFD32F2F},
     {'value': 'terrorism', 'label': 'Terrorism / Bombing', 'icon': Icons.warning_amber_rounded, 'color': 0xFFB71C1C},
@@ -43,13 +44,13 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
     {'value': 'ritual_killings', 'label': 'Ritual Killings', 'icon': Icons.dark_mode, 'color': 0xFF311B92},
     {'value': 'political_violence', 'label': 'Political Violence', 'icon': Icons.account_balance, 'color': 0xFF1A237E},
     {'value': 'communal_clash', 'label': 'Communal Clash', 'icon': Icons.fireplace, 'color': 0xFFBF360C},
+    {'value': 'suspicious_radio_activity', 'label': 'Suspicious Radio / Walkie-Talkie', 'icon': Icons.radio, 'color': 0xFF4A148C},
     {'value': 'fire', 'label': 'Fire', 'icon': Icons.local_fire_department, 'color': 0xFFFF6F00},
     {'value': 'flood', 'label': 'Flood', 'icon': Icons.water_drop, 'color': 0xFF1565C0},
     {'value': 'medical', 'label': 'Medical Emergency', 'icon': Icons.medical_services, 'color': 0xFF2E7D32},
     {'value': 'accident', 'label': 'Accident', 'icon': Icons.car_crash, 'color': 0xFFEF6C00},
     {'value': 'other', 'label': 'Other', 'icon': Icons.help_outline, 'color': 0xFF757575},
   ];
-
   final List<Map<String, dynamic>> _severityLevels = [
     {'value': 'low', 'label': 'Low - Minor incident, no immediate danger', 'color': Colors.green},
     {'value': 'medium', 'label': 'Medium - Requires attention', 'color': Colors.orange},

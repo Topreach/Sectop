@@ -31,7 +31,7 @@ class MapService extends ChangeNotifier {
   Position? get currentPosition => _currentPosition;
   bool get isTracking => _isTracking;
 
-  /// Initialize map service and load cached zones.
+  /// Initialize map service, load cached zones, and start location tracking.
   Future<void> initialize() async {
     final zones = await _storage.query('zones',
         where: 'status = ?',
@@ -39,6 +39,10 @@ class MapService extends ChangeNotifier {
         orderBy: 'created_at DESC');
     _activeZones = zones.map((z) => Zone.fromMap(z)).toList();
     notifyListeners();
+
+    // Automatically start location tracking so the dashboard shows "Active"
+    // instead of "Inactive" after permissions are granted.
+    await startLocationTracking();
   }
 
   /// Start tracking the user's location.

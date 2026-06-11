@@ -127,6 +127,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   DropdownMenuItem(value: 'hidden_weapons', child: Text('Hidden Weapons')),
                   DropdownMenuItem(value: 'kidnapping_plot', child: Text('Kidnapping Plot')),
                   DropdownMenuItem(value: 'bombing_plot', child: Text('Bombing Plot')),
+                  DropdownMenuItem(value: 'suspicious_radio_activity', child: Text('Suspicious Radio / Walkie-Talkie')),
                   DropdownMenuItem(value: 'other', child: Text('Other')),
                 ],
                 onChanged: (v) => setState(() => _tipType = v!),
