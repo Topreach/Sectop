@@ -3,6 +3,7 @@ package com.dangeremergence.service;
 import com.dangeremergence.model.SOSAlert;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
@@ -34,7 +35,7 @@ public class AlertPubSubService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final RedisMessageListenerContainer redisListenerContainer;
-    private final SOSAlertService sosAlertService;
+    private final @Lazy SOSAlertService sosAlertService;
 
     private MessageListenerAdapter listenerAdapter;
 
