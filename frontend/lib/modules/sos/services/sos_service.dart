@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show WebSocket;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -62,72 +63,76 @@ class SOSService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // WebSocket Real-Time Delivery
   // ---------------------------------------------------------------------------
+/// Connect to the backend WebSocket for real-time alert delivery.
+Future<void> _connectWebSocket() async {
+  try {
+    final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+    if (token == null || token.isEmpty) return;
 
-  /// Connect to the backend WebSocket for real-time alert delivery.
-  Future<void> _connectWebSocket() async {
-    try {
-      final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
-      if (token == null || token.isEmpty) return;
+    final wsUrl = AppConstants.wsBaseUrl; // e.g., ws://10.0.2.2:8080/ws
 
-      final wsUrl = AppConstants.wsBaseUrl; // e.g., ws://10.0.2.2:8080/ws
-
-      // Connect with auth header
-      final wsChannel = WebSocketChannel.connect(
-        Uri.parse(wsUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      _wsChannel = wsChannel;
-      _isWsConnected = true;
-      debugPrint('SOSService: WebSocket connected');
-      notifyListeners();
-
-      // Listen for incoming messages
-      _wsSubscription = wsChannel.stream.listen(
-        (dynamic data) {
-          final body = data is String ? data : (data is List<int> ? utf8.decode(data) : data.toString());
-          _handleDeliveryConfirmation(body);
-        },
-        onError: (dynamic error) {
-          debugPrint('SOSService: WebSocket error: $error');
-          _isWsConnected = false;
-          notifyListeners();
-          _scheduleReconnect();
-        },
-        onDone: () {
-          debugPrint('SOSService: WebSocket closed');
-          _isWsConnected = false;
-          notifyListeners();
-          _scheduleReconnect();
-        },
-        cancelOnError: false,
-      );
-
-      // Send a STOMP CONNECT frame manually (since we're using raw WebSocket)
-      _sendStompFrame('CONNECT', {
-        'accept-version': '1.2',
-        'host': 'localhost',
+    // Use dart:io WebSocket.connect() which supports custom headers
+    // (web_socket_channel's WebSocketChannel.connect does not support headers in v2.4.0)
+    final ws = await WebSocket.connect(
+      wsUrl,
+      headers: {
         'Authorization': 'Bearer $token',
-      });
+      },
+    );
 
-      // Subscribe to personal queue after connection
-      await Future.delayed(const Duration(milliseconds: 500));
-      _sendStompFrame('SUBSCRIBE', {
-        'id': 'sub-0',
-        'destination': '/user/queue/alerts',
-      });
-      _sendStompFrame('SUBSCRIBE', {
-        'id': 'sub-1',
-        'destination': '/topic/alerts',
-      });
-    } catch (e) {
-      debugPrint('SOSService: WebSocket connection failed: $e');
-      _isWsConnected = false;
-      notifyListeners();
-      _scheduleReconnect();
-    }
+    // Wrap in WebSocketChannel for stream/sink API
+    final wsChannel = WebSocketChannel(ws);
+
+    _wsChannel = wsChannel;
+    _isWsConnected = true;
+    debugPrint('SOSService: WebSocket connected');
+    notifyListeners();
+
+    // Listen for incoming messages
+    _wsSubscription = wsChannel.stream.listen(
+      (dynamic data) {
+        final body = data is String ? data : (data is List<int> ? utf8.decode(data) : data.toString());
+        _handleDeliveryConfirmation(body);
+      },
+      onError: (dynamic error) {
+        debugPrint('SOSService: WebSocket error: $error');
+        _isWsConnected = false;
+        notifyListeners();
+        _scheduleReconnect();
+      },
+      onDone: () {
+        debugPrint('SOSService: WebSocket closed');
+        _isWsConnected = false;
+        notifyListeners();
+        _scheduleReconnect();
+      },
+      cancelOnError: false,
+    );
+
+    // Send a STOMP CONNECT frame manually (since we're using raw WebSocket)
+    _sendStompFrame('CONNECT', {
+      'accept-version': '1.2',
+      'host': 'localhost',
+      'Authorization': 'Bearer $token',
+    });
+
+    // Subscribe to personal queue after connection
+    await Future.delayed(const Duration(milliseconds: 500));
+    _sendStompFrame('SUBSCRIBE', {
+      'id': 'sub-0',
+      'destination': '/user/queue/alerts',
+    });
+    _sendStompFrame('SUBSCRIBE', {
+      'id': 'sub-1',
+      'destination': '/topic/alerts',
+    });
+  } catch (e) {
+    debugPrint('SOSService: WebSocket connection failed: $e');
+    _isWsConnected = false;
+    notifyListeners();
+    _scheduleReconnect();
+  }
+}
   }
 
   /// Send a raw STOMP frame over the WebSocket.
