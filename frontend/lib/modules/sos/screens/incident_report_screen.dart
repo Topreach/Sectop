@@ -30,7 +30,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
   /// Nigeria-specific incident types for insecurity tracking.
   final List<Map<String, dynamic>> _incidentTypes = [
     {'value': 'kidnapping', 'label': 'Kidnapping', 'icon': Icons.people_outline, 'color': 0xFFD32F2F},
-    {'value': 'terrorism', 'label': 'Terrorism / Bombing', 'icon': Icons.explosion_outlined, 'color': 0xFFB71C1C},
+    {'value': 'terrorism', 'label': 'Terrorism / Bombing', 'icon': Icons.warning_amber_rounded, 'color': 0xFFB71C1C},
     {'value': 'banditry', 'label': 'Banditry', 'icon': Icons.gavel, 'color': 0xFFE65100},
     {'value': 'armed_robbery', 'label': 'Armed Robbery', 'icon': Icons.money_off, 'color': 0xFFF57C00},
     {'value': 'suspicious_activity', 'label': 'Suspicious Activity', 'icon': Icons.visibility, 'color': 0xFFFBC02D},
