@@ -88,6 +88,9 @@ services:
       ML_SERVICE_URL: http://ml-service:8000
       MQTT_BROKER: tcp://mosquitto:1883
       JWT_SECRET: ${JWT_SECRET} # REQUIRED: Must be set in .env file
+      MAIL_USERNAME: ${MAIL_USERNAME} # REQUIRED for password reset
+      MAIL_PASSWORD: ${MAIL_PASSWORD} # REQUIRED for password reset
+      APP_BASE_URL: ${APP_BASE_URL} # REQUIRED for password reset email links
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8080:8080"
