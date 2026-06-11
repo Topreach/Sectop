@@ -373,7 +373,7 @@ build_apk() {
   fi
 
   # Remove cached record packages to force fresh download (version mismatch fix)
-  for pkg in record-5.2.1 record-4.0.0 record-4.4.0 record_linux-0.7.2 record_linux-0.5.0 record_platform_interface-1.6.0 record_platform_interface-1.1.0 record_web-1.3.0 record_web-1.0.0 record_darwin-1.2.2; do
+  for pkg in record-6.2.1 record-5.2.1 record-4.0.0 record-4.4.0 record_linux-1.3.1 record_linux-0.7.2 record_linux-0.5.0 record_platform_interface-1.6.0 record_platform_interface-1.1.0 record_web-1.3.0 record_web-1.0.0 record_darwin-1.2.2; do
     local PKG_DIR="$PUB_CACHE_DIR/hosted/pub.dev/$pkg"
     if [ -d "$PKG_DIR" ]; then
       rm -rf "$PKG_DIR"
