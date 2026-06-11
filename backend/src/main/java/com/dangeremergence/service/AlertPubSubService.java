@@ -3,11 +3,11 @@ package com.dangeremergence.service;
 import com.dangeremergence.model.SOSAlert;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -35,7 +35,7 @@ public class AlertPubSubService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final RedisMessageListenerContainer redisListenerContainer;
-    private final @Lazy SOSAlertService sosAlertService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private MessageListenerAdapter listenerAdapter;
 
@@ -89,6 +89,27 @@ public class AlertPubSubService {
     public void onAlertReceived(SOSAlert alert) {
         log.info("Alert received via Redis pub/sub: {} (type={})", alert.getId(), alert.getAlertType());
         // Forward to WebSocket/STOMP on THIS server instance
-        sosAlertService.pushAlertToWebSocket(alert);
+        try {
+            String stateSlug = alert.getState() != null
+                    ? alert.getState().toLowerCase().replace(" ", "_") : "unknown";
+            String lgaSlug = alert.getLga() != null
+                    ? alert.getLga().toLowerCase().replace(" ", "_") : "unknown";
+
+            // Push to global alert topic
+            messagingTemplate.convertAndSend("/topic/alerts/new", alert);
+
+            // Push to geo-specific topic
+            String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
+            messagingTemplate.convertAndSend(geoDest, alert);
+
+            // Push to user-specific queue if user is available
+            if (alert.getUser() != null && alert.getUser().getId() != null) {
+                messagingTemplate.convertAndSendToUser(alert.getUser().getId(), "/queue/alerts", alert);
+            }
+
+            log.debug("Cross-server WebSocket push for alert: {}", alert.getId());
+        } catch (Exception e) {
+            log.warn("Cross-server WebSocket push failed for alert {}: {}", alert.getId(), e.getMessage());
+        }
     }
 }
