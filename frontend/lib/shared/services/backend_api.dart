@@ -14,6 +14,13 @@ class BackendApi {
   factory BackendApi() => _instance;
   BackendApi._();
 
+  /// No-op initialize for compatibility with [safeInit] in main.dart.
+  /// The duck-type check `dynInstance.initialize is Function` requires
+  /// this getter to exist; otherwise a NoSuchMethodError is thrown.
+  Future<void> initialize() async {
+    // BackendApi is stateless — nothing to initialize.
+  }
+
   final OfflineStorageService _storage = OfflineStorageService();
   final String _baseUrl = '${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}';
   final Duration _timeout = Duration(seconds: AppConstants.apiTimeout);
