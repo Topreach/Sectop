@@ -153,8 +153,9 @@ class EvidenceService {
       final filePath = '${dir.path}/evidence_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
       // Start recording
+      // Note: RecordConfig may not be const in all record v4.x versions
       await _audioRecorder.start(
-        const RecordConfig(
+        RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           sampleRate: 44100,
