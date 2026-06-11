@@ -14,6 +14,12 @@ import '../modules/sos/screens/emergency_contacts_screen.dart';
 import '../modules/sos/screens/incident_report_screen.dart';
 import '../modules/sos/screens/zone_details_screen.dart';
 import '../modules/sos/screens/message_detail_screen.dart';
+import '../modules/sos/screens/broadcast_screen.dart';
+import '../modules/sos/screens/create_broadcast_screen.dart';
+import '../modules/sos/screens/safe_route_screen.dart';
+import '../modules/sos/screens/tip_off_screen.dart';
+import '../modules/sos/screens/tip_review_screen.dart';
+import '../modules/sos/screens/radio_broadcast_screen.dart';
 import '../modules/maps/screens/map_screen.dart';
 import '../modules/mesh/screens/mesh_status_screen.dart';
 
@@ -37,6 +43,12 @@ class AppRoutes {
   static const String incidentReport = '/incident-report';
   static const String zoneDetails = '/zone-details';
   static const String messageDetail = '/message-detail';
+  static const String broadcasts = '/broadcasts';
+  static const String createBroadcast = '/create-broadcast';
+  static const String safeRoute = '/safe-route';
+  static const String tipOff = '/tip-off';
+  static const String tipReview = '/tip-review';
+  static const String radioBroadcast = '/radio-broadcast';
 
   /// Generate the route generator for MaterialApp.
   static Route<dynamic>? generateRoute(RouteSettings settings) {
@@ -119,6 +131,36 @@ class AppRoutes {
       case messageDetail:
         return MaterialPageRoute(
           builder: (_) => const MessageDetailScreen(),
+          settings: settings,
+        );
+      case broadcasts:
+        return MaterialPageRoute(
+          builder: (_) => const BroadcastScreen(),
+          settings: settings,
+        );
+      case createBroadcast:
+        return MaterialPageRoute(
+          builder: (_) => const CreateBroadcastScreen(),
+          settings: settings,
+        );
+      case safeRoute:
+        return MaterialPageRoute(
+          builder: (_) => const SafeRouteScreen(),
+          settings: settings,
+        );
+      case tipOff:
+        return MaterialPageRoute(
+          builder: (_) => const TipOffScreen(),
+          settings: settings,
+        );
+      case tipReview:
+        return MaterialPageRoute(
+          builder: (_) => const TipReviewScreen(),
+          settings: settings,
+        );
+      case radioBroadcast:
+        return MaterialPageRoute(
+          builder: (_) => const RadioBroadcastScreen(),
           settings: settings,
         );
       default:

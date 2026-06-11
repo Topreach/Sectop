@@ -36,6 +36,14 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/public/**").permitAll()
+                .requestMatchers("/api/v1/tips").permitAll() // Anonymous tip submission
+                .requestMatchers("/api/v1/tips/**").permitAll() // Public tip access
+                .requestMatchers("/api/v1/routes/**").authenticated()
+                .requestMatchers("/api/v1/broadcasts/active").authenticated()
+                .requestMatchers("/api/v1/broadcasts/count").authenticated()
+                .requestMatchers("/api/v1/broadcasts/**").hasAnyAuthority("coordinator", "admin")
+                .requestMatchers("/api/v1/radio/broadcasts").authenticated()
+                .requestMatchers("/api/v1/radio/**").hasAnyAuthority("coordinator", "admin")
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/info").permitAll()
                 .requestMatchers("/actuator/**").hasAuthority("coordinator")

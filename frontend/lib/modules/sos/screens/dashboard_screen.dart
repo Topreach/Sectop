@@ -169,6 +169,7 @@ class _DashboardHome extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
+              // Row 1: Existing quick actions
               Row(
                 children: [
                   Expanded(
@@ -208,6 +209,56 @@ class _DashboardHome extends StatelessWidget {
                       label: 'First Aid',
                       color: Colors.orange,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.offlineResources),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Row 2: NEW - 4 Feature Quick Actions
+              const Text(
+                'Emergency Tools',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.campaign_outlined,
+                      label: 'Broadcasts',
+                      color: Colors.red,
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.broadcasts),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.route_outlined,
+                      label: 'Safe Route',
+                      color: Colors.teal,
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.safeRoute),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.visibility_outlined,
+                      label: 'Tip-Off',
+                      color: Colors.indigo,
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.tipOff),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.radio_outlined,
+                      label: 'Radio',
+                      color: Colors.brown,
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.radioBroadcast),
                     ),
                   ),
                 ],

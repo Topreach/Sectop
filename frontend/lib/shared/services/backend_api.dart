@@ -525,6 +525,122 @@ class BackendApi {
   Future<Map<String, dynamic>> getIncidentStats() async {
     return get('/incidents/stats');
   }
+  // ---------------------------------------------------------------------------
+  // Broadcasts (Mass Alert System)
+  // ---------------------------------------------------------------------------
+
+  /// Get active broadcasts, optionally filtered by state/LGA.
+  Future<Map<String, dynamic>> getActiveBroadcasts({String? state, String? lga}) async {
+    String params = '';
+    if (state != null) params += '?state=$state';
+    if (lga != null) params += '${params.isEmpty ? '?' : '&'}lga=$lga';
+    return get('/broadcasts/active$params');
+  }
+
+  /// Get broadcast by ID.
+  Future<Map<String, dynamic>> getBroadcast(String id) async {
+    return get('/broadcasts/$id');
+  }
+
+  /// Create a new broadcast (coordinator/admin only).
+  Future<Map<String, dynamic>> createBroadcast(Map<String, dynamic> data) async {
+    return post('/broadcasts', body: data);
+  }
+
+  /// Expire a broadcast (coordinator/admin only).
+  Future<void> expireBroadcast(String id) async {
+    await post('/broadcasts/$id/expire');
+  }
+
+  /// Get active broadcast count.
+  Future<Map<String, dynamic>> getBroadcastCount() async {
+    return get('/broadcasts/count');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Safe Route Planning
+  // ---------------------------------------------------------------------------
+
+  /// Plan a safe route between two points.
+  Future<Map<String, dynamic>> planSafeRoute({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+    bool avoidHighways = false,
+    bool preferLitRoads = false,
+  }) async {
+    return post('/routes/plan', body: {
+      'fromLat': fromLat,
+      'fromLng': fromLng,
+      'toLat': toLat,
+      'toLng': toLng,
+      'avoidHighways': avoidHighways,
+      'preferLitRoads': preferLitRoads,
+    });
+  }
+
+  /// Get danger score for a specific location.
+  Future<Map<String, dynamic>> getDangerScore({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 5,
+  }) async {
+    return get('/routes/danger-score?latitude=$latitude&longitude=$longitude&radiusKm=$radiusKm');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tip-offs (Intelligence Channel)
+  // ---------------------------------------------------------------------------
+
+  /// Submit a new tip-off (supports anonymous reporting).
+  Future<Map<String, dynamic>> submitTip(Map<String, dynamic> data) async {
+    return post('/tips', body: data);
+  }
+
+  /// Get pending tips for review (coordinator/responder only).
+  Future<Map<String, dynamic>> getPendingTips() async {
+    return get('/tips/pending');
+  }
+
+  /// Get tip-off by ID.
+  Future<Map<String, dynamic>> getTipById(String id) async {
+    return get('/tips/$id');
+  }
+
+  /// Review a tip-off (coordinator/responder only).
+  Future<Map<String, dynamic>> reviewTip(String id, Map<String, dynamic> data) async {
+    return post('/tips/$id/review', body: data);
+  }
+
+  /// Get tip-off statistics.
+  Future<Map<String, dynamic>> getTipStats() async {
+    return get('/tips/stats');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Radio Broadcasts (Emergency Radio Integration)
+  // ---------------------------------------------------------------------------
+
+  /// Create a new radio broadcast (coordinator/admin only).
+  Future<Map<String, dynamic>> createRadioBroadcast(Map<String, dynamic> data) async {
+    return post('/radio/broadcast', body: data);
+  }
+
+  /// Get radio broadcast history.
+  Future<Map<String, dynamic>> getRadioBroadcasts() async {
+    return get('/radio/broadcasts');
+  }
+
+  /// Get radio broadcast by ID.
+  Future<Map<String, dynamic>> getRadioBroadcast(String id) async {
+    return get('/radio/broadcasts/$id');
+  }
+
+  /// Retry a failed radio broadcast (coordinator/admin only).
+  Future<Map<String, dynamic>> retryRadioBroadcast(String id) async {
+    return post('/radio/broadcasts/$id/retry');
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.
