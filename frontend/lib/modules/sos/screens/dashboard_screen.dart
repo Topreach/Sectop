@@ -209,7 +209,7 @@ class _DashboardHome extends StatelessWidget {
                       icon: Icons.medical_services_outlined,
                       label: 'First Aid',
                       color: Colors.orange,
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.offlineResources),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.firstAid),
                     ),
                   ),
                 ],

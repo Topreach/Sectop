@@ -10,6 +10,7 @@ import '../modules/sos/screens/dashboard_screen.dart';
 import '../modules/sos/screens/sos_screen.dart';
 import '../modules/sos/screens/inbox_screen.dart';
 import '../modules/sos/screens/offline_resources_screen.dart';
+import '../modules/sos/screens/first_aid_screen.dart';
 import '../modules/sos/screens/profile_screen.dart';
 import '../modules/sos/screens/help_screen.dart';
 import '../modules/sos/screens/settings_screen.dart';
@@ -42,6 +43,7 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String meshStatus = '/mesh-status';
   static const String offlineResources = '/offline-resources';
+  static const String firstAid = '/first-aid';
   static const String help = '/help';
   static const String settings = '/settings';
   static const String emergencyContacts = '/emergency-contacts';
@@ -108,6 +110,11 @@ class AppRoutes {
       case offlineResources:
         return MaterialPageRoute(
           builder: (_) => const OfflineResourcesScreen(),
+          settings: settings,
+        );
+      case firstAid:
+        return MaterialPageRoute(
+          builder: (_) => const FirstAidScreen(),
           settings: settings,
         );
       case profile:
