@@ -141,8 +141,8 @@ class EvidenceService {
   /// Record audio for a specified duration (seconds).
   Future<EvidenceFile?> recordAudio({int durationSeconds = 10}) async {
     try {
-      // Check and request microphone permission
-      final hasPermission = await _audioRecorder.hasPermission(request: true);
+      // Check microphone permission (record v4.x API - no request parameter)
+      final hasPermission = await _audioRecorder.hasPermission();
       if (!hasPermission) {
         debugPrint('EvidenceService: Microphone permission denied');
         return null;
