@@ -16,6 +16,7 @@ import 'shared/widgets/degraded_mode_banner.dart';
 import 'modules/auth/services/auth_service.dart';
 import 'modules/sos/services/sos_service.dart';
 import 'modules/maps/services/map_service.dart';
+import 'modules/mesh/services/mesh_manager.dart';
 import 'modules/security/services/security_manager.dart';
 import 'modules/observability/services/observability_service.dart';
 import 'shared/services/hardware_trigger_service.dart';
@@ -95,6 +96,7 @@ final Map<Type, Object Function()> _fallbackRegistry = {
   OfflineStorageService: () => OfflineStorageService(),
   SyncManager: () => SyncManager(),
   MapService: () => MapService(),
+  MeshManager: () => MeshManager(),
   BackendApi: () => BackendApi(),
   HardwareTriggerService: () => HardwareTriggerService(),
 };
@@ -161,14 +163,15 @@ class DangerEmergenceApp extends StatelessWidget {
 
         // Core Services
         Provider(create: (_) => safeInit(() => OfflineStorageService())),
-        Provider(create: (_) => safeInit(() => SyncManager())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => SyncManager())),
         Provider(create: (_) => safeInit(() => BackendApi())),
         Provider(create: (_) => safeInit(() => HardwareTriggerService())),
 
         // Module Services (thin clients — heavy logic moved to backend)
         ChangeNotifierProvider(create: (_) => safeInit(() => AuthService())),
         ChangeNotifierProvider(create: (_) => safeInit(() => SOSService())),
-        Provider(create: (_) => safeInit(() => MapService())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => MapService())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => MeshManager())),
         ChangeNotifierProvider(create: (_) => safeInit(() => SecurityManager.instance)),
         ChangeNotifierProvider(create: (_) => safeInit(() => ObservabilityService.instance)),
       ],

@@ -10,7 +10,7 @@ import 'offline_storage.dart';
 ///
 /// Maintains the three-state sync model (offline → pending → synced) for
 /// offline-first resilience, but syncs only when explicitly requested.
-class SyncManager {
+class SyncManager extends ChangeNotifier {
   static final SyncManager _instance = SyncManager._internal();
   factory SyncManager() => _instance;
   SyncManager._internal();
@@ -43,18 +43,24 @@ class SyncManager {
   Future<bool> triggerSync() async {
     if (_isSyncing) return false;
     _isSyncing = true;
+    notifyListeners();
 
     try {
       await _pushToCloud();
       await _pullFromCloud();
       _lastSyncTime = DateTime.now();
+      _isOnline = true;
       debugPrint('SyncManager: Sync completed at $_lastSyncTime');
+      notifyListeners();
       return true;
     } catch (e) {
+      _isOnline = false;
       debugPrint('SyncManager: Sync failed: $e');
+      notifyListeners();
       return false;
     } finally {
       _isSyncing = false;
+      notifyListeners();
     }
   }
 
