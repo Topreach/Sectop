@@ -54,8 +54,7 @@ public class Evidence {
     private Long sizeBytes;
 
     /** Base64-encoded file content for offline-first sync. */
-    @Lob
-    @Column(name = "file_content", columnDefinition = "MEDIUMTEXT")
+    @Column(name = "file_content", columnDefinition = "TEXT")
     private String fileContent;
 
     /** URL to the file if stored externally (S3/MinIO). */
