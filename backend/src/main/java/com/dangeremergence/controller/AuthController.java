@@ -166,6 +166,86 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    // -----------------------------------------------------------------------
+    // Password Reset
+    // -----------------------------------------------------------------------
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+        }
+
+        boolean sent = userService.requestPasswordReset(request.getEmail().trim().toLowerCase());
+        // Always return 200 to avoid email enumeration
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "If the email exists, a password reset link has been sent.");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+        if (request.getToken() == null || request.getToken().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Token is required"));
+        }
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Password must be at least 6 characters"));
+        }
+
+        boolean success = userService.resetPassword(request.getToken().trim(), request.getNewPassword());
+        if (success) {
+            return ResponseEntity.ok(Map.of("message", "Password reset successful"));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "Invalid or expired reset token"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Account Deletion
+    // -----------------------------------------------------------------------
+
+    @PostMapping("/account/deletion-request")
+    public ResponseEntity<?> requestDeletion(@RequestHeader("X-User-Id") String userId) {
+        if (userId == null || userId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User ID is required"));
+        }
+        boolean success = userService.requestAccountDeletion(userId);
+        if (success) {
+            return ResponseEntity.ok(Map.of(
+                "message", "Account deletion requested. Your account will be permanently deleted after 30 days.",
+                "gracePeriodDays", 30
+            ));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "Unable to process deletion request"));
+    }
+
+    @PostMapping("/account/cancel-deletion")
+    public ResponseEntity<?> cancelDeletion(@RequestHeader("X-User-Id") String userId) {
+        if (userId == null || userId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User ID is required"));
+        }
+        boolean success = userService.cancelAccountDeletion(userId);
+        if (success) {
+            return ResponseEntity.ok(Map.of("message", "Deletion request cancelled"));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "No pending deletion request found"));
+    }
+
+    @DeleteMapping("/account")
+    public ResponseEntity<?> deleteAccount(@RequestHeader("X-User-Id") String userId) {
+        if (userId == null || userId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User ID is required"));
+        }
+        boolean success = userService.deleteUserAccount(userId);
+        if (success) {
+            return ResponseEntity.ok(Map.of("message", "Account permanently deleted"));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "Unable to delete account"));
+    }
+
+    // -----------------------------------------------------------------------
+    // User Profile
+    // -----------------------------------------------------------------------
+
     @GetMapping("/users/{userId}")
     public ResponseEntity<?> getUser(@PathVariable String userId) {
         Optional<User> userOpt = userService.getUserById(userId);
@@ -215,7 +295,10 @@ public class AuthController {
         return ResponseEntity.ok(responders);
     }
 
+    // -----------------------------------------------------------------------
     // Request DTOs
+    // -----------------------------------------------------------------------
+
     public static class RegisterRequest {
         private String name;
         private String email;
@@ -275,5 +358,22 @@ public class AuthController {
         public void setMedicalInfo(String medicalInfo) { this.medicalInfo = medicalInfo; }
         public String getPublicKey() { return publicKey; }
         public void setPublicKey(String publicKey) { this.publicKey = publicKey; }
+    }
+
+    public static class ForgotPasswordRequest {
+        private String email;
+
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+    }
+
+    public static class ResetPasswordRequest {
+        private String token;
+        private String newPassword;
+
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
+        public String getNewPassword() { return newPassword; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
     }
 }

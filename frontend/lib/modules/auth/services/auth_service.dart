@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
 import '../../../shared/services/encryption.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../shared/services/backend_api.dart';
 
 /// Authentication service supporting offline-first authentication
 /// with emergency bypass mode for disaster situations.
@@ -224,8 +225,6 @@ class AuthService extends ChangeNotifier {
 
     _currentUser = updatedProfile;
     notifyListeners();
-  }
-
   /// Get user by ID from local storage.
   Future<UserProfile?> getUserById(String userId) async {
     final data = await _storage.getById('users', userId);
@@ -233,6 +232,87 @@ class AuthService extends ChangeNotifier {
       return UserProfile.fromMap(data);
     }
     return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Password Reset (Store Compliance)
+  // ---------------------------------------------------------------------------
+
+  /// Request a password reset email.
+  Future<AuthResult> forgotPassword(String email) async {
+    try {
+      final api = BackendApi();
+      await api.forgotPassword(email);
+      return AuthResult.success({'email': email});
+    } catch (e) {
+      debugPrint('forgotPassword error: $e');
+      return AuthResult.failure('Failed to send reset email. Check your internet connection.');
+    }
+  }
+
+  /// Reset password using the token from the email.
+  Future<AuthResult> resetPassword(String token, String newPassword) async {
+    try {
+      final api = BackendApi();
+      final response = await api.resetPassword(token, newPassword);
+      return AuthResult.success(response);
+    } catch (e) {
+      debugPrint('resetPassword error: $e');
+      return AuthResult.failure('Failed to reset password. The link may have expired.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Account Deletion (Store Compliance)
+  // ---------------------------------------------------------------------------
+
+  /// Request account deletion (30-day grace period).
+  Future<AuthResult> requestAccountDeletion() async {
+    if (_currentUser == null) {
+      return AuthResult.failure('No user logged in');
+    }
+    try {
+      final api = BackendApi();
+      await api.requestAccountDeletion(_currentUser!.id);
+      return AuthResult.success({'userId': _currentUser!.id});
+    } catch (e) {
+      debugPrint('requestAccountDeletion error: $e');
+      return AuthResult.failure('Failed to request deletion. Try again later.');
+    }
+  }
+
+  /// Cancel a pending account deletion request.
+  Future<AuthResult> cancelAccountDeletion() async {
+    if (_currentUser == null) {
+      return AuthResult.failure('No user logged in');
+    }
+    try {
+      final api = BackendApi();
+      await api.cancelAccountDeletion(_currentUser!.id);
+      return AuthResult.success({'userId': _currentUser!.id});
+    } catch (e) {
+      debugPrint('cancelAccountDeletion error: $e');
+      return AuthResult.failure('Failed to cancel deletion. Try again later.');
+    }
+  }
+
+  /// Permanently delete the account and log out.
+  Future<AuthResult> deleteAccount() async {
+    if (_currentUser == null) {
+      return AuthResult.failure('No user logged in');
+    }
+    try {
+      final api = BackendApi();
+      await api.deleteAccount(_currentUser!.id);
+      // Clear local data
+      await logout();
+      return AuthResult.success({'deleted': true});
+    } catch (e) {
+      debugPrint('deleteAccount error: $e');
+      return AuthResult.failure('Failed to delete account. Try again later.');
+    }
+  }
+}
   }
 }
 

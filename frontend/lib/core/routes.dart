@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../modules/auth/screens/splash_screen.dart';
 import '../modules/auth/screens/permission_screen.dart';
 import '../modules/auth/screens/login_screen.dart';
+import '../modules/auth/screens/forgot_password_screen.dart';
+import '../modules/auth/screens/reset_password_screen.dart';
+import '../modules/auth/screens/delete_account_screen.dart';
 import '../modules/sos/screens/dashboard_screen.dart';
 import '../modules/sos/screens/sos_screen.dart';
 import '../modules/sos/screens/inbox_screen.dart';
@@ -20,6 +23,8 @@ import '../modules/sos/screens/safe_route_screen.dart';
 import '../modules/sos/screens/tip_off_screen.dart';
 import '../modules/sos/screens/tip_review_screen.dart';
 import '../modules/sos/screens/radio_broadcast_screen.dart';
+import '../modules/sos/screens/privacy_policy_screen.dart';
+import '../modules/sos/screens/how_to_use_screen.dart';
 import '../modules/maps/screens/map_screen.dart';
 import '../modules/mesh/screens/mesh_status_screen.dart';
 
@@ -49,6 +54,13 @@ class AppRoutes {
   static const String tipOff = '/tip-off';
   static const String tipReview = '/tip-review';
   static const String radioBroadcast = '/radio-broadcast';
+
+  // Store Compliance routes
+  static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
+  static const String deleteAccount = '/delete-account';
+  static const String privacyPolicy = '/privacy-policy';
+  static const String howToUse = '/how-to-use';
 
   /// Generate the route generator for MaterialApp.
   static Route<dynamic>? generateRoute(RouteSettings settings) {
@@ -161,6 +173,32 @@ class AppRoutes {
       case radioBroadcast:
         return MaterialPageRoute(
           builder: (_) => const RadioBroadcastScreen(),
+          settings: settings,
+        );
+      case forgotPassword:
+        return MaterialPageRoute(
+          builder: (_) => const ForgotPasswordScreen(),
+          settings: settings,
+        );
+      case resetPassword:
+        final token = settings.arguments as String? ?? '';
+        return MaterialPageRoute(
+          builder: (_) => ResetPasswordScreen(token: token),
+          settings: settings,
+        );
+      case deleteAccount:
+        return MaterialPageRoute(
+          builder: (_) => const DeleteAccountScreen(),
+          settings: settings,
+        );
+      case privacyPolicy:
+        return MaterialPageRoute(
+          builder: (_) => const PrivacyPolicyScreen(),
+          settings: settings,
+        );
+      case howToUse:
+        return MaterialPageRoute(
+          builder: (_) => const HowToUseScreen(),
           settings: settings,
         );
       default:

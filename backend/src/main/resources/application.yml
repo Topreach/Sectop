@@ -10,6 +10,20 @@ server:
 spring:
   application:
     name: danger-emergence-backend
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+        transport:
+          protocol: smtp
   
   datasource:
     url: ${JDBC_DATABASE_URL:jdbc:postgresql://localhost:5432/danger_emergence}
@@ -157,3 +171,4 @@ scheduling:
     messages-cron: "0 0 3 * * ?"   # Daily at 3 AM
     alerts-cron: "0 0/30 * * * ?"   # Every 30 minutes
     zones-cron: "0 0 4 * * ?"       # Daily at 4 AM
+    deletion-cron: "0 0 3 * * ?"    # Daily at 3 AM (account deletion grace period)

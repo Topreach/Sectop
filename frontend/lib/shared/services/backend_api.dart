@@ -648,6 +648,61 @@ class BackendApi {
   Future<Map<String, dynamic>> retryRadioBroadcast(String id) async {
     return post('/radio/broadcasts/$id/retry');
   }
+
+  // ---------------------------------------------------------------------------
+  // Auth — Password Reset & Account Deletion (Store Compliance)
+  // ---------------------------------------------------------------------------
+
+  /// Request a password reset email.
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    return post('/auth/forgot-password', body: {'email': email});
+  }
+
+  /// Reset password using the token from the email.
+  Future<Map<String, dynamic>> resetPassword(String token, String newPassword) async {
+    return post('/auth/reset-password', body: {
+      'token': token,
+      'newPassword': newPassword,
+    });
+  }
+
+  /// Request account deletion (30-day grace period starts).
+  Future<Map<String, dynamic>> requestAccountDeletion(String userId) async {
+    final headers = await _headers();
+    headers['X-User-Id'] = userId;
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl/auth/account/deletion-request');
+      final response = await _client
+          .post(uri, headers: headers)
+          .timeout(_timeout);
+      return _handleResponse(response);
+    });
+  }
+
+  /// Cancel a pending account deletion request.
+  Future<Map<String, dynamic>> cancelAccountDeletion(String userId) async {
+    final headers = await _headers();
+    headers['X-User-Id'] = userId;
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl/auth/account/cancel-deletion');
+      final response = await _client
+          .post(uri, headers: headers)
+          .timeout(_timeout);
+      return _handleResponse(response);
+    });
+  }
+
+  /// Permanently delete the account (anonymizes PII).
+  Future<void> deleteAccount(String userId) async {
+    final headers = await _headers();
+    headers['X-User-Id'] = userId;
+    return _executeWithCircuitBreaker(() async {
+      final uri = Uri.parse('$_baseUrl/auth/account');
+      await _client
+          .delete(uri, headers: headers)
+          .timeout(_timeout);
+    });
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.

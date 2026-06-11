@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 
 class HelpScreen extends StatelessWidget {
@@ -109,7 +110,23 @@ class HelpScreen extends StatelessWidget {
             title: 'Stay Connected',
             description: 'Enable mesh networking to stay connected with peers when internet is unavailable.',
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // View Full Guide
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pushNamed(AppRoutes.howToUse);
+              },
+              icon: const Icon(Icons.menu_book),
+              label: const Text('View Full User Guide'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // Contact Support
           SizedBox(
@@ -117,7 +134,9 @@ class HelpScreen extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Support request submitted. We will get back to you shortly.')),
+                  SnackBar(
+                    content: Text('Contact: ${AppConstants.supportEmail}'),
+                  ),
                 );
               },
               icon: const Icon(Icons.support_agent),
@@ -125,6 +144,13 @@ class HelpScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              AppConstants.supportEmail,
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
             ),
           ),
           const SizedBox(height: 16),

@@ -264,7 +264,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+                  // Forgot Password link (login mode only)
+                  if (_isLogin) ...[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pushNamed(AppRoutes.forgotPassword);
+                        },
+                        child: const Text(
+                          'Forgot Password?',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
 
                   // Submit button
                   SizedBox(
@@ -353,6 +368,41 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[500],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Footer links
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pushNamed(AppRoutes.privacyPolicy);
+                        },
+                        child: const Text('Privacy Policy', style: TextStyle(fontSize: 12)),
+                      ),
+                      const Text('|', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pushNamed(AppRoutes.howToUse);
+                        },
+                        child: const Text('How to Use', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Contact: ${AppConstants.supportEmail}'),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Contact Support: ${AppConstants.supportEmail}',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                     ),
                   ),
                 ],

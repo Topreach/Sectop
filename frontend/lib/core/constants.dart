@@ -219,4 +219,9 @@ class AppConstants {
   static const double observabilityAdaptiveSamplingMin = 0.01; // minimum 1% sampling
   static const double observabilityAdaptiveSamplingMax = 1.0; // maximum 100% sampling
   static const double observabilityAdaptiveSamplingStep = 0.05; // 5% adjustment step
+
+  // Store Compliance / Support
+  static const String supportEmail = 'intelligence@resultscaleai.com';
+  static const String privacyPolicyUrl = 'https://sectop.resultscaleai.com/privacy';
+  static const String appStoreUrl = 'https://play.google.com/store/apps/details?id=com.dangeremergence.app';
 }

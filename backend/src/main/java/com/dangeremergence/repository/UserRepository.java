@@ -28,5 +28,10 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("SELECT u FROM User u WHERE u.id IN :ids")
     List<User> findByIds(@Param("ids") List<String> ids);
 
+    Optional<User> findByPasswordResetToken(String passwordResetToken);
+
+    @Query("SELECT u FROM User u WHERE u.deletionRequestedAt IS NOT NULL AND u.deletionRequestedAt < :cutoff AND u.deletedAt IS NULL")
+    List<User> findPendingDeletions(@Param("cutoff") LocalDateTime cutoff);
+
     long countByRole(User.UserRole role);
 }

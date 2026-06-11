@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
+import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -201,6 +202,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Account
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Account',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('Delete Account'),
+                  subtitle: const Text('Permanently remove your account and data'),
+                  onTap: () {
+                    Navigator.of(context).pushNamed(AppRoutes.deleteAccount);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Support
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Support',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.support_agent, color: AppTheme.primaryColor),
+                  title: const Text('Contact Support'),
+                  subtitle: Text(AppConstants.supportEmail),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Contact: ${AppConstants.supportEmail}'),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.menu_book, color: AppTheme.primaryColor),
+                  title: const Text('How to Use'),
+                  subtitle: const Text('Learn how to use the app'),
+                  onTap: () {
+                    Navigator.of(context).pushNamed(AppRoutes.howToUse);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.primaryColor),
+                  title: const Text('Privacy Policy'),
+                  onTap: () {
+                    Navigator.of(context).pushNamed(AppRoutes.privacyPolicy);
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
