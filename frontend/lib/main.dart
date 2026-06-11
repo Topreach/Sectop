@@ -40,7 +40,7 @@ void callbackDispatcher() {
 
 /// Global service health monitor — tracks which services are degraded.
 final ServiceHealthNotifier serviceHealth = ServiceHealthNotifier();
-final CrashReporter crashReporter = ConsoleCrashReporter();
+final CrashReporter crashReporter = FileCrashReporter(ConsoleCrashReporter());
 
 /// Helper that wraps a service creation + initialization call in a try-catch.
 /// Catches both synchronous throws AND async (Future) rejections by chaining
@@ -156,17 +156,17 @@ class DangerEmergenceApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: serviceHealth),
 
         // Core Services
-        Provider(create: (_) => safeInit(() => OfflineStorageService()..initialize())),
-        Provider(create: (_) => safeInit(() => SyncManager()..initialize())),
+        Provider(create: (_) => safeInit(() => OfflineStorageService())),
+        Provider(create: (_) => safeInit(() => SyncManager())),
         Provider(create: (_) => safeInit(() => BackendApi())),
-        Provider(create: (_) => safeInit(() => HardwareTriggerService()..initialize())),
+        Provider(create: (_) => safeInit(() => HardwareTriggerService())),
 
         // Module Services (thin clients — heavy logic moved to backend)
-        ChangeNotifierProvider(create: (_) => safeInit(() => AuthService()..initialize())),
-        ChangeNotifierProvider(create: (_) => safeInit(() => SOSService()..initialize())),
-        Provider(create: (_) => safeInit(() => MapService()..initialize())),
-        ChangeNotifierProvider(create: (_) => safeInit(() => SecurityManager.instance..initialize())),
-        ChangeNotifierProvider(create: (_) => safeInit(() => ObservabilityService.instance..initialize())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => AuthService())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => SOSService())),
+        Provider(create: (_) => safeInit(() => MapService())),
+        ChangeNotifierProvider(create: (_) => safeInit(() => SecurityManager.instance)),
+        ChangeNotifierProvider(create: (_) => safeInit(() => ObservabilityService.instance)),
       ],
       child: MaterialApp(
         title: AppConstants.appName,
