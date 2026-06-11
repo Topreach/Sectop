@@ -83,6 +83,13 @@ dependencies:
   # arkit_plugin: ^0.7.0   # Uncomment for iOS AR
   # arcore_plugin: ^0.4.0  # Uncomment for Android AR
 
+# Force compatible versions for record package (record_linux 0.7.2 is incompatible with record_platform_interface 1.6.0)
+dependency_overrides:
+  record_platform_interface: 1.5.0
+  record_linux: 0.6.0
+  record_web: 1.2.0
+  record_darwin: 1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

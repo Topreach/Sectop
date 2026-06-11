@@ -79,7 +79,6 @@ class EvidenceService {
     try {
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
-        maxDuration: Duration(seconds: maxDurationSeconds),
         imageQuality: 85,
       );
       if (photo == null) return null;
@@ -143,7 +142,7 @@ class EvidenceService {
   Future<EvidenceFile?> recordAudio({int durationSeconds = 10}) async {
     try {
       // Check and request microphone permission
-      final hasPermission = await _audioRecorder.hasPermission();
+      final hasPermission = await _audioRecorder.hasPermission(request: true);
       if (!hasPermission) {
         debugPrint('EvidenceService: Microphone permission denied');
         return null;

@@ -607,7 +607,7 @@ class NigeriaLocationService {
     const tolerance = 0.05;
 
     // Search towns first
-    for (final entry in _towns.entries) {
+    for (final entry in townsByState.entries) {
       final stateName = entry.key;
       for (final town in entry.value) {
         final lat = town['latitude'] as double;

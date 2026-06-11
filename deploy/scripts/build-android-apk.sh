@@ -364,6 +364,23 @@ build_apk() {
     log_ok "Workmanager cache cleared"
   fi
 
+  # Remove cached stomp_dart_client to force fresh download (corrupted cache issue)
+  local STOMP_CACHE_DIR="$PUB_CACHE_DIR/hosted/pub.dev/stomp_dart_client-1.0.3"
+  if [ -d "$STOMP_CACHE_DIR" ]; then
+    log_info "Removing cached stomp_dart_client for fresh download..."
+    rm -rf "$STOMP_CACHE_DIR"
+    log_ok "Stomp client cache cleared"
+  fi
+
+  # Remove cached record packages to force fresh download (version mismatch fix)
+  for pkg in record-5.2.1 record_linux-0.7.2 record_platform_interface-1.6.0 record_web-1.3.0 record_darwin-1.2.2; do
+    local PKG_DIR="$PUB_CACHE_DIR/hosted/pub.dev/$pkg"
+    if [ -d "$PKG_DIR" ]; then
+      rm -rf "$PKG_DIR"
+    fi
+  done
+  log_ok "Record package cache cleared"
+
   # Get dependencies
   flutter pub get
 
