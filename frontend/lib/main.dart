@@ -118,16 +118,20 @@ void main() async {
 
     // Initialize Workmanager for background sync (non-web only)
     if (!kIsWeb) {
-      await Workmanager().initialize(callbackDispatcher, isInDebugMode: kDebugMode);
-      await Workmanager().registerPeriodicTask(
-        "periodic-sync-task",
-        "syncTask",
-        frequency: const Duration(minutes: 15),
-        constraints: Constraints(
-          networkType: NetworkType.connected,
-          requiresBatteryNotLow: true,
-        ),
-      );
+      try {
+        await Workmanager().initialize(callbackDispatcher, isInDebugMode: kDebugMode);
+        await Workmanager().registerPeriodicTask(
+          "periodic-sync-task",
+          "syncTask",
+          frequency: const Duration(minutes: 15),
+          constraints: Constraints(
+            networkType: NetworkType.connected,
+            requiresBatteryNotLow: true,
+          ),
+        );
+      } catch (e) {
+        debugPrint('[WorkManager] Initialization failed (non-fatal): $e');
+      }
     }
 
     // Set system UI overlay style
