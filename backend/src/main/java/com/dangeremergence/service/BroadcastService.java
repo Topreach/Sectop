@@ -124,7 +124,7 @@ public class BroadcastService {
                 .longitude(longitude)
                 .radiusKm(radiusKm)
                 .createdBy(creator)
-                .active(true)
+                .isActive(true)
                 .expiresAt(expiresAt)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -169,7 +169,7 @@ public class BroadcastService {
     @Transactional
     public void expireBroadcast(String id) {
         broadcastRepository.findById(id).ifPresent(broadcast -> {
-            broadcast.setIsActive(false);
+            broadcast.setActive(false);
             broadcast.setUpdatedAt(LocalDateTime.now());
             broadcastRepository.save(broadcast);
             log.info("Broadcast expired: {}", id);
