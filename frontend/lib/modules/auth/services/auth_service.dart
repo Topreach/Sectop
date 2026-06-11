@@ -225,6 +225,8 @@ class AuthService extends ChangeNotifier {
 
     _currentUser = updatedProfile;
     notifyListeners();
+  }
+
   /// Get user by ID from local storage.
   Future<UserProfile?> getUserById(String userId) async {
     final data = await _storage.getById('users', userId);
@@ -311,8 +313,6 @@ class AuthService extends ChangeNotifier {
       debugPrint('deleteAccount error: $e');
       return AuthResult.failure('Failed to delete account. Try again later.');
     }
-  }
-}
   }
 }
 
