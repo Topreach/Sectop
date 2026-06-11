@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/widgets/nigeria_location_picker.dart';
 
 /// Screen to submit an anonymous tip-off / intelligence report.
 class TipOffScreen extends StatefulWidget {
@@ -15,20 +16,21 @@ class _TipOffScreenState extends State<TipOffScreen> {
   final _descriptionController = TextEditingController();
   final _targetController = TextEditingController();
   final _suspectController = TextEditingController();
-  final _latController = TextEditingController();
-  final _lngController = TextEditingController();
 
   String _tipType = 'suspicious_person';
   bool _isAnonymous = true;
   bool _isSubmitting = false;
+
+  // Location state (from NigeriaLocationPicker)
+  double? _latitude;
+  double? _longitude;
+  String? _locationName;
 
   @override
   void dispose() {
     _descriptionController.dispose();
     _targetController.dispose();
     _suspectController.dispose();
-    _latController.dispose();
-    _lngController.dispose();
     super.dispose();
   }
 
@@ -44,8 +46,8 @@ class _TipOffScreenState extends State<TipOffScreen> {
             ? null : _targetController.text.trim(),
         'suspectDescription': _suspectController.text.trim().isEmpty
             ? null : _suspectController.text.trim(),
-        'latitude': double.tryParse(_latController.text),
-        'longitude': double.tryParse(_lngController.text),
+        'latitude': _latitude,
+        'longitude': _longitude,
         'anonymous': _isAnonymous,
       });
 
@@ -165,34 +167,15 @@ class _TipOffScreenState extends State<TipOffScreen> {
               ),
               const SizedBox(height: 16),
 
-              const Text('Location (optional)', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _latController,
-                      decoration: const InputDecoration(
-                        labelText: 'Latitude',
-                        border: OutlineInputBorder(),
-                        hintText: '9.0765',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _lngController,
-                      decoration: const InputDecoration(
-                        labelText: 'Longitude',
-                        border: OutlineInputBorder(),
-                        hintText: '7.3986',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                ],
+              NigeriaLocationPicker(
+                label: 'Location (optional)',
+                onLocationSelected: (lat, lng, name) {
+                  setState(() {
+                    _latitude = lat;
+                    _longitude = lng;
+                    _locationName = name;
+                  });
+                },
               ),
               const SizedBox(height: 16),
 

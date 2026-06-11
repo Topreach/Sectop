@@ -5,6 +5,8 @@ import 'package:uuid/uuid.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../shared/services/nigeria_location_service.dart';
+import '../../../shared/widgets/nigeria_location_picker.dart';
 import '../../incidents/services/incident_service.dart';
 import '../../maps/services/map_service.dart';
 
@@ -24,8 +26,10 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
   String _severity = 'high';
   double? _latitude;
   double? _longitude;
+  String? _locationName;
   bool _isSubmitting = false;
   bool _isAnonymous = false;
+  bool _useManualLocation = false;
 
   /// Nigeria-specific incident types for insecurity tracking.
   final List<Map<String, dynamic>> _incidentTypes = [
@@ -68,6 +72,12 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
         setState(() {
           _latitude = position.latitude;
           _longitude = position.longitude;
+          // Try to resolve GPS coordinates to a location name
+          final resolved = NigeriaLocationService.searchByCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+          _locationName = resolved?['displayName'] as String?;
         });
       }
     } catch (e) {
@@ -389,49 +399,122 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Location Card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _latitude != null ? Icons.my_location : Icons.location_off,
-                        color: _latitude != null ? Colors.green : Colors.orange,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              // Location Section
+              if (!_useManualLocation) ...[
+                // Auto-detected GPS Location Card
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
+                            Icon(
+                              _latitude != null ? Icons.my_location : Icons.location_off,
+                              color: _latitude != null ? Colors.green : Colors.orange,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
                             Text(
-                              'Location',
+                              'Your Current Location',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color: Colors.grey[800],
+                                fontSize: 14,
                               ),
                             ),
-                            Text(
-                              _latitude != null
-                                  ? '${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'
-                                  : 'Unable to get location',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                            const Spacer(),
+                            if (_latitude != null)
+                              GestureDetector(
+                                onTap: () => setState(() => _useManualLocation = true),
+                                child: Text(
+                                  'Change',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
-                            ),
                           ],
                         ),
-                      ),
-                      if (_latitude == null)
-                        TextButton(
-                          onPressed: _loadLocation,
-                          child: const Text('Retry'),
+                        const SizedBox(height: 8),
+                        // Show resolved location name if available
+                        if (_locationName != null)
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.location_on, size: 16, color: Colors.green[700]),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _locationName!,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.green[800],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _latitude != null
+                              ? 'GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'
+                              : 'Unable to get location. Enable GPS.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                    ],
+                        if (_latitude == null)
+                          TextButton(
+                            onPressed: _loadLocation,
+                            child: const Text('Retry GPS'),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ] else
+                NigeriaLocationPicker(
+                  label: 'Select Location',
+                  initialLatitude: _latitude,
+                  initialLongitude: _longitude,
+                  onLocationSelected: (lat, lng, name) {
+                    setState(() {
+                      _latitude = lat;
+                      _longitude = lng;
+                      _locationName = name;
+                    });
+                  },
+                ),
+              if (_useManualLocation)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _useManualLocation = false);
+                      _loadLocation();
+                    },
+                    child: Text(
+                      'Use GPS location instead',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue[600],
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
 
               // Safety tips card
