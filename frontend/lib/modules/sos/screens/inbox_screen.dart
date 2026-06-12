@@ -338,13 +338,13 @@ class _MessagesTabState extends State<_MessagesTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    if (widget.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
     return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: messages.isEmpty
+      onRefresh: widget.onRefresh,
+      child: widget.messages.isEmpty
           ? ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -358,19 +358,19 @@ class _MessagesTabState extends State<_MessagesTab> {
                     children: [
                       Icon(Icons.message_outlined,
                           size: 48,
-                          color: isOffline ? Colors.orange : Colors.grey),
+                          color: widget.isOffline ? Colors.orange : Colors.grey),
                       const SizedBox(height: 12),
                       Text(
-                        isOffline ? 'Offline' : 'No messages yet',
+                        widget.isOffline ? 'Offline' : 'No messages yet',
                         style: TextStyle(
                           fontSize: 16,
-                          color: isOffline ? Colors.orange : Colors.grey,
+                          color: widget.isOffline ? Colors.orange : Colors.grey,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isOffline
+                        widget.isOffline
                             ? 'Connect to the internet to load messages'
                             : 'Messages from responders and peers will appear here',
                         textAlign: TextAlign.center,
@@ -383,14 +383,14 @@ class _MessagesTabState extends State<_MessagesTab> {
             )
           : ListView.separated(
               padding: const EdgeInsets.all(8),
-              itemCount: messages.length,
+              itemCount: widget.messages.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final msg = messages[index];
+                final msg = widget.messages[index];
                 final isRead = msg['read_at'] != null;
                 final content = msg['content'] as String? ?? '';
                 final senderId = msg['sender_id'] as String? ?? 'Unknown';
-                final timestamp = formatTimestamp(msg['created_at']);
+                final timestamp = widget.formatTimestamp(msg['created_at']);
 
                 return Dismissible(
                   key: Key(msg['id'] as String),
@@ -424,7 +424,7 @@ class _MessagesTabState extends State<_MessagesTab> {
                       ),
                     );
                   },
-                  onDismissed: (_) => onDelete(msg['id'] as String),
+                  onDismissed: (_) => widget.onDelete(msg['id'] as String),
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor:
@@ -514,9 +514,9 @@ class _MessagesTabState extends State<_MessagesTab> {
                                   ),
                                 ],
                               ),
-                            );
                             if (confirmed == true) {
-                              onDelete(msg['id'] as String);
+                              widget.onDelete(msg['id'] as String);
+                            }
                             }
                           },
                         ),
@@ -524,7 +524,7 @@ class _MessagesTabState extends State<_MessagesTab> {
                     ),
                     onTap: () {
                       if (!isRead) {
-                        onMarkRead(msg['id'] as String);
+                        widget.onMarkRead(msg['id'] as String);
                       }
                       _showMessageDetail(context, msg, widget.formatTimestamp, widget.onDelete);
                     },

@@ -64,6 +64,7 @@ class ProfileScreen extends StatelessWidget {
             }),
             _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
               _showPrivacySecurityDialog(context);
+            }),
             _ProfileOption(Icons.info_outline, 'About', () {
               _showAboutDialog(context);
             }),

@@ -57,7 +57,6 @@ class DistressDetector extends ChangeNotifier {
   }
 
   /// Analyze audio — delegates to backend.
-  /// Analyze audio — delegates to backend.
   Future<AudioAnalysisResult> analyzeAudio(String base64Audio) async {
     try {
       final result = await _api.analyzeAudio(base64Audio);
@@ -77,6 +76,7 @@ class DistressDetector extends ChangeNotifier {
       );
     }
   }
+}
 
 /// Result of a distress analysis.
 class DistressResult {

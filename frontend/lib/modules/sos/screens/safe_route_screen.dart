@@ -397,9 +397,8 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.dangeremergence.app',
-            ),
             // Route polylines with color-coded segments
-            PolylineLayer(
+            PolylineLayer<Object>(
               polylines: [
                 // Draw each segment with its danger color
                 for (int i = 0; i < routePoints.length - 1; i++)
@@ -409,9 +408,9 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
                         ? segmentColors[i]
                         : Colors.grey,
                     strokeWidth: 5,
-                    isDotted: false,
                   ),
               ],
+            ),
             ),
             // Start marker
             MarkerLayer(
