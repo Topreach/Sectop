@@ -60,3 +60,4 @@ Thumbs.db
 # Terraform
 terraform/.terraform/
 terraform/terraform.tfstate*
+.aab  
