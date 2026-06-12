@@ -201,7 +201,6 @@ supportedLocales: const [
 localizationsDelegates: const [
   AppLocalizations.delegate,
 ],
-        ],
 
         // Performance & Responsive Layout + Degraded Mode Banner
         builder: (context, child) {

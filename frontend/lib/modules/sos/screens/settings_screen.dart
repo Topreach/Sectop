@@ -98,7 +98,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-  }
 
   Future<void> _saveNotificationSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
