@@ -86,6 +86,11 @@ class _PermissionScreenState extends State<PermissionScreen> {
     }
   }
 
+  /// Skip login and use the app as a guest (no account required).
+  void _skipLogin() {
+    Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,6 +221,17 @@ class _PermissionScreenState extends State<PermissionScreen> {
                   child: Text(
                     'Set up later',
                     style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: _skipLogin,
+                  icon: const Icon(Icons.person_outline, size: 18),
+                  label: const Text('Skip Login — Use as Guest'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[500],
                   ),
                 ),
               ),

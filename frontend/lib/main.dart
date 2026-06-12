@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 import 'core/constants.dart';
+import 'core/localization.dart';
 import 'core/themes.dart';
 import 'core/routes.dart';
 import 'shared/services/offline_storage.dart';
@@ -187,13 +188,19 @@ class DangerEmergenceApp extends StatelessWidget {
         // Routing
         initialRoute: AppRoutes.splash,
         onGenerateRoute: AppRoutes.generateRoute,
-
-        // Localization
-        locale: const Locale('en', 'US'),
-        supportedLocales: const [
-          Locale('en', 'US'),
-          Locale('es', 'ES'),
-          Locale('fr', 'FR'),
+// Localization
+locale: const Locale('en', 'US'),
+supportedLocales: const [
+  Locale('en', 'US'),
+  Locale('yo', 'NG'),
+  Locale('ig', 'NG'),
+  Locale('ha', 'NG'),
+  Locale('es', 'ES'),
+  Locale('fr', 'FR'),
+],
+localizationsDelegates: const [
+  AppLocalizations.delegate,
+],
         ],
 
         // Performance & Responsive Layout + Degraded Mode Banner

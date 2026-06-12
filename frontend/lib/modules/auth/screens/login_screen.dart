@@ -370,6 +370,37 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.grey[500],
                     ),
                   ),
+                  const SizedBox(height: 8),
+
+                  // Skip login — use as guest
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+                            },
+                      icon: const Icon(Icons.person_outline, size: 20),
+                      label: const Text('Skip Login — Use as Guest'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey,
+                        side: const BorderSide(color: Colors.grey),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Browse broadcasts, view safe zones, and access emergency info without an account',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   // Footer links

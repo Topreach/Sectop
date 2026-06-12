@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
+import '../../../core/localization.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 
@@ -10,13 +11,20 @@ class SettingsScreen extends StatefulWidget {
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
-
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   ThemeMode _themeMode = ThemeMode.system;
   bool _dataSaverMode = false;
   bool _autoDownloadMaps = true;
   double _cacheSize = 0;
+  String _selectedLanguage = 'en';
+
+  static const Map<String, String> _languages = {
+    'en': 'English',
+    'yo': 'Yoruba (Èdè Yorùbá)',
+    'ig': 'Igbo (Asụsụ Igbo)',
+    'ha': 'Hausa (Harshen Hausa)',
+  };
 
   @override
   void initState() {
@@ -33,7 +41,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _dataSaverMode = prefs.getBool('data_saver_mode') ?? false;
       _autoDownloadMaps = prefs.getBool('auto_download_maps') ?? true;
       _cacheSize = prefs.getDouble('cache_size') ?? 0;
+      _selectedLanguage = prefs.getString('app_language') ?? 'en';
     });
+  }
+
+  Future<void> _changeLanguage(String languageCode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_language', languageCode);
+    setState(() => _selectedLanguage = languageCode);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Language changed to ${_languages[languageCode]}')),
+      );
+    }
+  }
+
+  Future<void> _deleteLocalData() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Local Data'),
+        content: const Text(
+          'This will delete all locally stored messages, cached data, and preferences. '
+          'Your account (if any) will NOT be affected. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      setState(() {
+        _cacheSize = 0;
+        _notificationsEnabled = true;
+        _themeMode = ThemeMode.system;
+        _dataSaverMode = false;
+        _autoDownloadMaps = true;
+        _selectedLanguage = 'en';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Local data deleted successfully')),
+        );
+      }
+    }
+  }
   }
 
   Future<void> _saveNotificationSetting(bool value) async {
@@ -144,6 +207,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
+          // Language
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Language',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ..._languages.entries.map((entry) => RadioListTile<String>(
+                  title: Text(entry.value),
+                  value: entry.key,
+                  groupValue: _selectedLanguage,
+                  onChanged: (value) => _changeLanguage(value!),
+                  activeColor: AppTheme.primaryColor,
+                  dense: true,
+                )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Data Usage
           Card(
             child: Column(
@@ -202,6 +290,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Data Management
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Data Management',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined, color: Colors.orange),
+                  title: const Text('Delete Local Data'),
+                  subtitle: const Text('Clear messages, cache, and preferences (keeps account)'),
+                  onTap: _deleteLocalData,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),

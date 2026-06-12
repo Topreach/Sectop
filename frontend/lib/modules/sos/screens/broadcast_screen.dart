@@ -33,10 +33,20 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
         _error = null;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Failed to load broadcasts: $e';
-      });
+      final errorStr = e.toString();
+      // Treat 401/403 as "not authenticated" — show empty state instead of error
+      if (errorStr.contains('401') || errorStr.contains('403') || errorStr.contains('Unauthorized') || errorStr.contains('Forbidden')) {
+        setState(() {
+          _broadcasts = [];
+          _isLoading = false;
+          _error = null;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _error = 'Failed to load broadcasts: $e';
+        });
+      }
     }
   }
 
