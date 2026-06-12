@@ -42,13 +42,30 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        // Validate required fields
+        if (request.getName() == null || request.getName().isBlank()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Name is required");
+            return ResponseEntity.badRequest().body(error);
+        }
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Email is required");
+            return ResponseEntity.badRequest().body(error);
+        }
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Password is required");
+            return ResponseEntity.badRequest().body(error);
+        }
+
         if (userService.emailExists(request.getEmail())) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Email already registered");
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
         }
 
-        if (userService.phoneExists(request.getPhone())) {
+        if (request.getPhone() != null && !request.getPhone().isBlank() && userService.phoneExists(request.getPhone())) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Phone number already registered");
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
