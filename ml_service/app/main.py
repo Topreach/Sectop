@@ -176,29 +176,112 @@ def _load_model():
 
 
 def _rule_based_prioritize(text: str) -> tuple:
-    """Rule-based fallback prioritization when model is not available."""
+    """Rule-based fallback prioritization when model is not available.
+    
+    Includes Nigerian language keywords (Hausa/Fulani, Yoruba, Igbo)
+    for regional threat detection context.
+    """
     text_lower = text.lower()
     score = 0
     
-    # Critical keywords
+    # Critical keywords (English)
     critical_keywords = [
         "help", "sos", "emergency", "fire", "trapped", "bleeding",
         "heart attack", "stroke", "gunshot", "collapse", "unconscious",
         "not breathing", "severe", "critical", "dying",
     ]
     
-    # High priority keywords
+    # High priority keywords (English)
     high_keywords = [
         "injured", "accident", "danger", "flood", "earthquake",
         "hurt", "pain", "broken", "burn", "smoke",
     ]
     
-    # Medium priority keywords
+    # Medium priority keywords (English)
     medium_keywords = [
         "need", "require", "assist", "unsafe",
         "warning", "caution", "alert",
     ]
     
+    # --- Nigerian Language Keywords ---
+    # Hausa/Fulani critical threat keywords
+    hausa_critical = [
+        "garkuwa",     # kidnapping
+        "bindiga",     # gun
+        "ta'addanci",  # terrorism
+        "harbi",       # shoot
+        "kashe",       # kill
+        "bom",         # bomb
+        "fijo",        # attack (Fulfulde)
+        "'yan fashi",  # bandits
+        "'yan ta'adda",# terrorists
+        "maharbi",     # shooter
+    ]
+    
+    # Hausa/Fulani high priority keywords
+    hausa_high = [
+        "yaki",        # war
+        "fashi",       # robbery
+        "wuta",        # fire
+        "makami",      # weapon
+        "mahaukata",   # mad ones
+        "suna zuwa",   # they are coming
+        "fulani",      # fulani mention
+        "nyifta",      # hide (Fulfulde)
+        "war",         # war (Fulfulde)
+    ]
+    
+    # Hausa medium priority keywords
+    hausa_medium = [
+        "taimako",     # help
+        "a gudu",      # run away
+        "dare",        # night
+        "doki",        # horse
+        "ballal",      # help (Fulfulde)
+        "nyaw",        # sickness (Fulfulde)
+    ]
+    
+    # Yoruba keywords
+    yoruba_critical = [
+        "gbigbe",      # kidnapping
+        "ibon",        # gun
+        "ikọlu",       # attack
+        "apaniyan",    # murder
+    ]
+    
+    yoruba_high = [
+        "panumopa",    # emergency
+        "ina",         # fire
+        "ologun",      # warrior
+        "ipalara",     # injury
+    ]
+    
+    yoruba_medium = [
+        "iranlowo",    # help
+        "sare",        # run
+    ]
+    
+    # Igbo keywords
+    igbo_critical = [
+        "atogboro",    # kidnapping
+        "nkwatogbo",   # terrorism
+        "egbe",        # gun
+        "igbu",        # kill
+        "nwakpọrọ",    # kidnapper
+    ]
+    
+    igbo_high = [
+        "ogu",         # war
+        "oku",         # fire
+        "ndi ọjọọ",   # evil ones
+    ]
+    
+    igbo_medium = [
+        "enyemaka",    # help
+        "oso",         # run
+    ]
+    
+    # Score English keywords
     for kw in critical_keywords:
         if kw in text_lower:
             score += 3
@@ -211,11 +294,52 @@ def _rule_based_prioritize(text: str) -> tuple:
         if kw in text_lower:
             score += 1
     
+    # Score Hausa/Fulani keywords
+    for kw in hausa_critical:
+        if kw in text_lower:
+            score += 3
+    
+    for kw in hausa_high:
+        if kw in text_lower:
+            score += 2
+    
+    for kw in hausa_medium:
+        if kw in text_lower:
+            score += 1
+    
+    # Score Yoruba keywords
+    for kw in yoruba_critical:
+        if kw in text_lower:
+            score += 3
+    
+    for kw in yoruba_high:
+        if kw in text_lower:
+            score += 2
+    
+    for kw in yoruba_medium:
+        if kw in text_lower:
+            score += 1
+    
+    # Score Igbo keywords
+    for kw in igbo_critical:
+        if kw in text_lower:
+            score += 3
+    
+    for kw in igbo_high:
+        if kw in text_lower:
+            score += 2
+    
+    for kw in igbo_medium:
+        if kw in text_lower:
+            score += 1
+    
+    # Urgency modifiers
     if "urgent" in text_lower or "immediately" in text_lower:
         score += 2
     if "please" in text_lower or "asap" in text_lower:
         score += 1
     
+    # Exclamation marks
     exclamation_count = text.count("!")
     if exclamation_count >= 3:
         score += 1

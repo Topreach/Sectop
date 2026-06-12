@@ -166,14 +166,13 @@ public class AIController {
     @PostMapping("/analyze-audio")
     public ResponseEntity<Map<String, Object>> analyzeAudio(@RequestBody Map<String, Object> request) {
         String base64Audio = (String) request.getOrDefault("audio", "");
+        String transcript = (String) request.getOrDefault("transcript", ""); // Optional speech-to-text transcript
 
         if (base64Audio.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "audio data is required"));
         }
 
         try {
-            // In a real scenario, we would use a library like TarsosDSP or a JNI bridge to a C++ ML model.
-            // Here we perform a simple energy-based distress detection placeholder.
             byte[] audioData = Base64.getDecoder().decode(base64Audio);
             
             // Calculate RMS (Root Mean Square) energy of the audio signal
@@ -184,16 +183,108 @@ public class AIController {
             double rms = Math.sqrt(sum / audioData.length);
             
             // Distress signals (screams, whistles) are typically high energy and high frequency.
-            // This is a simplified heuristic:
-            boolean possibleDistress = rms > 40.0; // Arbitrary threshold for "loud"
+            boolean possibleDistress = rms > 40.0;
             double confidence = Math.min(rms / 100.0, 0.95);
 
+            // --- Hausa/Fulani Audio Keyword Spotting ---
+            // If a transcript is provided (from on-device or server-side STT), scan it for threat keywords
+            List<String> audioThreatReasons = new ArrayList<>();
+            int audioThreatScore = 0;
+            boolean fulaniDialectDetected = false;
+
+            if (transcript != null && !transcript.isBlank()) {
+                String lowerTranscript = transcript.toLowerCase();
+
+                // Hausa/Fulani threat keywords commonly used by bandits/terrorists
+                String[][] hausaFulaniKeywords = {
+                    // Fulani/Hausa banditry & terrorism keywords
+                    {"fulani", "fulani_mention", "3"},
+                    {"bindiga", "gun_ha_audio", "3"},
+                    {"harbi", "shoot_ha_audio", "4"},
+                    {"kashe", "kill_ha_audio", "4"},
+                    {"ta'addanci", "terrorism_ha_audio", "4"},
+                    {"yaki", "war_ha_audio", "3"},
+                    {"gani", "see_ha_audio", "1"},
+                    {"garkuwa", "kidnapping_ha_audio", "4"},
+                    {"fashi", "robbery_ha_audio", "3"},
+                    {"bom", "bomb_ha_audio", "4"},
+                    {"wuta", "fire_ha_audio", "3"},
+                    {"makami", "weapon_ha_audio", "3"},
+                    {"maharbi", "shooter_ha_audio", "4"},
+                    {"barawon", "thief_ha_audio", "2"},
+                    {"'yan fashi", "bandits_ha_audio", "4"},
+                    {"'yan ta'adda", "terrorists_ha_audio", "4"},
+                    {"doki", "horse_ha_audio", "2"},  // bandits often use horses
+                    {"dare", "night_ha_audio", "2"},   // night attacks
+                    {"mahaukata", "mad_ones_ha_audio", "3"},
+                    {"suna zuwa", "they_are_coming_ha_audio", "3"},
+                    {"a gudu", "run_away_ha_audio", "2"},
+                    {"taimako", "help_ha_audio", "2"},
+                    // Fulfulde/Fulani specific
+                    {"ballal", "help_ful_audio", "2"},
+                    {"war", "war_ful_audio", "3"},
+                    {"maayo", "river_ful_audio", "1"},
+                    {"nyifta", "hide_ful_audio", "2"},
+                    {"dembal", "tomorrow_ful_audio", "1"},
+                    {"fijo", "attack_ful_audio", "4"},
+                    {"jam", "peace_ful_audio", "1"},
+                    {"nyaw", "sickness_ful_audio", "2"},
+                };
+
+                for (String[] kw : hausaFulaniKeywords) {
+                    if (lowerTranscript.contains(kw[0])) {
+                        audioThreatScore += Integer.parseInt(kw[2]);
+                        audioThreatReasons.add("audio_kw_" + kw[1]);
+                        if (kw[0].equals("fulani") || kw[0].equals("'yan fashi") || kw[0].equals("'yan ta'adda")) {
+                            fulaniDialectDetected = true;
+                        }
+                    }
+                }
+
+                // Also scan for English threat keywords in transcript
+                String[] englishAudioThreats = {"help", "emergency", "gun", "shoot", "kill", "attack",
+                        "terrorist", "kidnap", "hostage", "bomb", "run", "danger", "hide"};
+                for (String kw : englishAudioThreats) {
+                    if (lowerTranscript.contains(kw)) {
+                        audioThreatScore += 2;
+                        audioThreatReasons.add("audio_kw_en_" + kw);
+                    }
+                }
+            }
+
+            // Combine energy analysis with keyword analysis
+            boolean hasThreat = possibleDistress || audioThreatScore >= 3;
+            double combinedConfidence;
+            if (audioThreatScore >= 6) {
+                combinedConfidence = Math.min(0.98, 0.5 + (audioThreatScore / 10.0));
+            } else if (possibleDistress) {
+                combinedConfidence = confidence;
+            } else {
+                combinedConfidence = Math.min(0.5, audioThreatScore / 10.0);
+            }
+
+            String threatLevel;
+            if (audioThreatScore >= 6 || (possibleDistress && audioThreatScore >= 3)) {
+                threatLevel = "critical";
+            } else if (audioThreatScore >= 3 || possibleDistress) {
+                threatLevel = "high";
+            } else if (audioThreatScore >= 1) {
+                threatLevel = "medium";
+            } else {
+                threatLevel = "low";
+            }
+
             Map<String, Object> result = new HashMap<>();
-            result.put("hasDistress", possibleDistress);
-            result.put("confidence", possibleDistress ? confidence : 0.1);
+            result.put("hasDistress", hasThreat);
+            result.put("threatLevel", threatLevel);
+            result.put("confidence", combinedConfidence);
             result.put("rmsEnergy", rms);
-            result.put("method", "heuristic_energy_analysis");
-            result.put("message", possibleDistress ? "High energy audio event detected" : "Ambient audio level");
+            result.put("method", audioThreatScore > 0 ? "hybrid_energy_keyword_analysis" : "heuristic_energy_analysis");
+            result.put("message", hasThreat ? "Threat detected in audio" : "No threat detected");
+            result.put("audioThreatScore", audioThreatScore);
+            result.put("audioThreatReasons", audioThreatReasons);
+            result.put("fulaniDialectDetected", fulaniDialectDetected);
+            result.put("hasTranscript", transcript != null && !transcript.isBlank());
 
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -215,7 +306,7 @@ public class AIController {
         // --- Regional Keywords (Nigeria Context) ---
         // Format: {Keyword, Description, Score}
         String[][] regionalKeywords = {
-            // Hausa
+            // Hausa (expanded with Fulani banditry/terrorism keywords)
             {"garkuwa", "kidnapping_ha", "4"},
             {"bindiga", "gun_ha", "3"},
             {"bom", "bomb_ha", "4"},
@@ -223,16 +314,47 @@ public class AIController {
             {"yaki", "war_ha", "3"},
             {"fashi", "robbery_ha", "3"},
             {"taimako", "help_ha", "2"},
+            {"harbi", "shoot_ha", "4"},
+            {"kashe", "kill_ha", "4"},
+            {"makami", "weapon_ha", "3"},
+            {"maharbi", "shooter_ha", "4"},
+            {"wuta", "fire_ha", "3"},
+            {"'yan fashi", "bandits_ha", "4"},
+            {"'yan ta'adda", "terrorists_ha", "4"},
+            {"doki", "horse_ha", "2"},
+            {"dare", "night_ha", "2"},
+            {"suna zuwa", "they_are_coming_ha", "3"},
+            {"a gudu", "run_away_ha", "2"},
+            {"mahaukata", "mad_ones_ha", "3"},
+            // Fulfulde (Fulani language) specific
+            {"fulani", "fulani_mention", "3"},
+            {"ballal", "help_ful", "2"},
+            {"fijo", "attack_ful", "4"},
+            {"nyifta", "hide_ful", "2"},
+            {"war", "war_ful", "3"},
+            {"nyaw", "sickness_ful", "2"},
             // Yoruba
             {"gbigbe", "kidnapping_yo", "4"},
             {"ibon", "gun_yo", "3"},
             {"panumopa", "emergency_yo", "3"},
             {"iranlowo", "help_yo", "2"},
+            {"ikọlu", "attack_yo", "4"},
+            {"apaniyan", "murder_yo", "4"},
+            {"ina", "fire_yo", "3"},
+            {"sare", "run_yo", "2"},
+            {"ologun", "warrior_yo", "3"},
+            {"ipalara", "injury_yo", "2"},
             // Igbo
             {"atogboro", "kidnapping_ig", "4"},
             {"nkwatogbo", "terrorism_ig", "4"},
             {"egbe", "gun_ig", "3"},
-            {"enyemaka", "help_ig", "2"}
+            {"enyemaka", "help_ig", "2"},
+            {"ogu", "war_ig", "3"},
+            {"igbu", "kill_ig", "4"},
+            {"oku", "fire_ig", "3"},
+            {"oso", "run_ig", "2"},
+            {"nwakpọrọ", "kidnapper_ig", "4"},
+            {"ndi ọjọọ", "evil_ones_ig", "3"}
         };
 
         for (String[] kw : regionalKeywords) {
