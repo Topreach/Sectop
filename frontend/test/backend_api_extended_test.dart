@@ -606,6 +606,9 @@ void main() {
     });
 
     test('circuit breaker opens after 5 failures', () async {
+      // Disable retries for this test to avoid timeout from exponential backoff
+      api.setRetryCount(1);
+
       mockClient = MockClient((request) async {
         return http.Response('Server Error', 500);
       });
@@ -632,6 +635,9 @@ void main() {
     });
 
     test('circuit breaker resets after resetCircuitBreaker', () async {
+      // Disable retries for this test to avoid timeout from exponential backoff
+      api.setRetryCount(1);
+
       // First open the circuit
       mockClient = MockClient((request) async {
         return http.Response('Server Error', 500);

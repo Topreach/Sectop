@@ -40,6 +40,10 @@ class BackendApi {
   @visibleForTesting
   bool isCircuitOpen() => _circuitState == CircuitState.open;
 
+  @visibleForTesting
+  void setRetryCount(int count) => _retryCount = count;
+
+  int _retryCount = AppConstants.apiRetryCount;
   CircuitState _circuitState = CircuitState.closed;
   int _consecutiveFailures = 0;
   static const int _failureThreshold = 5;
@@ -72,9 +76,9 @@ class BackendApi {
         return await request();
       } catch (e) {
         attempt++;
-        if (attempt >= AppConstants.apiRetryCount) rethrow;
+        if (attempt >= _retryCount) rethrow;
         final delay = Duration(seconds: min(pow(2, attempt).toInt(), 10));
-        debugPrint('BackendApi: Retry $attempt/${AppConstants.apiRetryCount} after $delay: $e');
+        debugPrint('BackendApi: Retry $attempt/$_retryCount after $delay: $e');
         await Future.delayed(delay);
       }
     }
