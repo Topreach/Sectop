@@ -18,7 +18,7 @@ class AppLocalizations {
 
   static const Map<String, Map<String, String>> _localizedStrings = {
     'en': {
-      'app_name': 'Danger Emergence',
+      'app_name': 'Sectop',
       'send_sos': 'SEND SOS',
       'tap_emergency': 'Tap for emergency alert',
       'quick_actions': 'Quick Actions',

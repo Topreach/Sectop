@@ -110,7 +110,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           // Footer
           Center(
             child: Text(
-              'Danger Emergence v${AppConstants.appVersion}',
+              'Sectop v${AppConstants.appVersion}',
               style: TextStyle(color: Colors.grey[500], fontSize: 12),
             ),
           ),

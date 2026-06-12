@@ -112,7 +112,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Danger Emergence requires the following permissions to ensure your safety in critical scenarios.',
+                'Sectop requires the following permissions to ensure your safety in critical scenarios.',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[600],

@@ -1,9 +1,9 @@
-/// Application-wide constants for the Danger Emergence System.
+/// Application-wide constants for the Sectop System.
 class AppConstants {
   AppConstants._();
 
   // Application Info
-  static const String appName = 'Danger Emergence';
+  static const String appName = 'Sectop';
   static const String appVersion = '1.0.0';
   static const String packageName = 'com.dangeremergence.app';
 

@@ -85,7 +85,7 @@ class _DashboardHome extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Danger Emergence'),
+        title: const Text('Sectop'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -871,7 +871,7 @@ class _ProfileView extends StatelessWidget {
   void _showAboutDialog(BuildContext context) {
     showAboutDialog(
       context: context,
-      applicationName: 'Danger Emergence',
+      applicationName: 'Sectop',
       applicationVersion: '1.0.0 (Nigeria Edition)',
       applicationIcon: const Icon(Icons.security, color: AppTheme.primaryColor, size: 48),
       children: [

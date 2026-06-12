@@ -20,7 +20,7 @@ class HowToUseScreen extends StatelessWidget {
           // Welcome
           _sectionCard(
             icon: Icons.waving_hand,
-            title: 'Welcome to Danger Emergence',
+            title: 'Welcome to Sectop',
             description:
                 'This guide will help you understand how to use the app effectively '
                 'for your safety and to assist others during emergencies.',
@@ -206,7 +206,7 @@ class HowToUseScreen extends StatelessWidget {
           // Footer
           Center(
             child: Text(
-              'Danger Emergence v${AppConstants.appVersion}',
+              'Sectop v${AppConstants.appVersion}',
               style: TextStyle(color: Colors.grey[500], fontSize: 12),
             ),
           ),
