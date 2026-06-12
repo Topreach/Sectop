@@ -30,10 +30,30 @@ public class AIController {
     @Value("${ml.service.url:http://ml-service:8000}")
     private String mlServiceUrl;
 
+    @Value("${ml.service.api-key:}")
+    private String mlApiKey;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    /** Priority label strings indexed by ML service integer priority (0-3). */
+    private static final String[] PRIORITY_LABELS = {"low", "medium", "high", "critical"};
+
+    /**
+     * Build an HttpRequest with optional ML API key auth header.
+     */
+    private HttpRequest.Builder mlRequestBuilder(String path) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(mlServiceUrl + path))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(10));
+        if (mlApiKey != null && !mlApiKey.isBlank()) {
+            builder.header("Authorization", "ApiKey " + mlApiKey);
+        }
+        return builder;
+    }
 
     @PostMapping("/analyze-message")
     public ResponseEntity<Map<String, Object>> analyzeMessage(@RequestBody Map<String, Object> request) {
@@ -51,11 +71,8 @@ public class AIController {
             mlRequest.put("user_id", userId);
 
             String mlJson = objectMapper.writeValueAsString(mlRequest);
-            HttpRequest mlHttpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(mlServiceUrl + "/api/v1/prioritize"))
-                    .header("Content-Type", "application/json")
+            HttpRequest mlHttpRequest = mlRequestBuilder("/api/v1/prioritize")
                     .POST(HttpRequest.BodyPublishers.ofString(mlJson))
-                    .timeout(Duration.ofSeconds(10))
                     .build();
 
             HttpResponse<String> mlResponse = httpClient.send(mlHttpRequest, HttpResponse.BodyHandlers.ofString());
@@ -63,7 +80,12 @@ public class AIController {
             if (mlResponse.statusCode() == 200) {
                 JsonNode mlResult = objectMapper.readTree(mlResponse.body());
                 Map<String, Object> result = new HashMap<>();
-                result.put("priority", mlResult.has("priority") ? mlResult.get("priority").asText() : "low");
+
+                // ML service returns priority as int (0-3), map to string label
+                int priorityInt = mlResult.has("priority") ? mlResult.get("priority").asInt(0) : 0;
+                String priorityStr = (priorityInt >= 0 && priorityInt < PRIORITY_LABELS.length)
+                        ? PRIORITY_LABELS[priorityInt] : "low";
+                result.put("priority", priorityStr);
                 result.put("confidence", mlResult.has("confidence") ? mlResult.get("confidence").asDouble() : 0.0);
                 result.put("label", mlResult.has("label") ? mlResult.get("label").asText() : "unknown");
                 result.put("method", "ml_service");
@@ -96,19 +118,19 @@ public class AIController {
 
         try {
             String mlJson = objectMapper.writeValueAsString(Map.of("text", text));
-            HttpRequest mlHttpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(mlServiceUrl + "/api/v1/prioritize"))
-                    .header("Content-Type", "application/json")
+            HttpRequest mlHttpRequest = mlRequestBuilder("/api/v1/prioritize")
                     .POST(HttpRequest.BodyPublishers.ofString(mlJson))
-                    .timeout(Duration.ofSeconds(10))
                     .build();
 
             HttpResponse<String> mlResponse = httpClient.send(mlHttpRequest, HttpResponse.BodyHandlers.ofString());
 
             if (mlResponse.statusCode() == 200) {
                 JsonNode result = objectMapper.readTree(mlResponse.body());
+                int priorityInt = result.has("priority") ? result.get("priority").asInt(0) : 0;
+                String priorityStr = (priorityInt >= 0 && priorityInt < PRIORITY_LABELS.length)
+                        ? PRIORITY_LABELS[priorityInt] : "low";
                 return ResponseEntity.ok(Map.of(
-                        "priority", result.has("priority") ? result.get("priority").asInt(0) : 0,
+                        "priority", priorityStr,
                         "confidence", result.has("confidence") ? result.get("confidence").asDouble(0.0) : 0.0,
                         "method", "ml_service"
                 ));
@@ -119,7 +141,7 @@ public class AIController {
 
         Map<String, Object> fallback = ruleBasedAnalysis(text);
         return ResponseEntity.ok(Map.of(
-                "priority", "critical".equals(fallback.get("priority")) ? 3 : "high".equals(fallback.get("priority")) ? 2 : 1,
+                "priority", fallback.get("priority"),
                 "confidence", fallback.get("confidence"),
                 "method", "rule_based"
         ));

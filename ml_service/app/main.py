@@ -145,8 +145,11 @@ def verify_service_jwt(token: Optional[str]):
         return False
 
 def require_ml_api_key(api_key: Optional[str], bearer_jwt: Optional[str] = None):
+    # If no ML_API_KEY is configured, allow all internal requests (Docker network)
+    if not ML_API_KEY:
+        return
     # Allow either a configured API key or a valid service JWT
-    if ML_API_KEY and api_key and api_key == ML_API_KEY:
+    if api_key and api_key == ML_API_KEY:
         return
     if bearer_jwt and bearer_jwt.startswith("Bearer "):
         token = bearer_jwt.split(" ", 1)[1]

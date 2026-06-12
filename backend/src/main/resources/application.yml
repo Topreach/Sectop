@@ -88,6 +88,7 @@ sms:
 ml:
   service:
     url: ${ML_SERVICE_URL:http://localhost:8000}
+    api-key: ${ML_API_KEY:}
     timeout: 30000
     model: bart-emergency
 
