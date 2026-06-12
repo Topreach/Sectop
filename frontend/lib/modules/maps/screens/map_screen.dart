@@ -3,10 +3,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants.dart';
+import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../auth/services/auth_service.dart';
 import '../../incidents/services/incident_service.dart';
+import '../../sos/screens/safe_route_screen.dart';
 import '../services/map_service.dart';
 
 class MapScreen extends StatefulWidget {
@@ -29,6 +31,10 @@ class _MapScreenState extends State<MapScreen> {
   bool _showIncidents = true;
   bool _showHeatmap = false;
 
+  // Danger score for current location
+  Map<String, dynamic>? _currentDangerScore;
+  bool _isLoadingDangerScore = false;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +50,9 @@ class _MapScreenState extends State<MapScreen> {
         api.getActiveZones(),
         api.getActiveAlerts(),
       ], eagerError: false);
+
+      // Also load danger score for current location
+      _loadDangerScore();
 
       final dangerZones = results[0];
       final activeZones = results[1];
@@ -438,6 +447,67 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
 
+                // Danger score indicator for current location
+                if (_currentDangerScore != null)
+                  Positioned(
+                    left: 16,
+                    top: 16,
+                    child: GestureDetector(
+                      onTap: _loadDangerScore,
+                      child: Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.shield_outlined,
+                                size: 18,
+                                color: _dangerLevelColor(_currentDangerScore!['level'] as String? ?? 'safe'),
+                              ),
+                              const SizedBox(width: 6),
+                              if (_isLoadingDangerScore)
+                                const SizedBox(
+                                  width: 14, height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              else ...[
+                                Text(
+                                  'Danger: ${_currentDangerScore!['score'] ?? '?'}/100',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: _dangerLevelColor(_currentDangerScore!['level'] as String? ?? 'safe'),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: _dangerLevelColor(_currentDangerScore!['level'] as String? ?? 'safe').withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    (_currentDangerScore!['level'] as String? ?? '').toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: _dangerLevelColor(_currentDangerScore!['level'] as String? ?? 'safe'),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 // Bottom info card
                 if (_selectedMarker != null)
                   Positioned(
@@ -664,6 +734,22 @@ class _MapScreenState extends State<MapScreen> {
     return markers;
   }
 
+  /// Get color for a danger level string.
+  Color _dangerLevelColor(String level) {
+    switch (level) {
+      case 'safe':
+        return Colors.green;
+      case 'caution':
+        return Colors.orange;
+      case 'dangerous':
+        return Colors.red;
+      case 'critical':
+        return Colors.deepPurple;
+      default:
+        return Colors.grey;
+    }
+  }
+
   /// Get emoji icon for incident type.
   String _getIncidentEmoji(String type) {
     switch (type) {
@@ -746,6 +832,54 @@ class _MapScreenState extends State<MapScreen> {
     } catch (e) {
       debugPrint('MapScreen: Failed to load heatmap: $e');
     }
+  }
+
+  /// Load danger score for the current location.
+  Future<void> _loadDangerScore() async {
+    final mapService = context.read<MapService>();
+    final pos = mapService.currentPosition;
+    if (pos == null) return;
+    setState(() => _isLoadingDangerScore = true);
+    try {
+      final api = context.read<BackendApi>();
+      final score = await api.getDangerScore(
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        radiusKm: 5,
+      );
+      if (mounted) {
+        setState(() {
+          _currentDangerScore = score;
+          _isLoadingDangerScore = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('MapScreen: Failed to load danger score: $e');
+      if (mounted) setState(() => _isLoadingDangerScore = false);
+    }
+  }
+
+  /// Navigate safely to a selected marker's location.
+  void _navigateSafelyTo(double lat, double lng, String name) {
+    final mapService = context.read<MapService>();
+    final pos = mapService.currentPosition;
+    if (pos == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your location is not available')),
+      );
+      return;
+    }
+    Navigator.of(context).pushNamed(
+      AppRoutes.safeRoute,
+      arguments: {
+        'fromLat': pos.latitude,
+        'fromLng': pos.longitude,
+        'fromName': 'My Location',
+        'toLat': lat,
+        'toLng': lng,
+        'toName': name,
+      },
+    );
   }
 
   Widget _buildMarkerInfoCard() {
@@ -889,6 +1023,34 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ],
             ],
+            const SizedBox(height: 12),
+            // Navigate Safely button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final lat = marker['latitude'] as num?;
+                  final lng = marker['longitude'] as num?;
+                  if (lat != null && lng != null) {
+                    _navigateSafelyTo(
+                      lat.toDouble(),
+                      lng.toDouble(),
+                      title,
+                    );
+                  }
+                },
+                icon: const Icon(Icons.route, size: 18),
+                label: const Text('Navigate Safely (Avoid Danger)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
@@ -6,6 +8,7 @@ import '../../../shared/widgets/nigeria_location_picker.dart';
 /// Screen to plan a safe route avoiding danger zones.
 /// Users select start and destination locations by place name (state/town)
 /// instead of entering raw latitude/longitude coordinates.
+/// Can also receive pre-filled coordinates via route arguments.
 class SafeRouteScreen extends StatefulWidget {
   const SafeRouteScreen({Key? key}) : super(key: key);
 
@@ -29,6 +32,27 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
   Map<String, dynamic>? _routeResult;
   bool _isLoading = false;
   String? _error;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check for route arguments (from MapScreen "Navigate Safely" button)
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic> && _fromLat == null) {
+      setState(() {
+        _fromLat = args['fromLat'] as double?;
+        _fromLng = args['fromLng'] as double?;
+        _fromName = args['fromName'] as String?;
+        _toLat = args['toLat'] as double?;
+        _toLng = args['toLng'] as double?;
+        _toName = args['toName'] as String?;
+      });
+      // Auto-plan route if both locations are provided
+      if (_fromLat != null && _toLat != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _planRoute());
+      }
+    }
+  }
 
   void _onFromLocationSelected(double? lat, double? lng, String? name) {
     setState(() {
@@ -227,6 +251,11 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
 
             // Results
             if (_routeResult != null) ...[
+              // Mini-map showing the route
+              if (_fromLat != null && _toLat != null)
+                _buildMiniRouteMap(),
+              const SizedBox(height: 16),
+
               const Text('Route Results', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               _buildResultCard('Overall Danger', _routeResult!['overallDangerLevel'] as String? ?? 'unknown',
@@ -263,7 +292,158 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
                   });
                 }),
               ],
+
+              // Open in Map button
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushNamed(
+                    '/map',
+                  );
+                },
+                icon: const Icon(Icons.map),
+                label: const Text('View on Emergency Map'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build a mini-map showing the route with color-coded danger segments.
+  Widget _buildMiniRouteMap() {
+    // Collect all waypoints from the first route
+    List<LatLng> routePoints = [];
+    List<Color> segmentColors = [];
+
+    if (_routeResult != null && _routeResult!['routes'] is List) {
+      final routes = _routeResult!['routes'] as List;
+      if (routes.isNotEmpty) {
+        final firstRoute = routes[0] as Map<String, dynamic>;
+        final segments = firstRoute['segments'] as List? ?? [];
+        for (final seg in segments) {
+          final s = seg as Map<String, dynamic>;
+          final startLat = (s['startLat'] as num).toDouble();
+          final startLng = (s['startLng'] as num).toDouble();
+          final endLat = (s['endLat'] as num).toDouble();
+          final endLng = (s['endLng'] as num).toDouble();
+          final level = s['dangerLevel'] as String? ?? 'safe';
+          routePoints.add(LatLng(startLat, startLng));
+          segmentColors.add(_dangerColor(level));
+        }
+        // Add the last endpoint
+        if (segments.isNotEmpty) {
+          final lastSeg = segments.last as Map<String, dynamic>;
+          routePoints.add(LatLng(
+            (lastSeg['endLat'] as num).toDouble(),
+            (lastSeg['endLng'] as num).toDouble(),
+          ));
+        }
+      }
+    }
+
+    // If no segments yet, just show start/end points
+    if (routePoints.isEmpty) {
+      routePoints = [
+        LatLng(_fromLat!, _fromLng!),
+        LatLng(_toLat!, _toLng!),
+      ];
+    }
+
+    // Calculate bounding box for the route
+    double minLat = _fromLat!;
+    double maxLat = _fromLat!;
+    double minLng = _fromLng!;
+    double maxLng = _fromLng!;
+
+    for (final p in routePoints) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+
+    // Add padding
+    final latPad = (maxLat - minLat) * 0.3 + 0.02;
+    final lngPad = (maxLng - minLng) * 0.3 + 0.02;
+    minLat -= latPad;
+    maxLat += latPad;
+    minLng -= lngPad;
+    maxLng += lngPad;
+
+    final centerLat = (minLat + maxLat) / 2;
+    final centerLng = (minLng + maxLng) / 2;
+
+    return Card(
+      elevation: 3,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        height: 220,
+        child: FlutterMap(
+          options: MapOptions(
+            initialCenter: LatLng(centerLat, centerLng),
+            initialZoom: 9,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.dangeremergence.app',
+            ),
+            // Route polylines with color-coded segments
+            PolylineLayer(
+              polylines: [
+                // Draw each segment with its danger color
+                for (int i = 0; i < routePoints.length - 1; i++)
+                  Polyline(
+                    points: [routePoints[i], routePoints[i + 1]],
+                    color: i < segmentColors.length
+                        ? segmentColors[i]
+                        : Colors.grey,
+                    strokeWidth: 5,
+                    isDotted: false,
+                  ),
+              ],
+            ),
+            // Start marker
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: LatLng(_fromLat!, _fromLng!),
+                  width: 28,
+                  height: 28,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.trip_origin, color: Colors.white, size: 16),
+                  ),
+                ),
+                Marker(
+                  point: LatLng(_toLat!, _toLng!),
+                  width: 28,
+                  height: 28,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.location_on, color: Colors.white, size: 16),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
