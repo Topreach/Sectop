@@ -34,6 +34,12 @@ void main() {
     authService.setClient(mockClient);
   });
 
+  tearDown(() {
+    // Reset the HTTP client to avoid cross-test contamination
+    // AuthService is a singleton, so _client persists across tests
+    authService.setClient(http.Client());
+  });
+
   group('AuthService - _handleSuccessfulAuth', () {
     test('maps backend top-level fields correctly', () async {
       final result = await authService.login('test@example.com', 'password123');
@@ -50,7 +56,7 @@ void main() {
     });
 
     test('handles missing optional fields gracefully', () async {
-      mockClient = MockClient((request) async {
+      final minimalClient = MockClient((request) async {
         return http.Response(
           json.encode({
             'userId': 'user_456',
@@ -61,7 +67,7 @@ void main() {
           200,
         );
       });
-      authService.setClient(mockClient);
+      authService.setClient(minimalClient);
 
       final result = await authService.login('minimal@example.com', 'pass');
 
@@ -77,13 +83,13 @@ void main() {
 
   group('AuthService - login error handling', () {
     test('returns server error message on 401', () async {
-      mockClient = MockClient((request) async {
+      final errorClient = MockClient((request) async {
         return http.Response(
           json.encode({'error': 'Invalid email or password'}),
           401,
         );
       });
-      authService.setClient(mockClient);
+      authService.setClient(errorClient);
 
       final result = await authService.login('wrong@example.com', 'wrongpass');
 
@@ -93,10 +99,10 @@ void main() {
     });
 
     test('returns default error when server error body is malformed', () async {
-      mockClient = MockClient((request) async {
+      final errorClient = MockClient((request) async {
         return http.Response('Not JSON', 401);
       });
-      authService.setClient(mockClient);
+      authService.setClient(errorClient);
 
       final result = await authService.login('test@example.com', 'wrong');
 
@@ -105,13 +111,13 @@ void main() {
     });
 
     test('returns default error when server error body has no error key', () async {
-      mockClient = MockClient((request) async {
+      final errorClient = MockClient((request) async {
         return http.Response(
           json.encode({'message': 'Something went wrong'}),
           401,
         );
       });
-      authService.setClient(mockClient);
+      authService.setClient(errorClient);
 
       final result = await authService.login('test@example.com', 'wrong');
 
@@ -120,13 +126,13 @@ void main() {
     });
 
     test('returns error on 500 server error', () async {
-      mockClient = MockClient((request) async {
+      final errorClient = MockClient((request) async {
         return http.Response(
           json.encode({'error': 'Internal server error'}),
           500,
         );
       });
-      authService.setClient(mockClient);
+      authService.setClient(errorClient);
 
       final result = await authService.login('test@example.com', 'pass');
 
@@ -137,7 +143,7 @@ void main() {
 
   group('AuthService - register', () {
     test('registers successfully with valid data', () async {
-      mockClient = MockClient((request) async {
+      final registerClient = MockClient((request) async {
         return http.Response(
           json.encode({
             'userId': 'new_user_1',
@@ -149,7 +155,7 @@ void main() {
           201,
         );
       });
-      authService.setClient(mockClient);
+      authService.setClient(registerClient);
 
       final profile = UserProfile(
         id: 'temp_id',
@@ -169,13 +175,13 @@ void main() {
     });
 
     test('returns server error on registration failure', () async {
-      mockClient = MockClient((request) async {
+      final errorClient = MockClient((request) async {
         return http.Response(
           json.encode({'error': 'Email already registered'}),
           409,
         );
       });
-      authService.setClient(mockClient);
+      authService.setClient(errorClient);
 
       final profile = UserProfile(
         id: 'temp_id',
