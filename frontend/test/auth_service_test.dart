@@ -34,12 +34,6 @@ void main() {
     authService.setClient(mockClient);
   });
 
-  tearDown(() {
-    // Reset the HTTP client to avoid cross-test contamination
-    // AuthService is a singleton, so _client persists across tests
-    authService.setClient(http.Client());
-  });
-
   group('AuthService - _handleSuccessfulAuth', () {
     test('maps backend top-level fields correctly', () async {
       final result = await authService.login('test@example.com', 'password123');
@@ -90,6 +84,8 @@ void main() {
         );
       });
       authService.setClient(errorClient);
+      // Restore default mock after this test to avoid cross-test contamination
+      addTearDown(() => authService.setClient(mockClient));
 
       final result = await authService.login('wrong@example.com', 'wrongpass');
 
@@ -103,6 +99,7 @@ void main() {
         return http.Response('Not JSON', 401);
       });
       authService.setClient(errorClient);
+      addTearDown(() => authService.setClient(mockClient));
 
       final result = await authService.login('test@example.com', 'wrong');
 
@@ -118,6 +115,7 @@ void main() {
         );
       });
       authService.setClient(errorClient);
+      addTearDown(() => authService.setClient(mockClient));
 
       final result = await authService.login('test@example.com', 'wrong');
 
@@ -133,6 +131,7 @@ void main() {
         );
       });
       authService.setClient(errorClient);
+      addTearDown(() => authService.setClient(mockClient));
 
       final result = await authService.login('test@example.com', 'pass');
 
@@ -156,6 +155,7 @@ void main() {
         );
       });
       authService.setClient(registerClient);
+      addTearDown(() => authService.setClient(mockClient));
 
       final profile = UserProfile(
         id: 'temp_id',
@@ -182,6 +182,7 @@ void main() {
         );
       });
       authService.setClient(errorClient);
+      addTearDown(() => authService.setClient(mockClient));
 
       final profile = UserProfile(
         id: 'temp_id',

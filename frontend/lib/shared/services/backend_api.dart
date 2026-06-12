@@ -37,6 +37,9 @@ class BackendApi {
     _lastFailureTime = null;
   }
 
+  @visibleForTesting
+  bool isCircuitOpen() => _circuitState == CircuitState.open;
+
   CircuitState _circuitState = CircuitState.closed;
   int _consecutiveFailures = 0;
   static const int _failureThreshold = 5;

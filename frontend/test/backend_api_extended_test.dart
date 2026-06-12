@@ -155,7 +155,7 @@ void main() {
       await api.getAvailableDrones(latitude: 40.7128, longitude: -74.0060);
       expect(capturedRequests.last.url.toString(), contains('/drones/available'));
       expect(capturedRequests.last.url.toString(), contains('latitude=40.7128'));
-      expect(capturedRequests.last.url.toString(), contains('longitude=-74.0060'));
+      expect(capturedRequests.last.url.toString(), contains('longitude=-74.006'));
     });
 
     test('deployRelayDrone sends correct body', () async {
@@ -258,7 +258,7 @@ void main() {
       await api.getZonesNearby(40.7128, -74.0060, radiusDegrees: 0.5);
       expect(capturedRequests.last.url.toString(), contains('/zones/nearby'));
       expect(capturedRequests.last.url.toString(), contains('latitude=40.7128'));
-      expect(capturedRequests.last.url.toString(), contains('longitude=-74.0060'));
+      expect(capturedRequests.last.url.toString(), contains('longitude=-74.006'));
       expect(capturedRequests.last.url.toString(), contains('radiusDegrees=0.5'));
     });
 
@@ -618,7 +618,10 @@ void main() {
         } catch (_) {}
       }
 
-      // The 6th request should throw circuit breaker error
+      // Verify circuit breaker state is open
+      expect(api.isCircuitOpen(), true);
+
+      // The next request should throw circuit breaker error (503)
       try {
         await api.getActiveZones();
         fail('Expected ApiException for circuit breaker');
