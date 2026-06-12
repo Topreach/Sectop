@@ -511,9 +511,9 @@ class _MessagesTabState extends State<_MessagesTab> {
                                       foregroundColor: Colors.red,
                                     ),
                                     child: const Text('Delete'),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              );
                             if (confirmed == true) {
                               widget.onDelete(msg['id'] as String);
                             }
