@@ -31,211 +31,164 @@ void main() {
         200,
       );
     });
+    authService.setClient(mockClient);
   });
 
   group('AuthService - _handleSuccessfulAuth', () {
     test('maps backend top-level fields correctly', () async {
-      // Simulate login with mock HTTP client
-      // We need to override http.post to use our mock
-      final originalHttp = http.post;
+      final result = await authService.login('test@example.com', 'password123');
 
-      try {
-        // Mock the http.post call
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return mockClient.post(url, headers: headers, body: body);
-        };
-
-        final result = await authService.login('test@example.com', 'password123');
-
-        expect(result.success, true);
-        expect(authService.isAuthenticated, true);
-        expect(authService.currentUser, isNotNull);
-        expect(authService.currentUser!.id, 'user_123');
-        expect(authService.currentUser!.name, 'Test User');
-        expect(authService.currentUser!.email, 'test@example.com');
-        expect(authService.currentUser!.phone, '+2348012345678');
-        expect(authService.currentUser!.role, 'citizen'); // lowercase
-        expect(authService.currentUser!.publicKey, 'test_public_key');
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(result.success, true);
+      expect(authService.isAuthenticated, true);
+      expect(authService.currentUser, isNotNull);
+      expect(authService.currentUser!.id, 'user_123');
+      expect(authService.currentUser!.name, 'Test User');
+      expect(authService.currentUser!.email, 'test@example.com');
+      expect(authService.currentUser!.phone, '+2348012345678');
+      expect(authService.currentUser!.role, 'citizen'); // lowercase
+      expect(authService.currentUser!.publicKey, 'test_public_key');
     });
 
     test('handles missing optional fields gracefully', () async {
-      final originalHttp = http.post;
+      mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({
+            'userId': 'user_456',
+            'name': 'Minimal User',
+            'role': 'RESPONDER',
+            'token': 'jwt_token',
+          }),
+          200,
+        );
+      });
+      authService.setClient(mockClient);
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({
-              'userId': 'user_456',
-              'name': 'Minimal User',
-              'role': 'RESPONDER',
-              'token': 'jwt_token',
-            }),
-            200,
-          );
-        };
+      final result = await authService.login('minimal@example.com', 'pass');
 
-        final result = await authService.login('minimal@example.com', 'pass');
-
-        expect(result.success, true);
-        expect(authService.currentUser!.id, 'user_456');
-        expect(authService.currentUser!.name, 'Minimal User');
-        expect(authService.currentUser!.email, isNull); // not provided
-        expect(authService.currentUser!.phone, isNull); // not provided
-        expect(authService.currentUser!.role, 'responder');
-        expect(authService.currentUser!.publicKey, isNull); // not provided
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(result.success, true);
+      expect(authService.currentUser!.id, 'user_456');
+      expect(authService.currentUser!.name, 'Minimal User');
+      expect(authService.currentUser!.email, isNull); // not provided
+      expect(authService.currentUser!.phone, isNull); // not provided
+      expect(authService.currentUser!.role, 'responder');
+      expect(authService.currentUser!.publicKey, isNull); // not provided
     });
   });
 
   group('AuthService - login error handling', () {
     test('returns server error message on 401', () async {
-      final originalHttp = http.post;
+      mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({'error': 'Invalid email or password'}),
+          401,
+        );
+      });
+      authService.setClient(mockClient);
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({'error': 'Invalid email or password'}),
-            401,
-          );
-        };
+      final result = await authService.login('wrong@example.com', 'wrongpass');
 
-        final result = await authService.login('wrong@example.com', 'wrongpass');
-
-        expect(result.success, false);
-        expect(result.error, 'Invalid email or password');
-        expect(authService.isAuthenticated, false);
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(result.success, false);
+      expect(result.error, 'Invalid email or password');
+      expect(authService.isAuthenticated, false);
     });
 
     test('returns default error when server error body is malformed', () async {
-      final originalHttp = http.post;
+      mockClient = MockClient((request) async {
+        return http.Response('Not JSON', 401);
+      });
+      authService.setClient(mockClient);
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response('Not JSON', 401);
-        };
+      final result = await authService.login('test@example.com', 'wrong');
 
-        final result = await authService.login('test@example.com', 'wrong');
-
-        expect(result.success, false);
-        expect(result.error, 'Invalid email or password');
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(result.success, false);
+      expect(result.error, 'Invalid email or password');
     });
 
     test('returns default error when server error body has no error key', () async {
-      final originalHttp = http.post;
+      mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({'message': 'Something went wrong'}),
+          401,
+        );
+      });
+      authService.setClient(mockClient);
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({'message': 'Something went wrong'}),
-            401,
-          );
-        };
+      final result = await authService.login('test@example.com', 'wrong');
 
-        final result = await authService.login('test@example.com', 'wrong');
-
-        expect(result.success, false);
-        expect(result.error, 'Invalid email or password');
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(result.success, false);
+      expect(result.error, 'Invalid email or password');
     });
 
     test('returns error on 500 server error', () async {
-      final originalHttp = http.post;
+      mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({'error': 'Internal server error'}),
+          500,
+        );
+      });
+      authService.setClient(mockClient);
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({'error': 'Internal server error'}),
-            500,
-          );
-        };
+      final result = await authService.login('test@example.com', 'pass');
 
-        final result = await authService.login('test@example.com', 'pass');
-
-        expect(result.success, false);
-        expect(result.error, 'Internal server error');
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(result.success, false);
+      expect(result.error, 'Internal server error');
     });
   });
 
   group('AuthService - register', () {
     test('registers successfully with valid data', () async {
-      final originalHttp = http.post;
-
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({
-              'userId': 'new_user_1',
-              'name': 'New User',
-              'email': 'new@example.com',
-              'role': 'CITIZEN',
-              'token': 'new_jwt_token',
-            }),
-            201,
-          );
-        };
-
-        final profile = UserProfile(
-          id: 'temp_id',
-          name: 'New User',
-          email: 'new@example.com',
-          role: AppConstants.roleCitizen,
-          createdAt: DateTime.now().millisecondsSinceEpoch,
+      mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({
+            'userId': 'new_user_1',
+            'name': 'New User',
+            'email': 'new@example.com',
+            'role': 'CITIZEN',
+            'token': 'new_jwt_token',
+          }),
+          201,
         );
+      });
+      authService.setClient(mockClient);
 
-        final result = await authService.register(profile, 'password123');
+      final profile = UserProfile(
+        id: 'temp_id',
+        name: 'New User',
+        email: 'new@example.com',
+        role: AppConstants.roleCitizen,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      );
 
-        expect(result.success, true);
-        expect(authService.isAuthenticated, true);
-        expect(authService.currentUser!.id, 'new_user_1');
-        expect(authService.currentUser!.name, 'New User');
-        expect(authService.currentUser!.email, 'new@example.com');
-      } finally {
-        http.post = originalHttp;
-      }
+      final result = await authService.register(profile, 'password123');
+
+      expect(result.success, true);
+      expect(authService.isAuthenticated, true);
+      expect(authService.currentUser!.id, 'new_user_1');
+      expect(authService.currentUser!.name, 'New User');
+      expect(authService.currentUser!.email, 'new@example.com');
     });
 
     test('returns server error on registration failure', () async {
-      final originalHttp = http.post;
-
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({'error': 'Email already registered'}),
-            409,
-          );
-        };
-
-        final profile = UserProfile(
-          id: 'temp_id',
-          name: 'Existing User',
-          email: 'existing@example.com',
-          role: AppConstants.roleCitizen,
-          createdAt: DateTime.now().millisecondsSinceEpoch,
+      mockClient = MockClient((request) async {
+        return http.Response(
+          json.encode({'error': 'Email already registered'}),
+          409,
         );
+      });
+      authService.setClient(mockClient);
 
-        final result = await authService.register(profile, 'password123');
+      final profile = UserProfile(
+        id: 'temp_id',
+        name: 'Existing User',
+        email: 'existing@example.com',
+        role: AppConstants.roleCitizen,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      );
 
-        expect(result.success, false);
-        expect(result.error, 'Email already registered');
-      } finally {
-        http.post = originalHttp;
-      }
+      final result = await authService.register(profile, 'password123');
+
+      expect(result.success, false);
+      expect(result.error, 'Email already registered');
     });
   });
 
@@ -277,75 +230,37 @@ void main() {
   group('AuthService - logout', () {
     test('clears current user and emergency mode', () async {
       // First login
-      final originalHttp = http.post;
+      await authService.login('logout@example.com', 'pass');
+      expect(authService.isAuthenticated, true);
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({
-              'userId': 'user_logout_test',
-              'name': 'Logout Test',
-              'email': 'logout@example.com',
-              'role': 'CITIZEN',
-              'token': 'logout_jwt',
-            }),
-            200,
-          );
-        };
+      // Now logout
+      await authService.logout();
 
-        await authService.login('logout@example.com', 'pass');
-        expect(authService.isAuthenticated, true);
-
-        // Now logout
-        await authService.logout();
-
-        expect(authService.isAuthenticated, false);
-        expect(authService.currentUser, isNull);
-        expect(authService.isEmergencyMode, false);
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(authService.isAuthenticated, false);
+      expect(authService.currentUser, isNull);
+      expect(authService.isEmergencyMode, false);
     });
   });
 
   group('AuthService - updateProfile', () {
     test('updates user profile locally', () async {
       // First login
-      final originalHttp = http.post;
+      await authService.login('update@example.com', 'pass');
 
-      try {
-        http.post = (Uri url, {Map<String, String>? headers, Object? body, Encoding? encoding}) async {
-          return http.Response(
-            json.encode({
-              'userId': 'user_update_test',
-              'name': 'Original Name',
-              'email': 'update@example.com',
-              'role': 'CITIZEN',
-              'token': 'update_jwt',
-            }),
-            200,
-          );
-        };
+      // Update profile
+      final updatedProfile = UserProfile(
+        id: 'user_update_test',
+        name: 'Updated Name',
+        email: 'updated@example.com',
+        role: AppConstants.roleResponder,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      );
 
-        await authService.login('update@example.com', 'pass');
+      await authService.updateProfile(updatedProfile);
 
-        // Update profile
-        final updatedProfile = UserProfile(
-          id: 'user_update_test',
-          name: 'Updated Name',
-          email: 'updated@example.com',
-          role: AppConstants.roleResponder,
-          createdAt: DateTime.now().millisecondsSinceEpoch,
-        );
-
-        await authService.updateProfile(updatedProfile);
-
-        expect(authService.currentUser!.name, 'Updated Name');
-        expect(authService.currentUser!.email, 'updated@example.com');
-        expect(authService.currentUser!.role, AppConstants.roleResponder);
-      } finally {
-        http.post = originalHttp;
-      }
+      expect(authService.currentUser!.name, 'Updated Name');
+      expect(authService.currentUser!.email, 'updated@example.com');
+      expect(authService.currentUser!.role, AppConstants.roleResponder);
     });
   });
 

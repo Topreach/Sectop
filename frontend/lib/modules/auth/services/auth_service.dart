@@ -17,6 +17,11 @@ class AuthService extends ChangeNotifier {
   final OfflineStorageService _storage = OfflineStorageService();
   final EncryptionService _encryption = EncryptionService();
 
+  http.Client _client = http.Client();
+
+  @visibleForTesting
+  void setClient(http.Client client) => _client = client;
+
   UserProfile? _currentUser;
   bool _isLoading = false;
   bool _isEmergencyMode = false;
@@ -61,7 +66,7 @@ class AuthService extends ChangeNotifier {
 
     try {
       // Try online authentication first
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email, 'password': password}),
@@ -121,7 +126,7 @@ class AuthService extends ChangeNotifier {
 
     try {
       // Try online registration
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({

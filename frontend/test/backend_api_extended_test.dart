@@ -29,7 +29,8 @@ void main() {
       final result = await api.forgotPassword('test@example.com');
       expect(result, isA<Map<String, dynamic>>());
       expect(capturedRequests.last.url.toString(), contains('/auth/forgot-password'));
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['email'], 'test@example.com');
     });
 
@@ -37,7 +38,8 @@ void main() {
       final result = await api.resetPassword('reset_token_123', 'newPassword123');
       expect(result, isA<Map<String, dynamic>>());
       expect(capturedRequests.last.url.toString(), contains('/auth/reset-password'));
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['token'], 'reset_token_123');
       expect(body['newPassword'], 'newPassword123');
     });
@@ -46,26 +48,30 @@ void main() {
   group('BackendApi - AI Endpoints', () {
     test('analyzeMessage sends correct body', () async {
       await api.analyzeMessage('Help! Fire!', userId: 'user1');
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['text'], 'Help! Fire!');
       expect(body['userId'], 'user1');
     });
 
     test('prioritize sends correct body', () async {
       await api.prioritize('Emergency!');
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['text'], 'Emergency!');
     });
 
     test('prioritizeBatch sends correct body', () async {
       await api.prioritizeBatch(['Help', 'Fire', 'OK']);
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['texts'], ['Help', 'Fire', 'OK']);
     });
 
     test('analyzeAudio sends correct body', () async {
       await api.analyzeAudio('base64encodedaudio');
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['audio'], 'base64encodedaudio');
     });
   });
@@ -77,7 +83,8 @@ void main() {
         historyHours: 72,
         forecastHours: 6,
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['zoneIds'], ['zone_1', 'zone_2']);
       expect(body['historyHours'], 72);
       expect(body['forecastHours'], 6);
@@ -85,7 +92,8 @@ void main() {
 
     test('detectAnomaly sends correct body', () async {
       await api.detectAnomaly([1.0, 2.0, 3.0, 100.0, 4.0]);
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['values'], [1.0, 2.0, 3.0, 100.0, 4.0]);
     });
 
@@ -98,7 +106,8 @@ void main() {
           {'id': 'r1', 'name': 'Responder A', 'latitude': 40.72, 'longitude': -74.01, 'skill': 'medical', 'availability': 100}
         ],
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['zones'], isA<List>());
       expect(body['responders'], isA<List>());
       expect(body['zones'].length, 1);
@@ -126,14 +135,16 @@ void main() {
         'windSpeed': 15,
         'windDirection': 45,
       });
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['cityId'], 'new-york');
       expect(body['hazardType'], 'fire');
     });
 
     test('getEvacuationPlan sends correct body', () async {
       await api.getEvacuationPlan(40.7128, -74.0060);
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['latitude'], 40.7128);
       expect(body['longitude'], -74.0060);
     });
@@ -149,7 +160,8 @@ void main() {
 
     test('deployRelayDrone sends correct body', () async {
       await api.deployRelayDrone('drone_0', 40.7128, -74.0060);
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['droneId'], 'drone_0');
       expect(body['latitude'], 40.7128);
       expect(body['longitude'], -74.0060);
@@ -157,7 +169,8 @@ void main() {
 
     test('assessDamage sends correct body', () async {
       await api.assessDamage('zone_test', 40.7128, -74.0060, 1.0);
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['zoneId'], 'zone_test');
       expect(body['centerLat'], 40.7128);
       expect(body['centerLng'], -74.0060);
@@ -166,7 +179,8 @@ void main() {
 
     test('deploySwarmMesh sends correct body', () async {
       await api.deploySwarmMesh('zone_test', 40.7128, -74.0060, 1.0);
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['zoneId'], 'zone_test');
       expect(body['centerLat'], 40.7128);
       expect(body['centerLng'], -74.0060);
@@ -183,7 +197,8 @@ void main() {
           {'deviceId': 'device_b', 'rssi': -65, 'battery': 80, 'linkQuality': 0.9}
         ],
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['sourceDeviceId'], 'device_a');
       expect(body['targetDeviceId'], 'device_b');
       expect(body['neighborMetrics'], isA<List>());
@@ -196,7 +211,8 @@ void main() {
         3,
         {'text': 'Help!'},
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['sourceDeviceId'], 'device_a');
       expect(body['messageType'], 'sos');
       expect(body['priority'], 3);
@@ -215,7 +231,8 @@ void main() {
         'rssi': -60,
         'messagesRelayed': 42,
       });
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['deviceId'], 'device_a');
       expect(body['battery'], 75);
     });
@@ -247,7 +264,8 @@ void main() {
 
     test('createZone sends correct body', () async {
       await api.createZone({'name': 'Test Zone', 'type': 'danger', 'latitude': 40.71, 'longitude': -74.00});
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['name'], 'Test Zone');
       expect(body['type'], 'danger');
     });
@@ -271,7 +289,8 @@ void main() {
 
     test('sendMessage sends correct body', () async {
       await api.sendMessage({'sender_id': 'user_1', 'content': 'Hello', 'priority': 1});
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['sender_id'], 'user_1');
       expect(body['content'], 'Hello');
     });
@@ -304,7 +323,8 @@ void main() {
         longitude: 3.3792,
         severity: 'high',
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['incidentType'], 'suspicious');
       expect(body['description'], 'Suspicious activity at market');
       expect(body['latitude'], 6.5244);
@@ -341,7 +361,7 @@ void main() {
 
   group('BackendApi - Broadcast Endpoints', () {
     test('getActiveBroadcasts builds correct URL', () async {
-      await api.getActiveBroadcasts(state='Lagos', lga='Ikeja');
+      await api.getActiveBroadcasts(state: 'Lagos', lga: 'Ikeja');
       expect(capturedRequests.last.url.toString(), contains('/broadcasts/active'));
       expect(capturedRequests.last.url.toString(), contains('state=Lagos'));
       expect(capturedRequests.last.url.toString(), contains('lga=Ikeja'));
@@ -359,7 +379,8 @@ void main() {
         'state': 'Lagos',
         'severity': 'high',
       });
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['title'], 'Emergency Alert');
       expect(body['message'], 'Flood warning in Lagos');
       expect(body['state'], 'Lagos');
@@ -386,7 +407,8 @@ void main() {
         avoidHighways: true,
         preferLitRoads: true,
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['fromLat'], 6.5244);
       expect(body['fromLng'], 3.3792);
       expect(body['toLat'], 6.6018);
@@ -413,7 +435,8 @@ void main() {
         'longitude': 3.3792,
         'isAnonymous': true,
       });
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['title'], 'Suspicious package');
       expect(body['isAnonymous'], true);
     });
@@ -430,7 +453,8 @@ void main() {
 
     test('reviewTip sends correct body', () async {
       await api.reviewTip('tip_123', {'status': 'verified', 'notes': 'Confirmed threat'});
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['status'], 'verified');
       expect(body['notes'], 'Confirmed threat');
     });
@@ -449,7 +473,8 @@ void main() {
         'language': 'en',
         'priority': 1,
       });
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['message'], 'Emergency broadcast');
       expect(body['targetState'], 'Lagos');
     });
@@ -482,7 +507,8 @@ void main() {
         latitude: 6.5244,
         longitude: 3.3792,
       );
-      final body = json.decode(capturedRequests.last.bodyBytes);
+      final request = capturedRequests.last as http.Request;
+      final body = json.decode(request.body);
       expect(body['parentId'], 'alert_123');
       expect(body['evidenceType'], 'photo');
       expect(body['fileName'], 'evidence.jpg');
@@ -503,13 +529,13 @@ void main() {
     test('deleteEvidence sends correct request', () async {
       await api.deleteEvidence('evidence_123');
       expect(capturedRequests.last.url.toString(), contains('/evidence/evidence_123'));
-      expect(capturedRequests.last.httpMethod, 'DELETE');
+      expect(capturedRequests.last.method, 'DELETE');
     });
 
     test('deleteEvidenceForParent sends correct request', () async {
       await api.deleteEvidenceForParent('alert_123');
       expect(capturedRequests.last.url.toString(), contains('/evidence/parent/alert_123'));
-      expect(capturedRequests.last.httpMethod, 'DELETE');
+      expect(capturedRequests.last.method, 'DELETE');
     });
   });
 
