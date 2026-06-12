@@ -2,32 +2,137 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
+import '../../../shared/services/offline_storage.dart';
 
-class MessageDetailScreen extends StatelessWidget {
+class MessageDetailScreen extends StatefulWidget {
   const MessageDetailScreen({Key? key}) : super(key: key);
 
   @override
+  State<MessageDetailScreen> createState() => _MessageDetailScreenState();
+}
+
+class _MessageDetailScreenState extends State<MessageDetailScreen> {
+  Map<String, dynamic> _messageData = {};
+  bool _isDeleted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        setState(() {
+          _messageData = args;
+        });
+        _markAsReadIfUnread();
+      }
+    });
+  }
+
+  Future<void> _markAsReadIfUnread() async {
+    if (_messageData['read_at'] != null) return;
+    try {
+      final storage = OfflineStorageService();
+      await storage.markMessageReadLocally(_messageData['id'] as String);
+      setState(() {
+        _messageData['read_at'] = DateTime.now().millisecondsSinceEpoch;
+      });
+    } catch (e) {
+      debugPrint('MessageDetailScreen: Failed to mark as read: $e');
+    }
+  }
+
+  Future<void> _deleteMessage() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text(
+            'Are you sure you want to delete this message? It will be permanently removed from your device.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final storage = OfflineStorageService();
+        await storage.deleteMessage(_messageData['id'] as String);
+        setState(() => _isDeleted = true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Message deleted')),
+          );
+          Navigator.of(context).pop(true); // Return true to indicate deletion
+        }
+      } catch (e) {
+        debugPrint('MessageDetailScreen: Failed to delete message: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to delete message'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    final Map<String, dynamic> messageData;
-    if (args is Map<String, dynamic>) {
-      messageData = args;
-    } else {
-      messageData = {};
+    if (_isDeleted) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Message'),
+          backgroundColor: AppTheme.primaryColor,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.delete_outline, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text(
+                'Message deleted',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    final content = messageData['content'] as String? ?? '';
-    final senderId = messageData['sender_id'] as String? ?? 'Unknown';
-    final timestamp = _formatTimestamp(messageData['created_at']);
-    final priority = messageData['priority'] as int? ?? 0;
-    final messageType = messageData['message_type'] as String? ?? 'text';
-    final status = messageData['status'] as String? ?? 'unknown';
+    final content = _messageData['content'] as String? ?? '';
+    final senderId = _messageData['sender_id'] as String? ?? 'Unknown';
+    final timestamp = _formatTimestamp(_messageData['created_at']);
+    final priority = _messageData['priority'] as int? ?? 0;
+    final messageType = _messageData['message_type'] as String? ?? 'text';
+    final status = _messageData['status'] as String? ?? 'unknown';
+    final isRead = _messageData['read_at'] != null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Message'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _deleteMessage,
+            tooltip: 'Delete message',
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -114,17 +219,17 @@ class MessageDetailScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: status == 'delivered'
+                          color: isRead
                               ? Colors.green.withOpacity(0.1)
                               : Colors.orange.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          status.toUpperCase(),
+                          isRead ? 'READ' : 'UNREAD',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: status == 'delivered' ? Colors.green : Colors.orange,
+                            color: isRead ? Colors.green : Colors.orange,
                           ),
                         ),
                       ),
@@ -141,19 +246,19 @@ class MessageDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Reply button
+          // Delete button
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Reply feature coming soon')),
-                );
-              },
-              icon: const Icon(Icons.reply),
-              label: const Text('Reply'),
-              style: ElevatedButton.styleFrom(
+            child: OutlinedButton.icon(
+              onPressed: _deleteMessage,
+              icon: const Icon(Icons.delete_outlined, color: Colors.red),
+              label: const Text(
+                'Delete Message',
+                style: TextStyle(color: Colors.red),
+              ),
+              style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.red),
               ),
             ),
           ),

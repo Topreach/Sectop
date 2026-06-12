@@ -309,6 +309,46 @@ class OfflineStorageService {
         whereArgs: [messageId]);
   }
 
+  /// Save a message to local storage only (no sync log).
+  /// Use this for local-first message storage — messages stay on device.
+  Future<void> saveMessageLocally(Map<String, dynamic> message) async {
+    await insert(AppConstants.tableMessages, message);
+  }
+
+  /// Mark a message as read locally (no server call).
+  Future<void> markMessageReadLocally(String messageId) async {
+    await update(AppConstants.tableMessages,
+        {'read_at': DateTime.now().millisecondsSinceEpoch},
+        where: 'id = ?',
+        whereArgs: [messageId]);
+  }
+
+  /// Delete a message from local storage permanently.
+  Future<void> deleteMessage(String messageId) async {
+    await delete(AppConstants.tableMessages,
+        where: 'id = ?',
+        whereArgs: [messageId]);
+  }
+
+  /// Get all messages for a user from local storage.
+  Future<List<Map<String, dynamic>>> getLocalMessages(String userId,
+      {int limit = 100, int offset = 0}) async {
+    return await query(AppConstants.tableMessages,
+        where: 'sender_id = ? OR receiver_id = ?',
+        whereArgs: [userId, userId],
+        orderBy: 'created_at DESC',
+        limit: limit,
+        offset: offset);
+  }
+
+  /// Get unread message count from local storage.
+  Future<int> getUnreadCountLocally(String userId) async {
+    final results = await query(AppConstants.tableMessages,
+        where: '(sender_id = ? OR receiver_id = ?) AND read_at IS NULL',
+        whereArgs: [userId, userId]);
+    return results.length;
+  }
+
   // ==================== SOS Operations ====================
 
   /// Save an SOS alert locally.

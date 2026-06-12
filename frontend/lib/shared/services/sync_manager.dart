@@ -10,6 +10,9 @@ import 'offline_storage.dart';
 ///
 /// Maintains the three-state sync model (offline → pending → synced) for
 /// offline-first resilience, but syncs only when explicitly requested.
+///
+/// Messages are now local-first (stored on device only) — they are NOT synced
+/// to the server to prevent data accumulation. Only alerts and zones are synced.
 class SyncManager extends ChangeNotifier {
   static final SyncManager _instance = SyncManager._internal();
   factory SyncManager() => _instance;
@@ -35,7 +38,7 @@ class SyncManager extends ChangeNotifier {
 
   /// Initialize the sync manager.
   Future<void> initialize() async {
-    debugPrint('SyncManager: Initialized (foreground-only mode)');
+    debugPrint('SyncManager: Initialized (foreground-only, local-first mode)');
   }
 
   /// Trigger a full sync cycle — push pending items, then pull updates.
@@ -105,28 +108,11 @@ class SyncManager extends ChangeNotifier {
   }
 
   /// Pull latest data from the cloud.
+  /// Messages are NOT pulled from server — they are local-first.
+  /// Only alerts and zones are synced.
   Future<void> _pullFromCloud() async {
     final since = _lastSyncTime?.millisecondsSinceEpoch ?? 0;
     final headers = await _authHeaders();
-
-    // Pull messages
-    try {
-      final msgResponse = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/messages/sync?since=$since'),
-        headers: headers,
-      ).timeout(Duration(seconds: AppConstants.apiTimeout));
-
-      if (msgResponse.statusCode == 200) {
-        final data = json.decode(msgResponse.body);
-        if (data is Map && data['messages'] is List) {
-          for (final msg in data['messages']) {
-            await _storage.upsert('messages', msg as Map<String, dynamic>);
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('SyncManager: Pull messages failed: $e');
-    }
 
     // Pull alerts
     try {
@@ -184,7 +170,7 @@ class SyncManager extends ChangeNotifier {
     final base = '${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}';
     switch (entityType) {
       case 'messages':
-        return Uri.parse('$base/messages/sync');
+        return null; // Messages are local-first — no server sync
       case 'sos_alerts':
         return Uri.parse('$base/alerts/sync');
       case 'zones':

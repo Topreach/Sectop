@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/sync_manager.dart';
 import '../../auth/services/auth_service.dart';
@@ -52,15 +53,44 @@ class _InboxScreenState extends State<InboxScreen>
         });
         return;
       }
-      final api = context.read<BackendApi>();
-      final result = await api.getMessages(userId);
-      setState(() {
-        _messages = result['messages'] is List
+
+      // Primary: Load messages from local storage (offline-first)
+      final storage = OfflineStorageService();
+      final localMessages = await storage.getLocalMessages(userId);
+      if (localMessages.isNotEmpty) {
+        setState(() {
+          _messages = localMessages;
+          _isLoadingMessages = false;
+          _isOffline = false;
+        });
+        return;
+      }
+
+      // Fallback: Try loading from server if local is empty
+      try {
+        final api = context.read<BackendApi>();
+        final result = await api.getMessages(userId);
+        final serverMessages = result['messages'] is List
             ? List<Map<String, dynamic>>.from(result['messages'])
             : [];
-        _isLoadingMessages = false;
-        _isOffline = false;
-      });
+
+        // Cache server messages locally
+        for (final msg in serverMessages) {
+          await storage.saveMessageLocally(msg);
+        }
+
+        setState(() {
+          _messages = serverMessages;
+          _isLoadingMessages = false;
+          _isOffline = false;
+        });
+      } catch (_) {
+        setState(() {
+          _messages = [];
+          _isLoadingMessages = false;
+          _isOffline = true;
+        });
+      }
     } catch (e) {
       debugPrint('InboxScreen: Failed to load messages: $e');
       setState(() {
@@ -100,17 +130,48 @@ class _InboxScreenState extends State<InboxScreen>
     }
   }
 
+  /// Mark a message as read locally (no server call).
   Future<void> _markAsRead(String messageId) async {
     try {
-      await context.read<BackendApi>().markMessageRead(messageId);
+      final storage = OfflineStorageService();
+      await storage.markMessageReadLocally(messageId);
       setState(() {
         final idx = _messages.indexWhere((m) => m['id'] == messageId);
         if (idx >= 0) {
-          _messages[idx]['is_read'] = true;
+          _messages[idx]['read_at'] = DateTime.now().millisecondsSinceEpoch;
         }
       });
     } catch (e) {
-      debugPrint('InboxScreen: Failed to mark as read: $e');
+      debugPrint('InboxScreen: Failed to mark as read locally: $e');
+    }
+  }
+
+  /// Delete a message from local storage.
+  Future<void> _deleteMessage(String messageId) async {
+    try {
+      final storage = OfflineStorageService();
+      await storage.deleteMessage(messageId);
+      setState(() {
+        _messages.removeWhere((m) => m['id'] == messageId);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('InboxScreen: Failed to delete message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to delete message'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -159,6 +220,7 @@ class _InboxScreenState extends State<InboxScreen>
             isOffline: _isOffline,
             onRefresh: _loadMessages,
             onMarkRead: _markAsRead,
+            onDelete: _deleteMessage,
             formatTimestamp: _formatTimestamp,
           ),
           _AlertsTab(
@@ -181,6 +243,7 @@ class _MessagesTab extends StatelessWidget {
   final bool isOffline;
   final Future<void> Function() onRefresh;
   final Future<void> Function(String) onMarkRead;
+  final Future<void> Function(String) onDelete;
   final String Function(dynamic) formatTimestamp;
 
   const _MessagesTab({
@@ -189,6 +252,7 @@ class _MessagesTab extends StatelessWidget {
     required this.isOffline,
     required this.onRefresh,
     required this.onMarkRead,
+    required this.onDelete,
     required this.formatTimestamp,
   });
 
@@ -243,68 +307,139 @@ class _MessagesTab extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final msg = messages[index];
-                final isRead = msg['is_read'] == true;
+                final isRead = msg['read_at'] != null;
                 final content = msg['content'] as String? ?? '';
                 final senderId = msg['sender_id'] as String? ?? 'Unknown';
                 final timestamp = formatTimestamp(msg['created_at']);
 
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        isRead ? Colors.grey[300] : AppTheme.primaryColor,
-                    child: Icon(
-                      Icons.person,
-                      color: isRead ? Colors.grey : Colors.white,
-                      size: 20,
-                    ),
+                return Dismissible(
+                  key: Key(msg['id'] as String),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    color: Colors.red,
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  title: Text(
-                    senderId,
-                    style: TextStyle(
-                      fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 13,
-                        ),
+                  confirmDismiss: (direction) async {
+                    return await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Message'),
+                        content: const Text(
+                            'Are you sure you want to delete this message? It will be permanently removed from your device.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            child: const Text('Delete'),
+                          ),
+                        ],
                       ),
-                      if (timestamp.isNotEmpty)
-                        Text(
-                          timestamp,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 11,
-                          ),
-                        ),
-                    ],
-                  ),
-                  trailing: isRead
-                      ? null
-                      : Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                  onTap: () {
-                    if (!isRead) {
-                      onMarkRead(msg['id'] as String);
-                    }
-                    _showMessageDetail(context, msg, formatTimestamp);
+                    );
                   },
+                  onDismissed: (_) => onDelete(msg['id'] as String),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          isRead ? Colors.grey[300] : AppTheme.primaryColor,
+                      child: Icon(
+                        Icons.person,
+                        color: isRead ? Colors.grey : Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      senderId,
+                      style: TextStyle(
+                        fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (timestamp.isNotEmpty)
+                          Text(
+                            timestamp,
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!isRead)
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          color: Colors.grey[400],
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Message'),
+                                content: const Text(
+                                    'Are you sure you want to delete this message? It will be permanently removed from your device.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                    ),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) {
+                              onDelete(msg['id'] as String);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      if (!isRead) {
+                        onMarkRead(msg['id'] as String);
+                      }
+                      _showMessageDetail(context, msg, formatTimestamp, onDelete);
+                    },
+                  ),
                 );
               },
             ),
@@ -312,7 +447,10 @@ class _MessagesTab extends StatelessWidget {
   }
 
   void _showMessageDetail(
-      BuildContext context, Map<String, dynamic> msg, String Function(dynamic) formatTimestamp) {
+      BuildContext context,
+      Map<String, dynamic> msg,
+      String Function(dynamic) formatTimestamp,
+      Future<void> Function(String) onDelete) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -365,6 +503,22 @@ class _MessagesTab extends StatelessWidget {
                 ),
                 backgroundColor: Colors.orange[100],
               ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onDelete(msg['id'] as String);
+                },
+                icon: const Icon(Icons.delete_outlined, color: Colors.red),
+                label: const Text('Delete Message',
+                    style: TextStyle(color: Colors.red)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                ),
+              ),
+            ),
           ],
         ),
       ),
