@@ -24,6 +24,7 @@ import '../modules/sos/screens/safe_route_screen.dart';
 import '../modules/sos/screens/tip_off_screen.dart';
 import '../modules/sos/screens/tip_review_screen.dart';
 import '../modules/sos/screens/radio_broadcast_screen.dart';
+import '../modules/sos/screens/walkie_talkie_monitor_screen.dart';
 import '../modules/sos/screens/privacy_policy_screen.dart';
 import '../modules/sos/screens/how_to_use_screen.dart';
 import '../modules/maps/screens/map_screen.dart';
@@ -56,6 +57,7 @@ class AppRoutes {
   static const String tipOff = '/tip-off';
   static const String tipReview = '/tip-review';
   static const String radioBroadcast = '/radio-broadcast';
+  static const String walkieTalkieMonitor = '/walkie-talkie-monitor';
 
   // Store Compliance routes
   static const String forgotPassword = '/forgot-password';
@@ -180,6 +182,11 @@ class AppRoutes {
       case radioBroadcast:
         return MaterialPageRoute(
           builder: (_) => const RadioBroadcastScreen(),
+          settings: settings,
+        );
+      case walkieTalkieMonitor:
+        return MaterialPageRoute(
+          builder: (_) => const WalkieTalkieMonitorScreen(),
           settings: settings,
         );
       case forgotPassword:
