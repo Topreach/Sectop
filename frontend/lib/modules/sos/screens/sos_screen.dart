@@ -10,6 +10,7 @@ import '../../../core/themes.dart';
 import '../services/sos_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../../shared/services/evidence_service.dart';
+import '../../ai/services/distress_detector.dart';
 
 class SOSScreen extends StatefulWidget {
   const SOSScreen({Key? key}) : super(key: key);
@@ -28,6 +29,12 @@ class _SOSScreenState extends State<SOSScreen>
   final _descriptionController = TextEditingController();
   Timer? _countdownTimer;
   int _countdown = 5;
+
+  // AI real-time analysis
+  final DistressDetector _detector = DistressDetector();
+  DistressResult? _aiResult;
+  bool _isAiAnalyzing = false;
+  Timer? _aiDebounceTimer;
 
   // Evidence capture state
   final EvidenceService _evidenceService = EvidenceService();
@@ -57,14 +64,47 @@ class _SOSScreenState extends State<SOSScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _pulseController.repeat(reverse: true);
+
+    _descriptionController.addListener(_onDescriptionChanged);
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _descriptionController.removeListener(_onDescriptionChanged);
     _descriptionController.dispose();
     _countdownTimer?.cancel();
+    _aiDebounceTimer?.cancel();
     super.dispose();
+  }
+
+  void _onDescriptionChanged() {
+    _aiDebounceTimer?.cancel();
+    final text = _descriptionController.text.trim();
+    if (text.length < 10) {
+      if (_aiResult != null) setState(() => _aiResult = null);
+      return;
+    }
+    _aiDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+      _analyzeDescription(text);
+    });
+  }
+
+  Future<void> _analyzeDescription(String text) async {
+    if (text.isEmpty) return;
+    setState(() => _isAiAnalyzing = true);
+    try {
+      final result = await _detector.analyzeMessage(text);
+      if (mounted) {
+        setState(() {
+          _aiResult = result;
+          _isAiAnalyzing = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('SOSScreen: AI analysis failed: $e');
+      if (mounted) setState(() => _isAiAnalyzing = false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -319,6 +359,10 @@ class _SOSScreenState extends State<SOSScreen>
                 hintText: 'Describe your emergency situation...',
               ),
             ),
+            const SizedBox(height: 8),
+
+            // Real-time AI distress analysis
+            _buildAiAnalysisCard(),
             const SizedBox(height: 16),
 
             // Evidence Capture Section
@@ -532,6 +576,94 @@ class _SOSScreenState extends State<SOSScreen>
           ],
         );
     }
+  }
+
+  Widget _buildAiAnalysisCard() {
+    if (_aiResult == null && !_isAiAnalyzing) return const SizedBox.shrink();
+
+    final bool isDistress = _aiResult != null &&
+        (_aiResult!.priority == 'high' || _aiResult!.priority == 'critical');
+    final Color cardColor = isDistress ? Colors.red : AppTheme.primaryColor;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDistress ? Colors.red.shade50 : Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDistress ? Colors.red.shade200 : Colors.blue.shade200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isAiAnalyzing)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              isDistress ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+              color: cardColor,
+              size: 20,
+            ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_isAiAnalyzing)
+                  const Text(
+                    'AI analyzing description...',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  )
+                else if (_aiResult != null) ...[
+                  Text(
+                    isDistress
+                        ? '⚠ Distress signals detected!'
+                        : '✅ No distress detected',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cardColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Priority: ${_aiResult!.priority.toUpperCase()} '
+                    '(${(_aiResult!.confidence * 100).toStringAsFixed(0)}% confidence)',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                  if (_aiResult!.reasons.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 2,
+                      children: _aiResult!.reasons.map((r) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: cardColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            r,
+                            style: TextStyle(fontSize: 10, color: cardColor),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSentView() {

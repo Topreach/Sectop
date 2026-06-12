@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../ai/services/distress_detector.dart';
 
 class MessageDetailScreen extends StatefulWidget {
   const MessageDetailScreen({Key? key}) : super(key: key);
@@ -14,20 +16,10 @@ class MessageDetailScreen extends StatefulWidget {
 class _MessageDetailScreenState extends State<MessageDetailScreen> {
   Map<String, dynamic> _messageData = {};
   bool _isDeleted = false;
+  final DistressDetector _detector = DistressDetector();
+  DistressResult? _aiResult;
+  bool _isAnalyzing = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is Map<String, dynamic>) {
-        setState(() {
-          _messageData = args;
-        });
-        _markAsReadIfUnread();
-      }
-    });
-  }
 
   Future<void> _markAsReadIfUnread() async {
     if (_messageData['read_at'] != null) return;
@@ -39,6 +31,24 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
       });
     } catch (e) {
       debugPrint('MessageDetailScreen: Failed to mark as read: $e');
+    }
+  }
+
+  Future<void> _analyzeMessageContent() async {
+    final content = _messageData['content'] as String? ?? '';
+    if (content.isEmpty) return;
+    setState(() => _isAnalyzing = true);
+    try {
+      final result = await _detector.analyzeMessage(content);
+      if (mounted) {
+        setState(() {
+          _aiResult = result;
+          _isAnalyzing = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('MessageDetailScreen: AI analysis failed: $e');
+      if (mounted) setState(() => _isAnalyzing = false);
     }
   }
 
@@ -86,6 +96,21 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
         }
       }
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        setState(() {
+          _messageData = args;
+        });
+        _markAsReadIfUnread();
+        _analyzeMessageContent();
+      }
+    });
   }
 
   @override
@@ -244,6 +269,9 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
               ),
             ),
           ),
+
+          // AI Analysis Panel
+          _buildAiAnalysisPanel(content),
           const SizedBox(height: 24),
 
           // Delete button
@@ -265,6 +293,143 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildAiAnalysisPanel(String content) {
+    if (content.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology, size: 18, color: AppTheme.primaryColor),
+                const SizedBox(width: 8),
+                const Text(
+                  'AI Distress Analysis',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const Spacer(),
+                if (_isAnalyzing)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_isAnalyzing)
+              const Text(
+                'Analyzing message for distress signals...',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              )
+            else if (_aiResult == null || _aiResult!.label == 'error')
+              Text(
+                'AI analysis unavailable',
+                style: TextStyle(color: Colors.grey[500], fontSize: 13),
+              )
+            else ...[
+              // Priority indicator
+              Row(
+                children: [
+                  Icon(
+                    _aiResult!.priority == 'critical' || _aiResult!.priority == 'high'
+                        ? Icons.warning_amber_rounded
+                        : _aiResult!.priority == 'medium'
+                            ? Icons.info_outline
+                            : Icons.check_circle_outline,
+                    size: 20,
+                    color: _aiPriorityColor(_aiResult!.priority),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Priority: ${_aiResult!.priority.toUpperCase()}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: _aiPriorityColor(_aiResult!.priority),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${(_aiResult!.confidence * 100).toStringAsFixed(0)}% confidence',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Confidence bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _aiResult!.confidence,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _aiPriorityColor(_aiResult!.priority),
+                  ),
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Method
+              Text(
+                'Method: ${_aiResult!.method}',
+                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+              ),
+
+              // Detected signals
+              if (_aiResult!.reasons.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Detected Signals:',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: _aiResult!.reasons.map((reason) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _aiPriorityColor(_aiResult!.priority).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _aiPriorityColor(_aiResult!.priority).withOpacity(0.2),
+                        ),
+                      ),
+                      child: Text(
+                        reason,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _aiPriorityColor(_aiResult!.priority),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _aiPriorityColor(String priority) {
+    switch (priority) {
+      case 'critical': return Colors.red;
+      case 'high': return Colors.orange;
+      case 'medium': return Colors.amber.shade700;
+      case 'low': return Colors.green;
+      default: return Colors.grey;
+    }
   }
 
   String _formatTimestamp(dynamic ts) {

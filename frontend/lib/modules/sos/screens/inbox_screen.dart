@@ -7,6 +7,7 @@ import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/sync_manager.dart';
 import '../../auth/services/auth_service.dart';
+import '../../ai/services/distress_detector.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({Key? key}) : super(key: key);
@@ -241,7 +242,7 @@ class _InboxScreenState extends State<InboxScreen>
   }
 }
 
-class _MessagesTab extends StatelessWidget {
+class _MessagesTab extends StatefulWidget {
   final List<Map<String, dynamic>> messages;
   final bool isLoading;
   final bool isOffline;
@@ -259,6 +260,81 @@ class _MessagesTab extends StatelessWidget {
     required this.onDelete,
     required this.formatTimestamp,
   });
+
+  @override
+  State<_MessagesTab> createState() => _MessagesTabState();
+}
+
+class _MessagesTabState extends State<_MessagesTab> {
+  /// Cache of AI analysis results keyed by message content hash.
+  final Map<String, DistressResult> _aiAnalysisCache = {};
+  final DistressDetector _detector = DistressDetector();
+
+  /// Get priority label and color from a message's priority field.
+  String _priorityLabel(dynamic priority) {
+    if (priority == null) return 'unknown';
+    if (priority is int) {
+      switch (priority) {
+        case 0: return 'low';
+        case 1: return 'medium';
+        case 2: return 'high';
+        case 3: return 'critical';
+      }
+    }
+    if (priority is String) return priority;
+    return 'unknown';
+  }
+
+  Color _priorityColor(String label) {
+    switch (label) {
+      case 'critical': return Colors.red;
+      case 'high': return Colors.orange;
+      case 'medium': return Colors.amber;
+      case 'low': return Colors.green;
+      default: return Colors.grey;
+    }
+  }
+
+  Color _priorityBgColor(String label) {
+    switch (label) {
+      case 'critical': return Colors.red.shade50;
+      case 'high': return Colors.orange.shade50;
+      case 'medium': return Colors.amber.shade50;
+      case 'low': return Colors.green.shade50;
+      default: return Colors.grey.shade50;
+    }
+  }
+
+  IconData _priorityIcon(String label) {
+    switch (label) {
+      case 'critical': return Icons.warning;
+      case 'high': return Icons.warning_amber_rounded;
+      case 'medium': return Icons.info_outline;
+      case 'low': return Icons.check_circle_outline;
+      default: return Icons.help_outline;
+    }
+  }
+
+  /// Run AI analysis on a message content and cache the result.
+  Future<DistressResult?> _analyzeMessage(Map<String, dynamic> msg) async {
+    final content = msg['content'] as String? ?? '';
+    if (content.isEmpty) return null;
+
+    // Use content hash as cache key
+    final cacheKey = content.hashCode.toString();
+    if (_aiAnalysisCache.containsKey(cacheKey)) {
+      return _aiAnalysisCache[cacheKey];
+    }
+
+    try {
+      final result = await _detector.analyzeMessage(content);
+      _aiAnalysisCache[cacheKey] = result;
+      if (mounted) setState(() {});
+      return result;
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -359,14 +435,23 @@ class _MessagesTab extends StatelessWidget {
                         size: 20,
                       ),
                     ),
-                    title: Text(
-                      senderId,
-                      style: TextStyle(
-                        fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            senderId,
+                            style: TextStyle(
+                              fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // AI Priority Badge
+                        _buildPriorityBadge(msg),
+                      ],
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,7 +526,7 @@ class _MessagesTab extends StatelessWidget {
                       if (!isRead) {
                         onMarkRead(msg['id'] as String);
                       }
-                      _showMessageDetail(context, msg, formatTimestamp, onDelete);
+                      _showMessageDetail(context, msg, widget.formatTimestamp, widget.onDelete);
                     },
                   ),
                 );
@@ -450,82 +535,274 @@ class _MessagesTab extends StatelessWidget {
     );
   }
 
+  /// Build a small priority badge for the message list item.
+  Widget _buildPriorityBadge(Map<String, dynamic> msg) {
+    final priority = msg['priority'];
+    final label = _priorityLabel(priority);
+    final color = _priorityColor(label);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_priorityIcon(label), size: 10, color: color),
+          const SizedBox(width: 2),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showMessageDetail(
       BuildContext context,
       Map<String, dynamic> msg,
       String Function(dynamic) formatTimestamp,
       Future<void> Function(String) onDelete) {
+    final content = msg['content'] as String? ?? '';
+    final priority = msg['priority'];
+    final label = _priorityLabel(priority);
+    final color = _priorityColor(label);
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: AppTheme.primaryColor,
-                  child: const Icon(Icons.person, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        msg['sender_id'] as String? ?? 'Unknown',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (context, scrollController) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: ListView(
+            controller: scrollController,
+            children: [
+              // Sender info
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppTheme.primaryColor,
+                    child: const Icon(Icons.person, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          msg['sender_id'] as String? ?? 'Unknown',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                      Text(
-                        formatTimestamp(msg['created_at']),
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                      ),
-                    ],
+                        Text(
+                          formatTimestamp(msg['created_at']),
+                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Message content
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  content,
+                  style: const TextStyle(fontSize: 15, height: 1.4),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // AI Analysis Panel
+              _buildAiAnalysisPanel(content, label, color),
+              const SizedBox(height: 16),
+
+              // Delete button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    onDelete(msg['id'] as String);
+                  },
+                  icon: const Icon(Icons.delete_outlined, color: Colors.red),
+                  label: const Text('Delete Message',
+                      style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              msg['content'] as String? ?? '',
-              style: const TextStyle(fontSize: 15),
-            ),
-            const SizedBox(height: 16),
-            if (msg['priority'] != null)
-              Chip(
-                label: Text(
-                  'Priority: ${msg['priority']}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                backgroundColor: Colors.orange[100],
               ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  onDelete(msg['id'] as String);
-                },
-                icon: const Icon(Icons.delete_outlined, color: Colors.red),
-                label: const Text('Delete Message',
-                    style: TextStyle(color: Colors.red)),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  /// Build the AI analysis panel showing distress detection results.
+  Widget _buildAiAnalysisPanel(String content, String priorityLabel, Color priorityColor) {
+    return FutureBuilder<DistressResult?>(
+      future: _analyzeMessage({ 'content': content }),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('AI analyzing message...', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final result = snapshot.data;
+        if (result == null || result.label == 'error') {
+          return const SizedBox.shrink();
+        }
+
+        final reasons = result.reasons;
+        final aiPriorityColor = _priorityColor(result.priority);
+        final aiPriorityBg = _priorityBgColor(result.priority);
+
+        return Card(
+          elevation: 0,
+          color: aiPriorityBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: aiPriorityColor.withOpacity(0.3)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(_priorityIcon(result.priority), size: 18, color: aiPriorityColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI Distress Analysis',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: aiPriorityColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: aiPriorityColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        result.priority.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: aiPriorityColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Confidence bar
+                Row(
+                  children: [
+                    Text('Confidence: ', style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: result.confidence,
+                          backgroundColor: Colors.grey[200],
+                          valueColor: AlwaysStoppedAnimation<Color>(aiPriorityColor),
+                          minHeight: 6,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${(result.confidence * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: aiPriorityColor),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // Method
+                Text(
+                  'Method: ${result.method.replaceAll('_', ' ')}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+
+                // Detected reasons
+                if (reasons.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Detected Signals:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: reasons.map((reason) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: aiPriorityColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          reason.replaceAll('_', ' '),
+                          style: TextStyle(fontSize: 10, color: aiPriorityColor),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
