@@ -70,9 +70,13 @@ class _InboxScreenState extends State<InboxScreen>
       try {
         final api = context.read<BackendApi>();
         final result = await api.getMessages(userId);
-        final serverMessages = result['messages'] is List
-            ? (result['messages'] as List).cast<Map<String, dynamic>>()
-            : [];
+        final rawMessages = result['messages'];
+        final List<Map<String, dynamic>> serverMessages;
+        if (rawMessages is List) {
+          serverMessages = rawMessages.cast<Map<String, dynamic>>().toList();
+        } else {
+          serverMessages = [];
+        }
 
         // Cache server messages locally
         for (final msg in serverMessages) {
