@@ -256,6 +256,7 @@ enum MessageType {
   zoneUpdate,
   peerDiscovery,
   heartbeat,
+  walkieTalkieThreat,
 }
 
 enum MessagePriority {

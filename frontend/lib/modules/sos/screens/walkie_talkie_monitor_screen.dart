@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/themes.dart';
 import '../../../core/routes.dart';
 import '../../ai/services/distress_detector.dart';
+import '../services/mesh_threat_relay.dart';
 
 /// Screen that monitors nearby walkie-talkie audio via the phone microphone.
 ///
@@ -21,11 +22,11 @@ class WalkieTalkieMonitorScreen extends StatefulWidget {
   State<WalkieTalkieMonitorScreen> createState() =>
       _WalkieTalkieMonitorScreenState();
 }
-
 class _WalkieTalkieMonitorScreenState
     extends State<WalkieTalkieMonitorScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   final DistressDetector _detector = DistressDetector();
+  final MeshThreatRelayService _threatRelay = MeshThreatRelayService();
 
   bool _isMonitoring = false;
   bool _isAnalyzing = false;
@@ -43,10 +44,21 @@ class _WalkieTalkieMonitorScreenState
   int _totalScans = 0;
   int _threatsDetected = 0;
 
+  // Remote threat alerts from mesh peers
+  int _remoteThreatCount = 0;
+
   @override
   void initState() {
     super.initState();
     _checkPermission();
+    // Start listening for remote threat alerts from mesh peers
+    _threatRelay.startListening();
+    _threatRelay.onRemoteThreatReceived = (alert) {
+      if (mounted) {
+        setState(() => _remoteThreatCount = _threatRelay.incomingThreats.length);
+        _showRemoteThreatAlert(alert);
+      }
+    };
   }
 
   @override
@@ -55,6 +67,7 @@ class _WalkieTalkieMonitorScreenState
     _recorder.dispose();
     _monitorTimer?.cancel();
     _amplitudeTimer?.cancel();
+    _threatRelay.stopListening();
     super.dispose();
   }
 
@@ -187,9 +200,10 @@ class _WalkieTalkieMonitorScreenState
         }
       });
 
-      // If threat detected, show alert
+      // If threat detected, show alert and broadcast to mesh peers
       if (isThreat && mounted) {
         _showThreatAlert(result);
+        _broadcastThreatToMesh(result);
       }
 
       // Clean up temp file
@@ -260,6 +274,72 @@ class _WalkieTalkieMonitorScreenState
           Text('$label: ',
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           Text(value, style: const TextStyle(fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  /// Broadcast a detected threat to all nearby mesh peers.
+  void _broadcastThreatToMesh(AudioAnalysisResult result) {
+    _threatRelay.broadcastThreat(
+      confidence: result.confidence,
+      method: result.method,
+      threatLevel: result.threatLevel ?? 'high',
+    );
+  }
+
+  /// Show alert dialog for a threat received from a remote mesh peer.
+  void _showRemoteThreatAlert(RemoteThreatAlert alert) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.group, color: Colors.orange, size: 28),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Remote Threat Alert',
+                style: TextStyle(color: Colors.orange, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'A nearby device detected a walkie-talkie threat.',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 12),
+            _buildAlertRow('Device', alert.deviceId.length > 12
+                ? '...${alert.deviceId.substring(alert.deviceId.length - 12)}'
+                : alert.deviceId),
+            _buildAlertRow('Confidence',
+                '${(alert.confidence * 100).toStringAsFixed(0)}%'),
+            _buildAlertRow('Level', alert.threatLevel.toUpperCase()),
+            _buildAlertRow('Method', alert.method),
+            _buildAlertRow('Received', alert.timeAgo),
+            if (alert.latitude != null && alert.longitude != null)
+              _buildAlertRow(
+                  'Location', '${alert.latitude!.toStringAsFixed(4)}, ${alert.longitude!.toStringAsFixed(4)}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Dismiss'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed(AppRoutes.incidentReport);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('Report Incident'),
+          ),
         ],
       ),
     );
@@ -419,24 +499,51 @@ class _WalkieTalkieMonitorScreenState
   Widget _buildStatsBar() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
+      child: Column(
         children: [
-          _buildStatChip(Icons.wifi_tethering, 'Scans', '$_totalScans',
-              Colors.blue),
-          const SizedBox(width: 8),
-          _buildStatChip(
-            Icons.warning_amber_rounded,
-            'Threats',
-            '$_threatsDetected',
-            _threatsDetected > 0 ? Colors.red : Colors.green,
+          Row(
+            children: [
+              _buildStatChip(Icons.wifi_tethering, 'Scans', '$_totalScans',
+                  Colors.blue),
+              const SizedBox(width: 8),
+              _buildStatChip(
+                Icons.warning_amber_rounded,
+                'Threats',
+                '$_threatsDetected',
+                _threatsDetected > 0 ? Colors.red : Colors.green,
+              ),
+              const Spacer(),
+              if (_totalScans > 0)
+                Text(
+                  '${((_threatsDetected / _totalScans) * 100).toStringAsFixed(0)}% threat rate',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _threatsDetected > 0 ? Colors.red[400] : Colors.grey[500],
+                  ),
+                ),
+            ],
           ),
-          const Spacer(),
-          if (_totalScans > 0)
-            Text(
-              '${((_threatsDetected / _totalScans) * 100).toStringAsFixed(0)}% threat rate',
-              style: TextStyle(
-                fontSize: 11,
-                color: _threatsDetected > 0 ? Colors.red[400] : Colors.grey[500],
+          // Remote threat alerts from mesh peers
+          if (_remoteThreatCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  _buildStatChip(
+                    Icons.group,
+                    'Remote Threats',
+                    '$_remoteThreatCount',
+                    Colors.orange,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'from mesh network',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.orange[400],
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
