@@ -9,11 +9,6 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
-# Keep Play Core for Flutter deferred components
--keep class com.google.android.play.core.splitcompat.** { *; }
--keep class com.google.android.play.core.splitinstall.** { *; }
--keep class com.google.android.play.core.tasks.** { *; }
-
 # Keep Kotlin classes used by MethodChannel
 -keep class com.dangeremergence.app.** { *; }
 -keep class com.dangeremergence.mesh.** { *; }
