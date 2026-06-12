@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
@@ -72,8 +73,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-class _DashboardHome extends StatelessWidget {
+class _DashboardHome extends StatefulWidget {
   const _DashboardHome();
+
+  @override
+  State<_DashboardHome> createState() => _DashboardHomeState();
+}
+
+class _DashboardHomeState extends State<_DashboardHome> {
+  String _selectedLanguage = 'en';
+
+  static const Map<String, String> _languages = {
+    'en': 'English',
+    'yo': 'Yorùbá',
+    'ig': 'Igbo',
+    'ha': 'Hausa',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedLanguage = prefs.getString('app_language') ?? 'en';
+    });
+  }
+
+  Future<void> _changeLanguage(String languageCode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_language', languageCode);
+    setState(() => _selectedLanguage = languageCode);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Language changed to ${_languages[languageCode]}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +129,27 @@ class _DashboardHome extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Language selector
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.translate, color: Colors.white, size: 22),
+            tooltip: 'Change Language',
+            onSelected: _changeLanguage,
+            itemBuilder: (context) => _languages.entries.map((entry) {
+              return PopupMenuItem<String>(
+                value: entry.key,
+                child: Row(
+                  children: [
+                    if (entry.key == _selectedLanguage)
+                      const Icon(Icons.check, size: 18, color: AppTheme.primaryColor)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    Text(entry.value),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
           // Sync status indicator
           Padding(
             padding: const EdgeInsets.only(right: 8),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
@@ -63,9 +64,15 @@ class ProfileScreen extends StatelessWidget {
             }),
             _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
               _showPrivacySecurityDialog(context);
-            }),
             _ProfileOption(Icons.info_outline, 'About', () {
               _showAboutDialog(context);
+            }),
+            const Divider(height: 24),
+            _ProfileOption(Icons.settings_outlined, 'Settings', () {
+              Navigator.of(context).pushNamed(AppRoutes.settings);
+            }),
+            _ProfileOption(Icons.delete_outline, 'Delete Local Data', () {
+              _showDeleteLocalDataDialog(context);
             }),
           ],
         ),
@@ -92,6 +99,39 @@ class ProfileScreen extends StatelessWidget {
           child: const Text('Read Privacy Policy'),
         ),
       ],
+    );
+  }
+
+  void _showDeleteLocalDataDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Local Data'),
+        content: const Text(
+          'This will delete all locally stored messages, cached data, and preferences. '
+          'Your account (if any) will NOT be affected. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              if (ctx.mounted) {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Local data deleted successfully')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 
