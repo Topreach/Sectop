@@ -57,6 +57,7 @@ class DistressDetector extends ChangeNotifier {
   }
 
   /// Analyze audio — delegates to backend.
+  /// Analyze audio — delegates to backend.
   Future<AudioAnalysisResult> analyzeAudio(String base64Audio) async {
     try {
       final result = await _api.analyzeAudio(base64Audio);
@@ -64,6 +65,7 @@ class DistressDetector extends ChangeNotifier {
         hasDistress: result['hasDistress'] as bool? ?? false,
         confidence: (result['confidence'] as num?)?.toDouble() ?? 0.0,
         method: result['method'] as String? ?? 'api',
+        threatLevel: result['threatLevel'] as String? ?? 'low',
       );
     } catch (e) {
       debugPrint('DistressDetector: Audio analysis API failed: $e');
@@ -71,10 +73,10 @@ class DistressDetector extends ChangeNotifier {
         hasDistress: false,
         confidence: 0.0,
         method: 'error',
+        threatLevel: 'low',
       );
     }
   }
-}
 
 /// Result of a distress analysis.
 class DistressResult {
@@ -100,10 +102,12 @@ class AudioAnalysisResult {
   final bool hasDistress;
   final double confidence;
   final String method;
+  final String threatLevel;
 
   AudioAnalysisResult({
     required this.hasDistress,
     required this.confidence,
     required this.method,
+    this.threatLevel = 'low',
   });
 }
