@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants.dart';
 import '../../../core/localization.dart';
 import '../../../core/routes.dart';
@@ -131,6 +132,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cache cleared successfully')),
       );
+    }
+  }
+
+  Future<void> _rateOnPlayStore() async {
+    final packageName = AppConstants.packageName;
+    final uri = Uri.parse('market://details?id=$packageName');
+    final fallbackUri = Uri.parse('https://play.google.com/store/apps/details?id=$packageName');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else if (await canLaunchUrl(fallbackUri)) {
+        await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open Play Store')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open Play Store: $e')),
+        );
+      }
     }
   }
 
@@ -353,6 +379,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Support',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.star_rounded, color: Colors.amber),
+                  title: const Text('Rate on Play Store'),
+                  subtitle: const Text('Rate this app and leave a suggestion'),
+                  onTap: _rateOnPlayStore,
                 ),
                 ListTile(
                   leading: const Icon(Icons.support_agent, color: AppTheme.primaryColor),
