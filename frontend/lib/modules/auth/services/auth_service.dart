@@ -70,8 +70,21 @@ class AuthService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         await _handleSuccessfulAuth(data);
-        return AuthResult.success(data['user']);
+        return AuthResult.success({'email': email});
       }
+
+      // Server responded with an error (e.g. 401 Unauthorized)
+      // Return the server's error message instead of falling through to offline
+      String serverError = 'Invalid email or password';
+      try {
+        final errorBody = json.decode(response.body);
+        if (errorBody is Map && errorBody.containsKey('error')) {
+          serverError = errorBody['error'] as String;
+        }
+      } catch (_) {}
+      _isLoading = false;
+      notifyListeners();
+      return AuthResult.failure(serverError);
     } catch (_) {
       // Network error - try offline authentication
       debugPrint('Online auth failed, trying offline...');
@@ -120,8 +133,20 @@ class AuthService extends ChangeNotifier {
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
         await _handleSuccessfulAuth(data);
-        return AuthResult.success(data['user']);
+        return AuthResult.success({'email': profile.email});
       }
+
+      // Server responded with an error
+      String serverError = 'Registration failed';
+      try {
+        final errorBody = json.decode(response.body);
+        if (errorBody is Map && errorBody.containsKey('error')) {
+          serverError = errorBody['error'] as String;
+        }
+      } catch (_) {}
+      _isLoading = false;
+      notifyListeners();
+      return AuthResult.failure(serverError);
     } catch (_) {
       debugPrint('Online registration failed, saving offline...');
     }
@@ -186,9 +211,21 @@ class AuthService extends ChangeNotifier {
   }
 
   /// Handle successful authentication response.
+  /// Backend returns fields at the top level (userId, name, email, etc.)
+  /// Map them to the format expected by UserProfile.fromMap.
   Future<void> _handleSuccessfulAuth(Map<String, dynamic> data) async {
-    final userData = data['user'] as Map<String, dynamic>;
     final token = data['token'] as String?;
+
+    // Map backend response fields to UserProfile format
+    final userData = <String, dynamic>{
+      'id': data['userId'] ?? data['id'],
+      'name': data['name'] ?? 'Unknown',
+      'email': data['email'],
+      'phone': data['phone'],
+      'role': data['role']?.toString().toLowerCase() ?? 'citizen',
+      'public_key': data['publicKey'] ?? data['public_key'],
+      'created_at': data['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
+    };
 
     // Save to local storage
     await _storage.insert('users', {
