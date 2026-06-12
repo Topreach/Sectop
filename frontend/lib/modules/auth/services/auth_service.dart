@@ -87,6 +87,8 @@ class AuthService extends ChangeNotifier {
           serverError = errorBody['error'] as String;
         }
       } catch (_) {}
+      // Clear any previously authenticated state on login failure
+      _currentUser = null;
       _isLoading = false;
       notifyListeners();
       return AuthResult.failure(serverError);
@@ -149,6 +151,8 @@ class AuthService extends ChangeNotifier {
           serverError = errorBody['error'] as String;
         }
       } catch (_) {}
+      // Clear any previously authenticated state on login failure
+      _currentUser = null;
       _isLoading = false;
       notifyListeners();
       return AuthResult.failure(serverError);
