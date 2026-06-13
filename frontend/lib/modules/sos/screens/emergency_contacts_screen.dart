@@ -49,23 +49,23 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
+          title: Text(initialData != null ? context.tr('edit_contact') : context.tr('add_contact_title')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person_outline),
+                decoration: InputDecoration(
+                  labelText: context.tr('full_name'),
+                  prefixIcon: const Icon(Icons.person_outline),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone_outlined),
+                decoration: InputDecoration(
+                  labelText: context.tr('phone_number'),
+                  prefixIcon: const Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
               ),
@@ -105,8 +105,8 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Contact'),
-        content: const Text('Are you sure you want to delete this contact?'),
+        title: Text(context.tr('delete_contact')),
+        content: Text(context.tr('delete_contact_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -115,7 +115,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('DELETE'),
+            child: Text(context.tr('delete_button')),
           ),
         ],
       ),
@@ -146,12 +146,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                       Icon(Icons.contacts_outlined, size: 64, color: Colors.grey[300]),
                       const SizedBox(height: 16),
                       Text(
-                        'No emergency contacts',
+                        context.tr('no_emergency_contacts_text'),
                         style: TextStyle(fontSize: 16, color: Colors.grey[500]),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Add contacts who should be notified in an emergency',
+                        context.tr('add_contacts_notified'),
                         style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                         textAlign: TextAlign.center,
                       ),

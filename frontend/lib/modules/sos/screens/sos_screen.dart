@@ -45,14 +45,14 @@ class _SOSScreenState extends State<SOSScreen>
   bool _isCapturing = false;
 
   final List<String> _alertTypes = [
-    'Medical Emergency',
-    'Fire',
-    'Natural Disaster',
-    'Violence/Attack',
-    'Trapped',
-    'Lost',
-    'Structural Damage',
-    'Other Emergency',
+    'medical_emergency',
+    'fire',
+    'natural_disaster',
+    'violence_attack',
+    'trapped',
+    'lost',
+    'structural_damage',
+    'other_emergency',
   ];
 
   @override
@@ -192,7 +192,7 @@ class _SOSScreenState extends State<SOSScreen>
 
     try {
       await sosService.sendSOS(
-        alertType: _selectedAlertType ?? 'General Emergency',
+        alertType: _selectedAlertType ?? context.tr('general_emergency'),
         description: _descriptionController.text.trim(),
       );
 
@@ -211,7 +211,7 @@ class _SOSScreenState extends State<SOSScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send SOS: $e'),
+            content: Text('${context.tr('failed_text')} $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -313,9 +313,9 @@ class _SOSScreenState extends State<SOSScreen>
                                 color: Colors.white,
                               ),
                               const SizedBox(height: 8),
-                              const Text(
-                                'SOS',
-                                style: TextStyle(
+                              Text(
+                                context.tr('sos_label'),
+                                style: const TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.w900,
                                   color: Colors.white,
@@ -334,8 +334,8 @@ class _SOSScreenState extends State<SOSScreen>
             const SizedBox(height: 8),
             Text(
               _countdown < 5
-                  ? 'Sending in $_countdown seconds...'
-                  : 'Tap to send emergency alert',
+                  ? '${context.tr('sending_in_seconds_text')} $_countdown ${context.tr('seconds')}...'
+                  : context.tr('tap_send_emergency'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -350,24 +350,24 @@ class _SOSScreenState extends State<SOSScreen>
                 ),
               ),
             const SizedBox(height: 32),
-
-            // Alert Type
-            const Text(
-              'Alert Type',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedAlertType,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: context.tr('select_alert_type'),
-              ),
-              items: _alertTypes.map((type) {
-                return DropdownMenuItem(value: type, child: Text(type));
+// Alert Type
+Text(
+  context.tr('alert_type'),
+  style: const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+  ),
+),
+const SizedBox(height: 8),
+DropdownButtonFormField<String>(
+  value: _selectedAlertType,
+  decoration: InputDecoration(
+    border: const OutlineInputBorder(),
+    hintText: context.tr('select_alert_type'),
+  ),
+  items: _alertTypes.map((type) {
+    return DropdownMenuItem(value: type, child: Text(context.tr(type)));
+  }).toList(),
               }).toList(),
               onChanged: (value) {
                 setState(() => _selectedAlertType = value);
@@ -376,9 +376,9 @@ class _SOSScreenState extends State<SOSScreen>
             const SizedBox(height: 16),
 
             // Description
-            const Text(
-              'Description (Optional)',
-              style: TextStyle(
+            Text(
+              context.tr('description_optional'),
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -388,9 +388,9 @@ class _SOSScreenState extends State<SOSScreen>
               controller: _descriptionController,
               maxLines: 3,
               maxLength: 500,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Describe your emergency situation...',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: context.tr('describe_emergency_hint'),
               ),
             ),
             const SizedBox(height: 8),
@@ -398,14 +398,14 @@ class _SOSScreenState extends State<SOSScreen>
             // Real-time AI distress analysis
             _buildAiAnalysisCard(),
             const SizedBox(height: 16),
-
-            // Evidence Capture Section
-            const Text(
-              'Capture Evidence (Optional)',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+// Evidence Capture Section
+Text(
+  context.tr('capture_evidence_optional'),
+  style: const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+  ),
+),
             ),
             const SizedBox(height: 8),
             Row(
@@ -510,9 +510,7 @@ class _SOSScreenState extends State<SOSScreen>
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Your location will be sent with this alert. '
-                      'The alert will be broadcast via all available channels '
-                      '(cloud, Bluetooth mesh, Wi-Fi Direct, LoRa).',
+                      context.tr('your_location_sent'),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.orange[900],
@@ -604,7 +602,7 @@ class _SOSScreenState extends State<SOSScreen>
           children: [
             Icon(Icons.audio_file, color: Colors.teal, size: 32),
             Text(
-              'Audio',
+              context.tr('audio'),
               style: TextStyle(fontSize: 10, color: Colors.teal[700]),
             ),
           ],
@@ -650,15 +648,15 @@ class _SOSScreenState extends State<SOSScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_isAiAnalyzing)
-                  const Text(
-                    'AI analyzing description...',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  Text(
+                    context.tr('ai_analyzing'),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   )
                 else if (_aiResult != null) ...[
                   Text(
                     isDistress
-                        ? '⚠ Distress signals detected!'
-                        : '✅ No distress detected',
+                        ? context.tr('distress_detected')
+                        : context.tr('no_distress_detected'),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -667,8 +665,8 @@ class _SOSScreenState extends State<SOSScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Priority: ${_aiResult!.priority.toUpperCase()} '
-                    '(${(_aiResult!.confidence * 100).toStringAsFixed(0)}% confidence)',
+                    '${context.tr('priority')}: ${_aiResult!.priority.toUpperCase()} '
+                    '(${(_aiResult!.confidence * 100).toStringAsFixed(0)}% ${context.tr('confidence')})',
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                   if (_aiResult!.reasons.isNotEmpty) ...[
@@ -713,9 +711,9 @@ class _SOSScreenState extends State<SOSScreen>
               color: Colors.white,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'SOS SENT',
-              style: TextStyle(
+            Text(
+              context.tr('sos_sent'),
+              style: const TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
@@ -724,7 +722,7 @@ class _SOSScreenState extends State<SOSScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Help is on the way',
+              context.tr('help_on_way'),
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.white.withOpacity(0.8),
@@ -732,7 +730,7 @@ class _SOSScreenState extends State<SOSScreen>
             ),
             const SizedBox(height: 32),
             Text(
-              'Alert broadcast via all available channels',
+              context.tr('alert_broadcast_channels'),
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.white.withOpacity(0.6),

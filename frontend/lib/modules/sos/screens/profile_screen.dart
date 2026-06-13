@@ -45,35 +45,35 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              authService.currentUser?.name ?? 'Emergency User',
+              authService.currentUser?.name ?? context.tr('emergency_user'),
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              authService.currentUser?.email ?? 'Offline Mode',
+              authService.currentUser?.email ?? context.tr('offline_mode'),
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
-            _ProfileOption(Icons.person_outline, 'Edit Profile', () {
+            _ProfileOption(Icons.person_outline, context.tr('edit_profile'), () {
               _showEditProfileDialog(context, authService);
             }),
-            _ProfileOption(Icons.medical_services_outlined, 'Medical Info', () {
+            _ProfileOption(Icons.medical_services_outlined, context.tr('medical_info'), () {
               _showMedicalInfoDialog(context);
             }),
-            _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {
+            _ProfileOption(Icons.contacts_outlined, context.tr('emergency_contacts'), () {
               _showEmergencyContactsDialog(context);
             }),
-            _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
+            _ProfileOption(Icons.shield_outlined, context.tr('privacy_security'), () {
               _showPrivacySecurityDialog(context);
             }),
-            _ProfileOption(Icons.info_outline, 'About', () {
+            _ProfileOption(Icons.info_outline, context.tr('about'), () {
               _showAboutDialog(context);
             }),
             const Divider(height: 24),
-            _ProfileOption(Icons.settings_outlined, 'Settings', () {
+            _ProfileOption(Icons.settings_outlined, context.tr('settings'), () {
               Navigator.of(context).pushNamed(AppRoutes.settings);
             }),
-            _ProfileOption(Icons.delete_outline, 'Delete Local Data', () {
+            _ProfileOption(Icons.delete_outline, context.tr('delete_local_data'), () {
               _showDeleteLocalDataDialog(context);
             }),
           ],
@@ -90,8 +90,8 @@ class ProfileScreen extends StatelessWidget {
       applicationIcon: const Icon(Icons.security, color: AppTheme.primaryColor, size: 48),
       children: [
         const SizedBox(height: 16),
-        const Text(
-          'A specialized emergency system designed for high-risk security environments.',
+        Text(
+          context.tr('app_description'),
         ),
         const SizedBox(height: 12),
         TextButton(
@@ -109,9 +109,8 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(context.tr('delete_local_data_title')),
-        content: const Text(
-          'This will delete all locally stored messages, cached data, and preferences. '
-          'Your account (if any) will NOT be affected. This action cannot be undone.',
+        content: Text(
+          context.tr('delete_local_data_description'),
         ),
         actions: [
           TextButton(
@@ -161,9 +160,9 @@ class ProfileScreen extends StatelessWidget {
                     activeColor: AppTheme.primaryColor,
                   ),
                   const Divider(),
-                  const Text(
-                    'When enabled, hardware triggers (Volume Up + Down) will send a silent SOS without showing any UI or making sound.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  Text(
+                    context.tr('stealth_mode_description'),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
               ),
@@ -197,26 +196,26 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    prefixIcon: Icon(Icons.person_outline),
+                  decoration: InputDecoration(
+                    labelText: context.tr('full_name'),
+                    prefixIcon: const Icon(Icons.person_outline),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
+                  decoration: InputDecoration(
+                    labelText: context.tr('email_address'),
+                    prefixIcon: const Icon(Icons.email_outlined),
                   ),
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone',
-                    prefixIcon: Icon(Icons.phone_outlined),
+                  decoration: InputDecoration(
+                    labelText: context.tr('phone_number'),
+                    prefixIcon: const Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,
                 ),
@@ -288,9 +287,9 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     DropdownButtonFormField<String>(
                       value: bloodType.isEmpty ? null : bloodType,
-                      decoration: const InputDecoration(
-                        labelText: 'Blood Type',
-                        prefixIcon: Icon(Icons.bloodtype),
+                      decoration: InputDecoration(
+                        labelText: context.tr('blood_type'),
+                        prefixIcon: const Icon(Icons.bloodtype),
                       ),
                       items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
                           .map((type) => DropdownMenuItem(
@@ -302,10 +301,10 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Allergies',
-                        prefixIcon: Icon(Icons.warning_amber_outlined),
-                        hintText: 'e.g., Penicillin, Peanuts',
+                      decoration: InputDecoration(
+                        labelText: context.tr('allergies'),
+                        prefixIcon: const Icon(Icons.warning_amber_outlined),
+                        hintText: context.tr('allergies_hint'),
                       ),
                       onChanged: (value) => allergies = value,
                       controller: TextEditingController.fromValue(
@@ -314,10 +313,10 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Medications',
-                        prefixIcon: Icon(Icons.medication_outlined),
-                        hintText: 'e.g., Metformin 500mg',
+                      decoration: InputDecoration(
+                        labelText: context.tr('medications'),
+                        prefixIcon: const Icon(Icons.medication_outlined),
+                        hintText: context.tr('medications_hint'),
                       ),
                       onChanged: (value) => medications = value,
                       controller: TextEditingController.fromValue(
@@ -326,10 +325,10 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Medical Conditions',
-                        prefixIcon: Icon(Icons.health_and_safety_outlined),
-                        hintText: 'e.g., Diabetes, Asthma',
+                      decoration: InputDecoration(
+                        labelText: context.tr('medical_conditions'),
+                        prefixIcon: const Icon(Icons.health_and_safety_outlined),
+                        hintText: context.tr('conditions_hint'),
                       ),
                       onChanged: (value) => conditions = value,
                       controller: TextEditingController.fromValue(
@@ -386,11 +385,11 @@ class ProfileScreen extends StatelessWidget {
               content: SizedBox(
                 width: double.maxFinite,
                 child: contacts.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(16),
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
                         child: Text(
-                          'No emergency contacts added yet.',
-                          style: TextStyle(color: Colors.grey),
+                          context.tr('no_emergency_contacts'),
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       )
                     : ListView.builder(
@@ -475,23 +474,23 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
+          title: Text(initialData != null ? context.tr('edit_contact') : context.tr('add_contact_title')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person_outline),
+                decoration: InputDecoration(
+                  labelText: context.tr('full_name'),
+                  prefixIcon: const Icon(Icons.person_outline),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone_outlined),
+                decoration: InputDecoration(
+                  labelText: context.tr('phone_number'),
+                  prefixIcon: const Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
               ),
