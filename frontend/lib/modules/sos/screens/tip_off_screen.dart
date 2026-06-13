@@ -6,7 +6,6 @@ import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/evidence_service.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
-import '../../../core/localization.dart';
 
 /// Screen to submit an anonymous tip-off / intelligence report.
 class TipOffScreen extends StatefulWidget {
@@ -108,14 +107,14 @@ class _TipOffScreenState extends State<TipOffScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('tip_submitted_thanks'))),
+          SnackBar(content: Text('Tip submitted anonymously. Thank you.')),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.tr('failed_text')} $e')),
+          SnackBar(content: Text('${'Failed:'} $e')),
         );
       }
     } finally {
@@ -127,14 +126,14 @@ class _TipOffScreenState extends State<TipOffScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('tip_off_title')),
+        title: Text('Submit Tip-Off'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.list),
             onPressed: () => Navigator.of(context).pushNamed('/tip-review'),
-            tooltip: context.tr('review_tips'),
+            tooltip: 'Review Tips',
           ),
         ],
       ),
@@ -159,7 +158,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        context.tr('anonymous_tip_notice'),
+                        'Your identity is protected. Anonymous tips help keep communities safe.',
                         style: TextStyle(fontSize: 12, color: Colors.indigo[900]),
                       ),
                     ),
@@ -171,19 +170,19 @@ class _TipOffScreenState extends State<TipOffScreen> {
               DropdownButtonFormField<String>(
                 value: _tipType,
                 decoration: InputDecoration(
-                  labelText: context.tr('tip_type'),
+                  labelText: 'Tip Type',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.category),
                 ),
                 items: [
-                  DropdownMenuItem(value: 'suspicious_person', child: Text(context.tr('suspicious_person'))),
-                  DropdownMenuItem(value: 'suspicious_vehicle', child: Text(context.tr('suspicious_vehicle'))),
-                  DropdownMenuItem(value: 'planned_attack', child: Text(context.tr('planned_attack'))),
-                  DropdownMenuItem(value: 'hidden_weapons', child: Text(context.tr('hidden_weapons'))),
-                  DropdownMenuItem(value: 'kidnapping_plot', child: Text(context.tr('kidnapping_plot'))),
-                  DropdownMenuItem(value: 'bombing_plot', child: Text(context.tr('bombing_plot'))),
-                  DropdownMenuItem(value: 'suspicious_radio_activity', child: Text(context.tr('suspicious_radio_activity'))),
-                  DropdownMenuItem(value: 'other', child: Text(context.tr('other_tip'))),
+                  DropdownMenuItem(value: 'suspicious_person', child: Text('Suspicious Person')),
+                  DropdownMenuItem(value: 'suspicious_vehicle', child: Text('Suspicious Vehicle')),
+                  DropdownMenuItem(value: 'planned_attack', child: Text('Planned Attack')),
+                  DropdownMenuItem(value: 'hidden_weapons', child: Text('Hidden Weapons')),
+                  DropdownMenuItem(value: 'kidnapping_plot', child: Text('Kidnapping Plot')),
+                  DropdownMenuItem(value: 'bombing_plot', child: Text('Bombing Plot')),
+                  DropdownMenuItem(value: 'suspicious_radio_activity', child: Text('Suspicious Radio / Walkie-Talkie')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
                 ],
                 onChanged: (v) => setState(() => _tipType = v!),
               ),
@@ -192,19 +191,19 @@ class _TipOffScreenState extends State<TipOffScreen> {
               TextFormField(
                 controller: _descriptionController,
                 decoration: InputDecoration(
-                  labelText: context.tr('description'),
+                  labelText: 'Description *',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.description),
                 ),
                 maxLines: 5,
-                validator: (v) => v == null || v.trim().isEmpty ? context.tr('required_field') : null,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _targetController,
                 decoration: InputDecoration(
-                  labelText: context.tr('target_description'),
+                  labelText: 'Target Description (optional)',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.person_search),
                 ),
@@ -215,7 +214,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
               TextFormField(
                 controller: _suspectController,
                 decoration: InputDecoration(
-                  labelText: context.tr('suspect_description'),
+                  labelText: 'Suspect Description (optional)',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.face),
                 ),
@@ -224,7 +223,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
               const SizedBox(height: 16),
 
               NigeriaLocationPicker(
-                label: context.tr('location_optional'),
+                label: 'Location (optional)',
                 onLocationSelected: (lat, lng, name) {
                   setState(() {
                     _latitude = lat;
@@ -237,7 +236,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
 
               // Evidence Capture Section
               Text(
-                context.tr('attach_evidence'),
+                'Attach Evidence (Optional)',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -249,7 +248,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.camera_alt,
-                      label: context.tr('photo'),
+                      label: 'Photo',
                       color: Colors.blue,
                       onTap: _capturePhoto,
                     ),
@@ -258,7 +257,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.videocam,
-                      label: context.tr('video'),
+                      label: 'Video',
                       color: Colors.purple,
                       onTap: _captureVideo,
                     ),
@@ -267,7 +266,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.mic,
-                      label: context.tr('audio'),
+                      label: 'Audio',
                       color: Colors.teal,
                       onTap: _recordAudio,
                     ),
@@ -333,8 +332,8 @@ class _TipOffScreenState extends State<TipOffScreen> {
               const SizedBox(height: 16),
 
               SwitchListTile(
-                title: Text(context.tr('submit_anonymously')),
-                subtitle: Text(context.tr('identity_not_shared')),
+                title: Text('Submit Anonymously'),
+                subtitle: Text('Your identity will not be shared'),
                 value: _isAnonymous,
                 onChanged: (v) => setState(() => _isAnonymous = v),
                 secondary: Icon(
@@ -352,7 +351,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.send),
-                label: Text(_isSubmitting ? context.tr('submitting') : context.tr('submit_tip')),
+                label: Text(_isSubmitting ? 'Submitting...' : 'Submit Tip'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo,
                   foregroundColor: Colors.white,
@@ -441,7 +440,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
           children: [
             Icon(Icons.audio_file, color: Colors.teal, size: 32),
             Text(
-              context.tr('audio'),
+              'Audio',
               style: TextStyle(fontSize: 10, color: Colors.teal[700]),
             ),
           ],

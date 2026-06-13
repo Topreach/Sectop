@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
-import '../../../core/localization.dart';
 
 /// Screen to view active broadcasts/alerts.
 class BroadcastScreen extends StatefulWidget {
@@ -103,7 +102,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadBroadcasts,
-                        child: Text(context.tr('retry')),
+                        child: Text('Retry'),
                       ),
                     ],
                   ),

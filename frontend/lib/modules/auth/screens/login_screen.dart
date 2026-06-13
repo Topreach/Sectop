@@ -4,7 +4,6 @@ import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../services/auth_service.dart';
-import '../../../core/localization.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -69,12 +68,12 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
       } else {
         setState(() {
-          _errorMessage = result.error ?? context.tr('authentication_failed');
+          _errorMessage = result.error ?? 'Authentication failed';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = context.tr('connection_error_offline');
+        _errorMessage = 'Connection error. Using offline mode.';
       });
     } finally {
       if (mounted) {
@@ -95,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
     } else {
       setState(() {
-        _errorMessage = context.tr('failed_emergency_mode');
+        _errorMessage = 'Failed to enter emergency mode';
         _isLoading = false;
       });
     }
@@ -132,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Title
                   Text(
-                    _isLogin ? context.tr('welcome_back') : context.tr('create_account'),
+                    _isLogin ? 'Welcome Back' : 'Create Account',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -141,8 +140,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _isLogin
-                        ? context.tr('sign_in_to_access')
-                        : context.tr('register_for_assistance'),
+                        ? 'Sign in to access emergency services'
+                        : 'Register for emergency assistance',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey[600],
@@ -181,13 +180,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: context.tr('full_name'),
+                        labelText: 'Full Name',
                         prefixIcon: const Icon(Icons.person_outline),
                         border: const OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (!_isLogin && (value == null || value.isEmpty)) {
-                          return context.tr('please_enter_name');
+                          return 'Please enter your name';
                         }
                         return null;
                       },
@@ -199,16 +198,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: context.tr('email'),
+                      labelText: 'Email',
                       prefixIcon: const Icon(Icons.email_outlined),
                       border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return context.tr('please_enter_email');
+                        return 'Please enter your email';
                       }
                       if (!value.contains('@')) {
-                        return context.tr('please_enter_valid_email');
+                        return 'Please enter a valid email';
                       }
                       return null;
                     },
@@ -221,13 +220,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
-                        labelText: context.tr('phone_number'),
+                        labelText: 'Phone Number',
                         prefixIcon: const Icon(Icons.phone_outlined),
                         border: const OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (!_isLogin && (value == null || value.isEmpty)) {
-                          return context.tr('please_enter_phone');
+                          return 'Please enter your phone number';
                         }
                         return null;
                       },
@@ -240,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: context.tr('password'),
+                      labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outlined),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
@@ -256,10 +255,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return context.tr('please_enter_password');
+                        return 'Please enter your password';
                       }
                       if (value.length < 6) {
-                        return context.tr('password_min_chars');
+                        return 'Password must be at least 6 characters';
                       }
                       return null;
                     },
@@ -273,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Navigator.of(context).pushNamed(AppRoutes.forgotPassword);
                         },
                         child: Text(
-                          context.tr('forgot_password'),
+                          'Forgot Password?',
                           style: const TextStyle(fontSize: 13),
                         ),
                       ),
@@ -303,7 +302,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             )
                           : Text(
-                              _isLogin ? context.tr('sign_in') : context.tr('create_account'),
+                              _isLogin ? 'Sign In' : 'Create Account',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -321,12 +320,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         _errorMessage = null;
                       });
                     },
-                    child: Text(
-                      _isLogin
-                          ? context.tr('dont_have_account_register')
-                          : context.tr('already_have_account'),
-                    ),
-                  ),
+                                        child: Text(
+                                          _isLogin
+                                              ? "Don't have an account? Register"
+                                              : 'Already have an account? Sign In',
+                                        ),
                   const SizedBox(height: 24),
 
                   // Emergency access divider
@@ -336,7 +334,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          context.tr('emergency_tools'),
+                          'Emergency Tools',
                           style: TextStyle(color: Colors.grey[500]),
                         ),
                       ),
@@ -351,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _emergencyAccess,
                       icon: const Icon(Icons.warning_amber_rounded),
-                      label: Text(context.tr('emergency_access_no_login')),
+                      label: Text('Emergency Access (No Login)'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primaryColor,
                         side: const BorderSide(color: AppTheme.primaryColor),
@@ -363,7 +361,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    context.tr('use_in_disaster'),
+                    'Use in disaster situations when you cannot log in',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
@@ -382,7 +380,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
                             },
                       icon: const Icon(Icons.person_outline, size: 20),
-                      label: Text(context.tr('skip_login_guest')),
+                      label: Text('Skip Login — Use as Guest'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey,
                         side: const BorderSide(color: Colors.grey),
@@ -394,7 +392,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    context.tr('browse_without_account'),
+                    'Browse broadcasts, view safe zones, and access emergency info without an account',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
@@ -411,14 +409,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: () {
                           Navigator.of(context).pushNamed(AppRoutes.privacyPolicy);
                         },
-                        child: Text(context.tr('privacy_policy'), style: const TextStyle(fontSize: 12)),
+                        child: Text('Privacy Policy', style: const TextStyle(fontSize: 12)),
                       ),
                       const Text('|', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).pushNamed(AppRoutes.howToUse);
                         },
-                        child: Text(context.tr('how_to_use'), style: const TextStyle(fontSize: 12)),
+                        child: Text('How to Use', style: const TextStyle(fontSize: 12)),
                       ),
                     ],
                   ),
@@ -427,12 +425,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('${context.tr('contact_support_email')} ${AppConstants.supportEmail}'),
+                          content: Text('${'Contact Support:'} ${AppConstants.supportEmail}'),
                         ),
                       );
                     },
                     child: Text(
-                      '${context.tr('contact_support_email')} ${AppConstants.supportEmail}',
+                      '${'Contact Support:'} ${AppConstants.supportEmail}',
                       style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                     ),
                   ),

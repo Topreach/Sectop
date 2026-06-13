@@ -10,7 +10,6 @@ import '../../../core/themes.dart';
 import '../../../shared/services/sync_manager.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
-import '../../../shared/services/locale_provider.dart';
 import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
@@ -18,7 +17,6 @@ import '../../../shared/services/hardware_trigger_service.dart';
 import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
 import '../../ai/widgets/threat_awareness_card.dart';
-import '../../../core/localization.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -54,22 +52,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home),
-            label: context.tr('home'),
+            label: 'Home',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map_outlined),
             activeIcon: Icon(Icons.map),
-            label: context.tr('map'),
+            label: 'Map',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.inbox_outlined),
             activeIcon: Icon(Icons.inbox),
-            label: context.tr('inbox'),
+            label: 'Inbox',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
-            label: context.tr('profile'),
+            label: 'Profile',
           ),
         ],
       ),
@@ -85,41 +83,6 @@ class _DashboardHome extends StatefulWidget {
 }
 
 class _DashboardHomeState extends State<_DashboardHome> {
-  String _selectedLanguage = 'en';
-
-  static const Map<String, String> _languages = {
-    'en': 'English',
-    'yo': 'Yorùbá',
-    'ig': 'Igbo',
-    'ha': 'Hausa',
-  };
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLanguage();
-  }
-
-  Future<void> _loadLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selectedLanguage = prefs.getString('app_language') ?? 'en';
-    });
-  }
-
-  Future<void> _changeLanguage(String languageCode) async {
-    if (!mounted) return;
-    final localeProvider = context.read<LocaleProvider>();
-    await localeProvider.setLocale(
-      Locale(languageCode, languageCode == 'en' ? 'US' : 'NG'),
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.tr('language_changed_to')} ${_languages[languageCode]}')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isOnline = context.select<SyncManager, bool>((s) => s.isOnline);
@@ -130,32 +93,11 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('app_name')),
+        title: Text('Sectop'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // Language selector
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.translate, color: Colors.white, size: 22),
-            tooltip: context.tr('change_language'),
-            onSelected: _changeLanguage,
-            itemBuilder: (context) => _languages.entries.map((entry) {
-              return PopupMenuItem<String>(
-                value: entry.key,
-                child: Row(
-                  children: [
-                    if (entry.key == _selectedLanguage)
-                      const Icon(Icons.check, size: 18, color: AppTheme.primaryColor)
-                    else
-                      const SizedBox(width: 18),
-                    const SizedBox(width: 8),
-                    Text(entry.value),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
           // Sync status indicator
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -214,7 +156,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                         const Icon(Icons.warning_amber_rounded, size: 64, color: Colors.white),
                         const SizedBox(height: 8),
                         Text(
-                          context.tr('send_sos'),
+                          'SEND SOS',
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w900,
@@ -223,7 +165,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                           ),
                         ),
                         Text(
-                          context.tr('tap_emergency'),
+                          'Tap for emergency alert',
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.white70,
@@ -238,7 +180,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
               // Quick Actions Grid
               Text(
-                context.tr('quick_actions'),
+                'Quick Actions',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
@@ -248,7 +190,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.map_outlined,
-                      label: context.tr('safe_zones'),
+                      label: 'Safe Zones',
                       color: Colors.green,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.map),
                     ),
@@ -257,7 +199,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.wifi_tethering,
-                      label: context.tr('mesh_network'),
+                      label: 'Mesh Network',
                       color: Colors.blue,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.meshStatus),
                     ),
@@ -270,7 +212,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.inbox_outlined,
-                      label: context.tr('messages'),
+                      label: 'Messages',
                       color: Colors.purple,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
                     ),
@@ -279,7 +221,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.medical_services_outlined,
-                      label: context.tr('first_aid'),
+                      label: 'First Aid',
                       color: Colors.orange,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.firstAid),
                     ),
@@ -289,7 +231,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
               const SizedBox(height: 12),
               // Row 2: NEW - 4 Feature Quick Actions
               Text(
-                context.tr('emergency_tools'),
+                'Emergency Tools',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
@@ -298,7 +240,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.campaign_outlined,
-                      label: context.tr('broadcasts'),
+                      label: 'Broadcasts',
                       color: Colors.red,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.broadcasts),
                     ),
@@ -307,7 +249,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.route_outlined,
-                      label: context.tr('safe_route'),
+                      label: 'Safe Route',
                       color: Colors.teal,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.safeRoute),
                     ),
@@ -320,7 +262,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.visibility_outlined,
-                      label: context.tr('tip_off'),
+                      label: 'Tip Off',
                       color: Colors.indigo,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.tipOff),
                     ),
@@ -329,7 +271,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.radio_outlined,
-                      label: context.tr('radio'),
+                      label: 'Radio',
                       color: Colors.brown,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.radioBroadcast),
                     ),
@@ -342,7 +284,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.radio,
-                      label: context.tr('walkie_talkie'),
+                      label: 'Walkie Talkie',
                       color: const Color(0xFFE65100),
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.walkieTalkieMonitor),
                     ),
@@ -351,7 +293,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.security_outlined,
-                      label: context.tr('danger_zones'),
+                      label: 'Danger Zones',
                       color: const Color(0xFFB71C1C),
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.map),
                     ),
@@ -362,7 +304,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
               // Status Cards
               Text(
-                context.tr('system_status'),
+                'System Status',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
@@ -370,8 +312,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Connection status
               _StatusCard(
                 icon: isOnline ? Icons.cloud_done : Icons.cloud_off,
-                title: context.tr('cloud_connection'),
-                subtitle: isOnline ? context.tr('connected') : context.tr('offline'),
+                title: 'Cloud Connection',
+                subtitle: isOnline ? 'Connected' : 'Offline',
                 color: isOnline ? Colors.green : Colors.orange,
               ),
               const SizedBox(height: 8),
@@ -379,8 +321,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Mesh status
               _StatusCard(
                 icon: Icons.wifi_tethering,
-                title: context.tr('mesh_network'),
-                subtitle: '${context.tr('peers_connected')}: $peerCount',
+                title: 'Mesh Network',
+                subtitle: '${'peers connected'}: $peerCount',
                 color: peerCount > 0 ? Colors.blue : Colors.grey,
               ),
               const SizedBox(height: 8),
@@ -388,8 +330,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Location status
               _StatusCard(
                 icon: Icons.my_location,
-                title: context.tr('location_tracking'),
-                subtitle: isTracking ? context.tr('active') : context.tr('inactive'),
+                title: 'Location Tracking',
+                subtitle: isTracking ? 'Active' : 'Inactive',
                 color: isTracking ? Colors.green : Colors.grey,
               ),
               const SizedBox(height: 8),
@@ -397,10 +339,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Sync status
               _StatusCard(
                 icon: Icons.sync,
-                title: context.tr('data_sync'),
+                title: 'Data Sync',
                 subtitle: isSyncing
-                    ? context.tr('syncing')
-                    : '${context.tr('pending_items')}: $pendingCount',
+                    ? 'Syncing...'
+                    : '${'pending items'}: $pendingCount',
                 color: pendingCount > 0 ? Colors.orange : Colors.green,
               ),
               const SizedBox(height: 24),
@@ -429,7 +371,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('sos_sent_silently')),
+          SnackBar(content: Text('SOS sent silently'),
             duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -599,13 +541,13 @@ class _MapViewState extends State<_MapView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('map')),
+        title: Text('Map'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.fullscreen),
-            tooltip: context.tr('open_full_map'),
+            tooltip: 'Open Full Map',
             onPressed: () => Navigator.of(context).pushNamed(AppRoutes.map),
           ),
         ],
@@ -687,7 +629,7 @@ class _MapViewState extends State<_MapView> {
                   Icon(Icons.warning_amber, size: 16, color: Colors.orange[700]),
                   const SizedBox(width: 8),
                   Text(
-                    '${context.tr('zones_nearby')}: ${_nearbyZones.length}',
+                    '${'zone(s) nearby'}: ${_nearbyZones.length}',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey[700],
@@ -762,13 +704,13 @@ class _InboxViewState extends State<_InboxView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('inbox')),
+        title: Text('Inbox'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.open_in_new),
-            tooltip: context.tr('open_inbox'),
+            tooltip: 'Open Inbox',
             onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
           ),
         ],
@@ -786,7 +728,7 @@ class _InboxViewState extends State<_InboxView> {
                       Expanded(
                         child: _SummaryCard(
                           icon: Icons.message_outlined,
-                          label: context.tr('unread_messages'),
+                          label: 'Unread Messages',
                           count: _unreadCount,
                           color: Colors.blue,
                         ),
@@ -795,7 +737,7 @@ class _InboxViewState extends State<_InboxView> {
                       Expanded(
                         child: _SummaryCard(
                           icon: Icons.warning_amber_outlined,
-                          label: context.tr('active_alerts'),
+                          label: 'Active Alerts',
                           count: _alertCount,
                           color: Colors.red,
                         ),
@@ -806,7 +748,7 @@ class _InboxViewState extends State<_InboxView> {
 
                   // Recent messages section
                   Text(
-                    context.tr('recent_messages'),
+                    'Recent Messages',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
@@ -820,7 +762,7 @@ class _InboxViewState extends State<_InboxView> {
                       ),
                       child: Center(
                         child: Text(
-                          context.tr('no_recent_messages'),
+                          'No recent messages',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ),
@@ -856,7 +798,7 @@ class _InboxViewState extends State<_InboxView> {
                   ElevatedButton.icon(
                     onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
                     icon: const Icon(Icons.open_in_new, size: 18),
-                    label: Text(context.tr('open_inbox')),
+                    label: Text('Open Inbox'),
                   ),
                 ],
               ),
@@ -919,7 +861,7 @@ class _ProfileView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('profile')),
+        title: Text('Profile'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -945,32 +887,32 @@ class _ProfileView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              authService.currentUser?.name ?? context.tr('emergency_user'),
+              authService.currentUser?.name ?? 'Emergency User',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              authService.currentUser?.email ?? context.tr('offline_mode'),
+              authService.currentUser?.email ?? 'Offline Mode',
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
             // Profile options
-            _ProfileOption(Icons.person_outline, context.tr('edit_profile'), () {
+            _ProfileOption(Icons.person_outline, 'Edit Profile', () {
               _showEditProfileDialog(context, authService);
             }),
-            _ProfileOption(Icons.medical_services_outlined, context.tr('medical_info'), () {
+            _ProfileOption(Icons.medical_services_outlined, 'Medical Info', () {
               _showMedicalInfoDialog(context);
             }),
-            _ProfileOption(Icons.contacts_outlined, context.tr('emergency_contacts'), () {
+            _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {
               _showEmergencyContactsDialog(context);
             }),
-            _ProfileOption(Icons.settings_outlined, context.tr('settings'), () {
+            _ProfileOption(Icons.settings_outlined, 'Settings', () {
               Navigator.of(context).pushNamed(AppRoutes.settings);
             }),
-            _ProfileOption(Icons.shield_outlined, context.tr('privacy_security'), () {
+            _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
               _showPrivacySecurityDialog(context);
             }),
-            _ProfileOption(Icons.info_outline, context.tr('about'), () {
+            _ProfileOption(Icons.info_outline, 'About', () {
               _showAboutDialog(context);
             }),
           ],
@@ -988,7 +930,7 @@ class _ProfileView extends StatelessWidget {
       children: [
         const SizedBox(height: 16),
         Text(
-          context.tr('app_description'),
+          'A specialized emergency system designed for high-risk security environments.',
         ),
         const SizedBox(height: 12),
         TextButton(
@@ -996,7 +938,7 @@ class _ProfileView extends StatelessWidget {
             // In a real app, use url_launcher
             debugPrint('Opening Privacy Policy...');
           },
-          child: Text(context.tr('read_privacy_policy')),
+          child: Text('Read Privacy Policy'),
         ),
       ],
     );
@@ -1011,13 +953,13 @@ class _ProfileView extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(context.tr('privacy_security_title')),
+              title: Text('Privacy & Security'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SwitchListTile(
-                    title: Text(context.tr('stealth_mode_sos')),
-                    subtitle: Text(context.tr('silent_panic_trigger')),
+                    title: Text('Stealth Mode SOS'),
+                    subtitle: Text('Silent panic trigger via hardware buttons'),
                     value: triggerService.isStealthModeEnabled,
                     onChanged: (value) {
                       triggerService.setStealthMode(value);
@@ -1027,7 +969,7 @@ class _ProfileView extends StatelessWidget {
                   ),
                   const Divider(),
                   Text(
-                    context.tr('stealth_mode_description'),
+                    'When enabled, hardware triggers (Volume Up + Down) will send a silent SOS without showing any UI or making sound.',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -1035,7 +977,7 @@ class _ProfileView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(context.tr('close_action')),
+                  child: Text('CLOSE'),
                 ),
               ],
             );
@@ -1055,7 +997,7 @@ class _ProfileView extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(context.tr('edit_profile_title')),
+          title: Text('Edit Profile'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1063,7 +1005,7 @@ class _ProfileView extends StatelessWidget {
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(
-                    labelText: context.tr('full_name'),
+                    labelText: 'Full Name',
                     prefixIcon: const Icon(Icons.person_outline),
                   ),
                 ),
@@ -1071,7 +1013,7 @@ class _ProfileView extends StatelessWidget {
                 TextField(
                   controller: emailController,
                   decoration: InputDecoration(
-                    labelText: context.tr('email_address'),
+                    labelText: 'Email Address',
                     prefixIcon: const Icon(Icons.email_outlined),
                   ),
                   keyboardType: TextInputType.emailAddress,
@@ -1080,7 +1022,7 @@ class _ProfileView extends StatelessWidget {
                 TextField(
                   controller: phoneController,
                   decoration: InputDecoration(
-                    labelText: context.tr('phone_number'),
+                    labelText: 'Phone Number',
                     prefixIcon: const Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,
@@ -1091,7 +1033,7 @@ class _ProfileView extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('cancel_action')),
+              child: Text('CANCEL'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1109,11 +1051,11 @@ class _ProfileView extends StatelessWidget {
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.tr('profile_updated'))),
+                    SnackBar(content: Text('Profile updated')),
                   );
                 }
               },
-              child: Text(context.tr('save_action')),
+              child: Text('SAVE'),
             ),
           ],
         );
@@ -1147,7 +1089,7 @@ class _ProfileView extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: Text(context.tr('medical_info_title')),
+              title: Text('Medical Info'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1155,7 +1097,7 @@ class _ProfileView extends StatelessWidget {
                     DropdownButtonFormField<String>(
                       value: bloodType.isEmpty ? null : bloodType,
                       decoration: InputDecoration(
-                        labelText: context.tr('blood_type'),
+                        labelText: 'Blood Type',
                         prefixIcon: const Icon(Icons.bloodtype),
                       ),
                       items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
@@ -1169,9 +1111,9 @@ class _ProfileView extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: context.tr('allergies'),
+                        labelText: 'Allergies',
                         prefixIcon: const Icon(Icons.warning_amber_outlined),
-                        hintText: context.tr('allergies_hint'),
+                        hintText: 'e.g., Penicillin, Peanuts',
                       ),
                       onChanged: (value) => allergies = value,
                       controller: TextEditingController.fromValue(
@@ -1181,9 +1123,9 @@ class _ProfileView extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: context.tr('medications'),
+                        labelText: 'Medications',
                         prefixIcon: const Icon(Icons.medication_outlined),
-                        hintText: context.tr('medications_hint'),
+                        hintText: 'e.g., Metformin 500mg',
                       ),
                       onChanged: (value) => medications = value,
                       controller: TextEditingController.fromValue(
@@ -1193,9 +1135,9 @@ class _ProfileView extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: context.tr('medical_conditions'),
+                        labelText: 'Medical Conditions',
                         prefixIcon: const Icon(Icons.health_and_safety_outlined),
-                        hintText: context.tr('conditions_hint'),
+                        hintText: 'e.g., Diabetes, Asthma',
                       ),
                       onChanged: (value) => conditions = value,
                       controller: TextEditingController.fromValue(
@@ -1208,7 +1150,7 @@ class _ProfileView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(context.tr('cancel_action')),
+                  child: Text('CANCEL'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -1217,11 +1159,11 @@ class _ProfileView extends StatelessWidget {
                     if (context.mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(context.tr('medical_info_saved'))),
+                        SnackBar(content: Text('Medical info saved')),
                       );
                     }
                   },
-                  child: Text(context.tr('save_action')),
+                  child: Text('SAVE'),
                 ),
               ],
             );
@@ -1249,14 +1191,14 @@ class _ProfileView extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: Text(context.tr('emergency_contacts_title')),
+              title: Text('Emergency Contacts'),
               content: SizedBox(
                 width: double.maxFinite,
                 child: contacts.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(16),
                         child: Text(
-                          context.tr('no_emergency_contacts'),
+                          'No emergency contacts added yet.',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       )
@@ -1306,7 +1248,7 @@ class _ProfileView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(context.tr('close_action')),
+                  child: Text('CLOSE'),
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
@@ -1320,7 +1262,7 @@ class _ProfileView extends StatelessWidget {
                     );
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: Text(context.tr('add_contact_title')),
+                  label: Text('Add Contact'),
                 ),
               ],
             );
@@ -1342,14 +1284,14 @@ class _ProfileView extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(initialData != null ? context.tr('edit_contact') : context.tr('add_contact_title')),
+          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                  labelText: context.tr('full_name'),
+                  labelText: 'Full Name',
                   prefixIcon: const Icon(Icons.person_outline),
                 ),
               ),
@@ -1357,7 +1299,7 @@ class _ProfileView extends StatelessWidget {
               TextField(
                 controller: phoneController,
                 decoration: InputDecoration(
-                  labelText: context.tr('phone_number'),
+                  labelText: 'Phone Number',
                   prefixIcon: const Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
@@ -1367,7 +1309,7 @@ class _ProfileView extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('cancel_action')),
+              child: Text('CANCEL'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1377,7 +1319,7 @@ class _ProfileView extends StatelessWidget {
                 });
                 Navigator.pop(context);
               },
-              child: Text(context.tr('save_action')),
+              child: Text('SAVE'),
             ),
           ],
         );

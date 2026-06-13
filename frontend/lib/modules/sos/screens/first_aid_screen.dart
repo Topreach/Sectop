@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/themes.dart';
-import '../../../core/localization.dart';
 
 /// First Aid Screen — provides step-by-step emergency medical guides
 /// that work offline. Covers CPR, wound care, burns, fractures, choking,
@@ -18,7 +17,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('first_aid_guide')),
+        title: Text('First Aid Guide'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,

@@ -13,7 +13,6 @@ import '../../../shared/services/evidence_service.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
 import '../../incidents/services/incident_service.dart';
 import '../../maps/services/map_service.dart';
-import '../../../core/localization.dart';
 
 class IncidentReportScreen extends StatefulWidget {
   const IncidentReportScreen({Key? key}) : super(key: key);
@@ -242,7 +241,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('report_incident')),
+        title: Text('Report Incident'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -587,7 +586,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.camera_alt,
-                      label: context.tr('photo'),
+                      label: 'Photo',
                       color: Colors.blue,
                       onTap: _capturePhoto,
                     ),
@@ -596,7 +595,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.videocam,
-                      label: context.tr('video'),
+                      label: 'Video',
                       color: Colors.purple,
                       onTap: _captureVideo,
                     ),
@@ -605,7 +604,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.mic,
-                      label: context.tr('audio'),
+                      label: 'Audio',
                       color: Colors.teal,
                       onTap: _recordAudio,
                     ),

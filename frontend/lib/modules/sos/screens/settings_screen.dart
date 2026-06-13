@@ -3,10 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants.dart';
-import '../../../core/localization.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
-import '../../../shared/services/locale_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -21,14 +19,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _dataSaverMode = false;
   bool _autoDownloadMaps = true;
   double _cacheSize = 0;
-  String _selectedLanguage = 'en';
-
-  static const Map<String, String> _languages = {
-    'en': 'English',
-    'yo': 'Yoruba (Èdè Yorùbá)',
-    'ig': 'Igbo (Asụsụ Igbo)',
-    'ha': 'Hausa (Harshen Hausa)',
-  };
 
   @override
   void initState() {
@@ -45,41 +35,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _dataSaverMode = prefs.getBool('data_saver_mode') ?? false;
       _autoDownloadMaps = prefs.getBool('auto_download_maps') ?? true;
       _cacheSize = prefs.getDouble('cache_size') ?? 0;
-      _selectedLanguage = prefs.getString('app_language') ?? 'en';
     });
-  }
-
-  Future<void> _changeLanguage(String languageCode) async {
-    if (!mounted) return;
-    final localeProvider = context.read<LocaleProvider>();
-    await localeProvider.setLocale(
-      Locale(languageCode, languageCode == 'en' ? 'US' : 'NG'),
-    );
-    if (mounted) {
-      setState(() {
-        _selectedLanguage = languageCode;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.tr('language_changed_to')} ${_languages[languageCode]}')),
-      );
-    }
   }
 
   Future<void> _deleteLocalData() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(context.tr('delete_local_data_title')),
-        content: Text(context.tr('delete_local_data_message')),
+        title: Text('Delete Local Data'),
+        content: Text('This will delete all locally stored messages, cached data, and preferences. Your account (if any) will NOT be affected. This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(context.tr('cancel')),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(context.tr('delete')),
+            child: Text('Delete'),
           ),
         ],
       ),
@@ -98,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('local_data_deleted'))),
+          SnackBar(content: Text('Local data deleted successfully')),
         );
       }
     }
@@ -134,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _cacheSize = 0);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('cache_cleared'))),
+        SnackBar(content: Text('Cache cleared successfully')),
       );
     }
   }
@@ -151,14 +124,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(context.tr('could_not_open_play_store'))),
+            SnackBar(content: Text('Could not open Play Store')),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.tr('could_not_open_play_store')}: $e')),
+          SnackBar(content: Text('${'Could not open Play Store'}: $e')),
         );
       }
     }
@@ -168,7 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('settings')),
+        title: Text('Settings'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -183,13 +156,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    context.tr('notifications'),
+                    'Notifications',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 SwitchListTile(
-                  title: Text(context.tr('push_notifications')),
-                  subtitle: Text(context.tr('receive_alerts_messages')),
+                  title: Text('Push Notifications'),
+                  subtitle: Text('Receive alerts and messages'),
                   value: _notificationsEnabled,
                   onChanged: _saveNotificationSetting,
                   activeColor: AppTheme.primaryColor,
@@ -207,56 +180,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    context.tr('appearance'),
+                    'Appearance',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 RadioListTile<ThemeMode>(
-                  title: Text(context.tr('light_mode')),
+                  title: Text('Light Mode'),
                   value: ThemeMode.light,
                   groupValue: _themeMode,
                   onChanged: (value) => _saveThemeMode(value!),
                   activeColor: AppTheme.primaryColor,
                 ),
                 RadioListTile<ThemeMode>(
-                  title: Text(context.tr('dark_mode')),
+                  title: Text('Dark Mode'),
                   value: ThemeMode.dark,
                   groupValue: _themeMode,
                   onChanged: (value) => _saveThemeMode(value!),
                   activeColor: AppTheme.primaryColor,
                 ),
                 RadioListTile<ThemeMode>(
-                  title: Text(context.tr('system_default')),
+                  title: Text('System Default'),
                   value: ThemeMode.system,
                   groupValue: _themeMode,
                   onChanged: (value) => _saveThemeMode(value!),
                   activeColor: AppTheme.primaryColor,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Language
-          Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    context.tr('language'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                ..._languages.entries.map((entry) => RadioListTile<String>(
-                  title: Text(entry.value),
-                  value: entry.key,
-                  groupValue: _selectedLanguage,
-                  onChanged: (value) => _changeLanguage(value!),
-                  activeColor: AppTheme.primaryColor,
-                  dense: true,
-                )),
               ],
             ),
           ),
@@ -270,20 +218,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    context.tr('data_usage'),
+                    'Data Usage',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 SwitchListTile(
-                  title: Text(context.tr('data_saver_mode')),
-                  subtitle: Text(context.tr('reduce_data_usage')),
+                  title: Text('Data Saver Mode'),
+                  subtitle: Text('Reduce data usage for maps and sync'),
                   value: _dataSaverMode,
                   onChanged: _saveDataSaverMode,
                   activeColor: AppTheme.primaryColor,
                 ),
                 SwitchListTile(
-                  title: Text(context.tr('auto_download_maps')),
-                  subtitle: Text(context.tr('preload_map_tiles')),
+                  title: Text('Auto-download Maps'),
+                  subtitle: Text('Preload map tiles for offline use'),
                   value: _autoDownloadMaps,
                   onChanged: _saveAutoDownloadMaps,
                   activeColor: AppTheme.primaryColor,
@@ -301,12 +249,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    context.tr('cache_management'),
+                    'Cache Management',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${context.tr('cache_size')}: ${_cacheSize.toStringAsFixed(1)} MB',
+                    '${'Cache size'}: ${_cacheSize.toStringAsFixed(1)} MB',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 12),
@@ -315,7 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _clearCache,
                       icon: const Icon(Icons.delete_outline),
-                      label: Text(context.tr('clear_cache')),
+                      label: Text('Clear Cache'),
                     ),
                   ),
                 ],
@@ -332,14 +280,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    context.tr('data_management'),
+                    'Data Management',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 ListTile(
                   leading: const Icon(Icons.delete_sweep_outlined, color: Colors.orange),
-                  title: Text(context.tr('delete_local_data')),
-                  subtitle: Text(context.tr('clear_messages_cache')),
+                  title: Text('Delete Local Data'),
+                  subtitle: Text('Clear messages, cache, and preferences (keeps account)'),
                   onTap: _deleteLocalData,
                 ),
               ],
@@ -355,14 +303,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    context.tr('account'),
+                    'Account',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: Text(context.tr('delete_account')),
-                  subtitle: Text(context.tr('permanently_remove_account')),
+                  title: Text('Delete Account'),
+                  subtitle: Text('Permanently remove your account and data'),
                   onTap: () {
                     Navigator.of(context).pushNamed(AppRoutes.deleteAccount);
                   },
@@ -380,39 +328,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    context.tr('support'),
+                    'Support',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 ListTile(
                   leading: const Icon(Icons.star_rounded, color: Colors.amber),
-                  title: Text(context.tr('rate_on_play_store')),
-                  subtitle: Text(context.tr('rate_this_app')),
+                  title: Text('Rate on Play Store'),
+                  subtitle: Text('Rate this app and leave a suggestion'),
                   onTap: _rateOnPlayStore,
                 ),
                 ListTile(
                   leading: const Icon(Icons.support_agent, color: AppTheme.primaryColor),
-                  title: Text(context.tr('contact_support')),
+                  title: Text('Contact Support'),
                   subtitle: Text(AppConstants.supportEmail),
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('${context.tr('contact')}: ${AppConstants.supportEmail}'),
+                        content: Text('${'Contact'}: ${AppConstants.supportEmail}'),
                       ),
                     );
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.menu_book, color: AppTheme.primaryColor),
-                  title: Text(context.tr('how_to_use')),
-                  subtitle: Text(context.tr('learn_how_to_use')),
+                  title: Text('How to Use'),
+                  subtitle: Text('Learn how to use the app'),
                   onTap: () {
                     Navigator.of(context).pushNamed(AppRoutes.howToUse);
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.primaryColor),
-                  title: Text(context.tr('privacy_policy')),
+                  title: Text('Privacy Policy'),
                   onTap: () {
                     Navigator.of(context).pushNamed(AppRoutes.privacyPolicy);
                   },
@@ -425,7 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // App Info
           Center(
             child: Text(
-              '${context.tr('version')}${AppConstants.appVersion}',
+              '${'Sectop v'}${AppConstants.appVersion}',
               style: TextStyle(color: Colors.grey[500], fontSize: 12),
             ),
           ),

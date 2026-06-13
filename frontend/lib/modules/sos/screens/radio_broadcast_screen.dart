@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
-import '../../../core/localization.dart';
 
 /// Screen for emergency radio broadcasts.
 /// When internet is cut, radio is the only way to reach rural communities.
@@ -60,7 +59,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   Future<void> _submit() async {
     if (_titleController.text.trim().isEmpty || _messageController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('title_and_message_required'))),
+        SnackBar(content: Text('Title and message are required')),
       );
       return;
     }
@@ -83,7 +82,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('radio_broadcast_sent'))),
+          SnackBar(content: Text('Radio broadcast sent!')),
         );
         _titleController.clear();
         _messageController.clear();
@@ -92,7 +91,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.tr('failed_text')} $e')),
+          SnackBar(content: Text('${'Failed:'} $e')),
         );
       }
     } finally {
@@ -106,13 +105,13 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
       _loadHistory();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('broadcast_retried'))),
+          SnackBar(content: Text('Broadcast retried')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.tr('failed_text')} $e')),
+          SnackBar(content: Text('${'Failed:'} $e')),
         );
       }
     }
@@ -122,7 +121,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('emergency_radio')),
+        title: Text('Emergency Radio'),
         backgroundColor: Colors.brown,
         foregroundColor: Colors.white,
       ),
@@ -145,7 +144,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      context.tr('radio_description'),
+                      'Radio reaches communities when internet is cut. Messages are converted to speech and broadcast over FM.',
                       style: TextStyle(fontSize: 12, color: Colors.brown[900]),
                     ),
                   ),
@@ -155,13 +154,13 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             const SizedBox(height: 16),
 
             // Create new broadcast
-            Text(context.tr('new_broadcast'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('New Broadcast', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
 
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: context.tr('title_required'),
+                labelText: 'Title *',
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.title),
               ),
@@ -171,7 +170,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             TextField(
               controller: _messageController,
               decoration: InputDecoration(
-                labelText: context.tr('message_required'),
+                labelText: 'Message *',
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.message),
               ),
@@ -185,14 +184,14 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                   child: DropdownButtonFormField<String>(
                     value: _severity,
                     decoration: InputDecoration(
-                      labelText: context.tr('severity'),
+                      labelText: 'Severity',
                       border: const OutlineInputBorder(),
                     ),
                     items: [
-                      DropdownMenuItem(value: 'info', child: Text(context.tr('info'))),
-                      DropdownMenuItem(value: 'warning', child: Text(context.tr('warning'))),
-                      DropdownMenuItem(value: 'urgent', child: Text(context.tr('urgent'))),
-                      DropdownMenuItem(value: 'critical', child: Text(context.tr('critical'))),
+                      DropdownMenuItem(value: 'info', child: Text('Info')),
+                      DropdownMenuItem(value: 'warning', child: Text('Warning')),
+                      DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+                      DropdownMenuItem(value: 'critical', child: Text('Critical')),
                     ],
                     onChanged: (v) => setState(() => _severity = v!),
                   ),
@@ -202,15 +201,15 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                   child: DropdownButtonFormField<String>(
                     value: _language,
                     decoration: InputDecoration(
-                      labelText: context.tr('language'),
+                      labelText: 'Language',
                       border: const OutlineInputBorder(),
                     ),
                     items: [
-                      DropdownMenuItem(value: 'en', child: Text(context.tr('english'))),
-                      DropdownMenuItem(value: 'ha', child: Text(context.tr('hausa'))),
-                      DropdownMenuItem(value: 'yo', child: Text(context.tr('yoruba'))),
-                      DropdownMenuItem(value: 'ig', child: Text(context.tr('igbo'))),
-                      DropdownMenuItem(value: 'pcm', child: Text(context.tr('pidgin'))),
+                      DropdownMenuItem(value: 'en', child: Text('English')),
+                      DropdownMenuItem(value: 'ha', child: Text('Hausa')),
+                      DropdownMenuItem(value: 'yo', child: Text('Yorùbá')),
+                      DropdownMenuItem(value: 'ig', child: Text('Igbo')),
+                      DropdownMenuItem(value: 'pcm', child: Text('Pidgin')),
                     ],
                     onChanged: (v) => setState(() => _language = v!),
                   ),
@@ -222,7 +221,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             TextField(
               controller: _frequencyController,
               decoration: InputDecoration(
-                labelText: context.tr('target_frequency'),
+                labelText: 'Target Frequency (MHz)',
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.settings_input_antenna),
               ),
@@ -236,7 +235,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                   child: TextField(
                     controller: _targetStateController,
                     decoration: InputDecoration(
-                      labelText: context.tr('target_state'),
+                      labelText: 'Target State',
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -246,7 +245,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                   child: TextField(
                     controller: _targetLgaController,
                     decoration: InputDecoration(
-                      labelText: context.tr('target_lga'),
+                      labelText: 'Target LGA',
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -256,7 +255,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             const SizedBox(height: 12),
 
             SwitchListTile(
-              title: Text(context.tr('anonymous_broadcast')),
+              title: Text('Anonymous Broadcast'),
               value: _isAnonymous,
               onChanged: (v) => setState(() => _isAnonymous = v),
               secondary: Icon(_isAnonymous ? Icons.shield : Icons.person, color: Colors.brown),
@@ -271,7 +270,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.radio),
-              label: Text(_isSubmitting ? context.tr('broadcasting') : context.tr('broadcast_over_radio')),
+              label: Text(_isSubmitting ? 'Broadcasting...' : 'Broadcast Over Radio'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.brown,
                 foregroundColor: Colors.white,
@@ -282,13 +281,13 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             const SizedBox(height: 24),
 
             // History
-            Text(context.tr('broadcast_history'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('Broadcast History', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
 
             if (_isLoadingHistory)
               const Center(child: CircularProgressIndicator())
             else if (_history.isEmpty)
-              Text(context.tr('no_previous_broadcasts'), style: const TextStyle(color: Colors.grey))
+              Text('No previous broadcasts', style: const TextStyle(color: Colors.grey))
             else
               ...List.generate(_history.length, (index) {
                 final b = _history[index] as Map<String, dynamic>;

@@ -8,7 +8,6 @@ import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/sync_manager.dart';
 import '../../auth/services/auth_service.dart';
 import '../../ai/services/distress_detector.dart';
-import '../../../core/localization.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({Key? key}) : super(key: key);
@@ -200,7 +199,7 @@ class _InboxScreenState extends State<InboxScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('inbox')),
+        title: Text('Inbox'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         bottom: TabBar(
@@ -406,20 +405,20 @@ class _MessagesTabState extends State<_MessagesTab> {
                     return await showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: Text(context.tr('delete_message')),
+                        title: Text('Delete Message'),
                         content: const Text(
                             'Are you sure you want to delete this message? It will be permanently removed from your device.'),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(false),
-                            child: Text(context.tr('cancel')),
+                            child: Text('Cancel'),
                           ),
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(true),
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.red,
                             ),
-                            child: Text(context.tr('delete')),
+                            child: Text('Delete'),
                           ),
                         ],
                       ),
@@ -496,14 +495,14 @@ class _MessagesTabState extends State<_MessagesTab> {
                             final confirmed = await showDialog<bool>(
                               context: context,
                               builder: (context) => AlertDialog(
-                                title: Text(context.tr('delete_message')),
+                                title: Text('Delete Message'),
                                 content: const Text(
                                     'Are you sure you want to delete this message? It will be permanently removed from your device.'),
                                 actions: [
                                   TextButton(
                                     onPressed: () =>
                                         Navigator.of(context).pop(false),
-                                    child: Text(context.tr('cancel')),
+                                    child: Text('Cancel'),
                                   ),
                                   TextButton(
                                     onPressed: () =>
@@ -511,7 +510,7 @@ class _MessagesTabState extends State<_MessagesTab> {
                                     style: TextButton.styleFrom(
                                       foregroundColor: Colors.red,
                                     ),
-                                    child: Text(context.tr('delete')),
+                                    child: Text('Delete'),
                                   ),
                                 ],
                               ),

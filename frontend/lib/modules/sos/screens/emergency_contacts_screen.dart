@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
-import '../../../core/localization.dart';
 
 class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({Key? key}) : super(key: key);
@@ -49,14 +48,14 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(initialData != null ? context.tr('edit_contact') : context.tr('add_contact_title')),
+          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                  labelText: context.tr('full_name'),
+                  labelText: 'Full Name',
                   prefixIcon: const Icon(Icons.person_outline),
                 ),
               ),
@@ -64,7 +63,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
               TextField(
                 controller: phoneController,
                 decoration: InputDecoration(
-                  labelText: context.tr('phone_number'),
+                  labelText: 'Phone Number',
                   prefixIcon: const Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
@@ -74,7 +73,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('cancel_action')),
+              child: Text('CANCEL'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -93,7 +92,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                   setState(() {});
                 }
               },
-              child: Text(context.tr('save_action')),
+              child: Text('SAVE'),
             ),
           ],
         );
@@ -105,17 +104,17 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('delete_contact')),
-        content: Text(context.tr('delete_contact_confirm')),
+        title: Text('Delete Contact'),
+        content: Text('Are you sure you want to delete this contact?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.tr('cancel_action')),
+            child: Text('CANCEL'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text(context.tr('delete_button')),
+            child: Text('DELETE'),
           ),
         ],
       ),
@@ -132,7 +131,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('emergency_contacts_title')),
+        title: Text('Emergency Contacts'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -146,12 +145,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                       Icon(Icons.contacts_outlined, size: 64, color: Colors.grey[300]),
                       const SizedBox(height: 16),
                       Text(
-                        context.tr('no_emergency_contacts_text'),
+                        'No emergency contacts',
                         style: TextStyle(fontSize: 16, color: Colors.grey[500]),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        context.tr('add_contacts_notified'),
+                        'Add contacts who should be notified in an emergency',
                         style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                         textAlign: TextAlign.center,
                       ),

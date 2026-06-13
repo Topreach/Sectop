@@ -6,7 +6,6 @@ import '../../../core/routes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../maps/services/map_service.dart';
-import '../../../core/localization.dart';
 
 /// Card widget that shows nearby danger zones (terrorist hotspots) on the
 /// dashboard. Fetches data from the backend API and falls back to local cache.
@@ -231,7 +230,7 @@ class _TerroristLocationCardState extends State<TerroristLocationCard> {
                     TextButton.icon(
                       onPressed: _loadDangerZones,
                       icon: const Icon(Icons.refresh, size: 16),
-                      label: Text(context.tr('retry')),
+                      label: Text('Retry'),
                     ),
                   ],
                 ),

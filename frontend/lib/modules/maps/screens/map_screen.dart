@@ -10,7 +10,6 @@ import '../../auth/services/auth_service.dart';
 import '../../incidents/services/incident_service.dart';
 import '../../sos/screens/safe_route_screen.dart';
 import '../services/map_service.dart';
-import '../../../core/localization.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
@@ -187,7 +186,7 @@ class _MapScreenState extends State<MapScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.tr('cancel')),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -370,7 +369,7 @@ class _MapScreenState extends State<MapScreen> {
                       const SizedBox(height: 8),
                       _MapControlButton(
                         icon: Icons.shield_outlined,
-                        label: context.tr('safe_zones'),
+                        label: 'Safe Zones',
                         color: _filterMode == 'safe'
                             ? Colors.green
                             : Colors.grey[700],
@@ -390,7 +389,7 @@ class _MapScreenState extends State<MapScreen> {
                       const SizedBox(height: 8),
                       _MapControlButton(
                         icon: Icons.warning_outlined,
-                        label: context.tr('danger_zones'),
+                        label: 'Danger Zones',
                         color: _filterMode == 'danger'
                             ? Colors.red
                             : Colors.grey[700],

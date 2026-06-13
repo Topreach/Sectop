@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
-import '../../../core/localization.dart';
 
 /// Screen displaying the app's Privacy Policy (required for Play Store / App Store).
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -11,7 +10,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('privacy_policy')),
+        title: Text('Privacy Policy'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),

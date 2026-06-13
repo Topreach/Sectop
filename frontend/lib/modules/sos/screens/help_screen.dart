@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
-import '../../../core/localization.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({Key? key}) : super(key: key);
@@ -141,7 +140,7 @@ class HelpScreen extends StatelessWidget {
                 );
               },
               icon: const Icon(Icons.support_agent),
-              label: Text(context.tr('contact_support')),
+              label: Text('Contact Support'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),

@@ -8,7 +8,6 @@ import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
 import '../../auth/services/auth_service.dart';
-import '../../../core/localization.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -19,7 +18,7 @@ class ProfileScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('profile')),
+        title: Text('Profile'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -45,35 +44,35 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              authService.currentUser?.name ?? context.tr('emergency_user'),
+              authService.currentUser?.name ?? 'Emergency User',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              authService.currentUser?.email ?? context.tr('offline_mode'),
+              authService.currentUser?.email ?? 'Offline Mode',
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
-            _ProfileOption(Icons.person_outline, context.tr('edit_profile'), () {
+            _ProfileOption(Icons.person_outline, 'Edit Profile', () {
               _showEditProfileDialog(context, authService);
             }),
-            _ProfileOption(Icons.medical_services_outlined, context.tr('medical_info'), () {
+            _ProfileOption(Icons.medical_services_outlined, 'Medical Info', () {
               _showMedicalInfoDialog(context);
             }),
-            _ProfileOption(Icons.contacts_outlined, context.tr('emergency_contacts'), () {
+            _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {
               _showEmergencyContactsDialog(context);
             }),
-            _ProfileOption(Icons.shield_outlined, context.tr('privacy_security'), () {
+            _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
               _showPrivacySecurityDialog(context);
             }),
-            _ProfileOption(Icons.info_outline, context.tr('about'), () {
+            _ProfileOption(Icons.info_outline, 'About', () {
               _showAboutDialog(context);
             }),
             const Divider(height: 24),
-            _ProfileOption(Icons.settings_outlined, context.tr('settings'), () {
+            _ProfileOption(Icons.settings_outlined, 'Settings', () {
               Navigator.of(context).pushNamed(AppRoutes.settings);
             }),
-            _ProfileOption(Icons.delete_outline, context.tr('delete_local_data'), () {
+            _ProfileOption(Icons.delete_outline, 'Delete Local Data', () {
               _showDeleteLocalDataDialog(context);
             }),
           ],
@@ -91,14 +90,14 @@ class ProfileScreen extends StatelessWidget {
       children: [
         const SizedBox(height: 16),
         Text(
-          context.tr('app_description'),
+          'A specialized emergency system designed for high-risk security environments.',
         ),
         const SizedBox(height: 12),
         TextButton(
           onPressed: () {
             debugPrint('Opening Privacy Policy...');
           },
-          child: Text(context.tr('read_privacy_policy')),
+          child: Text('Read Privacy Policy'),
         ),
       ],
     );
@@ -108,14 +107,14 @@ class ProfileScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(context.tr('delete_local_data_title')),
+        title: Text('Delete Local Data'),
         content: Text(
-          context.tr('delete_local_data_description'),
+          'This will delete all locally stored messages, cached data, and preferences. Your account (if any) will NOT be affected. This action cannot be undone.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(context.tr('cancel')),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
@@ -124,12 +123,12 @@ class ProfileScreen extends StatelessWidget {
               if (ctx.mounted) {
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.tr('local_data_deleted'))),
+                  SnackBar(content: Text('Local data deleted successfully')),
                 );
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(context.tr('delete')),
+            child: Text('Delete'),
           ),
         ],
       ),
@@ -145,13 +144,13 @@ class ProfileScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(context.tr('privacy_security_title')),
+              title: Text('Privacy & Security'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SwitchListTile(
-                    title: Text(context.tr('stealth_mode_sos')),
-                    subtitle: Text(context.tr('silent_panic_trigger')),
+                    title: Text('Stealth Mode SOS'),
+                    subtitle: Text('Silent panic trigger via hardware buttons'),
                     value: triggerService.isStealthModeEnabled,
                     onChanged: (value) {
                       triggerService.setStealthMode(value);
@@ -161,7 +160,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const Divider(),
                   Text(
-                    context.tr('stealth_mode_description'),
+                    'When enabled, hardware triggers (Volume Up + Down) will send a silent SOS without showing any UI or making sound.',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -169,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(context.tr('close_action')),
+                  child: Text('CLOSE'),
                 ),
               ],
             );
@@ -189,7 +188,7 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(context.tr('edit_profile_title')),
+          title: Text('Edit Profile'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -197,7 +196,7 @@ class ProfileScreen extends StatelessWidget {
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(
-                    labelText: context.tr('full_name'),
+                    labelText: 'Full Name',
                     prefixIcon: const Icon(Icons.person_outline),
                   ),
                 ),
@@ -205,7 +204,7 @@ class ProfileScreen extends StatelessWidget {
                 TextField(
                   controller: emailController,
                   decoration: InputDecoration(
-                    labelText: context.tr('email_address'),
+                    labelText: 'Email Address',
                     prefixIcon: const Icon(Icons.email_outlined),
                   ),
                   keyboardType: TextInputType.emailAddress,
@@ -214,7 +213,7 @@ class ProfileScreen extends StatelessWidget {
                 TextField(
                   controller: phoneController,
                   decoration: InputDecoration(
-                    labelText: context.tr('phone_number'),
+                    labelText: 'Phone Number',
                     prefixIcon: const Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,
@@ -225,7 +224,7 @@ class ProfileScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('cancel_action')),
+              child: Text('CANCEL'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -243,11 +242,11 @@ class ProfileScreen extends StatelessWidget {
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.tr('profile_updated'))),
+                    SnackBar(content: Text('Profile updated')),
                   );
                 }
               },
-              child: Text(context.tr('save_action')),
+              child: Text('SAVE'),
             ),
           ],
         );
@@ -280,7 +279,7 @@ class ProfileScreen extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: Text(context.tr('medical_info_title')),
+              title: Text('Medical Info'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -288,7 +287,7 @@ class ProfileScreen extends StatelessWidget {
                     DropdownButtonFormField<String>(
                       value: bloodType.isEmpty ? null : bloodType,
                       decoration: InputDecoration(
-                        labelText: context.tr('blood_type'),
+                        labelText: 'Blood Type',
                         prefixIcon: const Icon(Icons.bloodtype),
                       ),
                       items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
@@ -302,9 +301,9 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: context.tr('allergies'),
+                        labelText: 'Allergies',
                         prefixIcon: const Icon(Icons.warning_amber_outlined),
-                        hintText: context.tr('allergies_hint'),
+                        hintText: 'e.g., Penicillin, Peanuts',
                       ),
                       onChanged: (value) => allergies = value,
                       controller: TextEditingController.fromValue(
@@ -314,9 +313,9 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: context.tr('medications'),
+                        labelText: 'Medications',
                         prefixIcon: const Icon(Icons.medication_outlined),
-                        hintText: context.tr('medications_hint'),
+                        hintText: 'e.g., Metformin 500mg',
                       ),
                       onChanged: (value) => medications = value,
                       controller: TextEditingController.fromValue(
@@ -326,9 +325,9 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        labelText: context.tr('medical_conditions'),
+                        labelText: 'Medical Conditions',
                         prefixIcon: const Icon(Icons.health_and_safety_outlined),
-                        hintText: context.tr('conditions_hint'),
+                        hintText: 'e.g., Diabetes, Asthma',
                       ),
                       onChanged: (value) => conditions = value,
                       controller: TextEditingController.fromValue(
@@ -341,7 +340,7 @@ class ProfileScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(context.tr('cancel_action')),
+                  child: Text('CANCEL'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -350,11 +349,11 @@ class ProfileScreen extends StatelessWidget {
                     if (context.mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(context.tr('medical_info_saved'))),
+                        SnackBar(content: Text('Medical info saved')),
                       );
                     }
                   },
-                  child: Text(context.tr('save_action')),
+                  child: Text('SAVE'),
                 ),
               ],
             );
@@ -381,14 +380,14 @@ class ProfileScreen extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: Text(context.tr('emergency_contacts_title')),
+              title: Text('Emergency Contacts'),
               content: SizedBox(
                 width: double.maxFinite,
                 child: contacts.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(16),
                         child: Text(
-                          context.tr('no_emergency_contacts'),
+                          'No emergency contacts added yet.',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       )
@@ -438,7 +437,7 @@ class ProfileScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(context.tr('close_action')),
+                  child: Text('CLOSE'),
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
@@ -452,7 +451,7 @@ class ProfileScreen extends StatelessWidget {
                     );
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: Text(context.tr('add_contact_title')),
+                  label: Text('Add Contact'),
                 ),
               ],
             );
@@ -474,14 +473,14 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(initialData != null ? context.tr('edit_contact') : context.tr('add_contact_title')),
+          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                  labelText: context.tr('full_name'),
+                  labelText: 'Full Name',
                   prefixIcon: const Icon(Icons.person_outline),
                 ),
               ),
@@ -489,7 +488,7 @@ class ProfileScreen extends StatelessWidget {
               TextField(
                 controller: phoneController,
                 decoration: InputDecoration(
-                  labelText: context.tr('phone_number'),
+                  labelText: 'Phone Number',
                   prefixIcon: const Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
@@ -499,7 +498,7 @@ class ProfileScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('cancel_action')),
+              child: Text('CANCEL'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -509,7 +508,7 @@ class ProfileScreen extends StatelessWidget {
                 });
                 Navigator.pop(context);
               },
-              child: Text(context.tr('save_action')),
+              child: Text('SAVE'),
             ),
           ],
         );

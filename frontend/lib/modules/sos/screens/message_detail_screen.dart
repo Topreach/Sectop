@@ -5,7 +5,6 @@ import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../ai/services/distress_detector.dart';
-import '../../../core/localization.dart';
 
 class MessageDetailScreen extends StatefulWidget {
   const MessageDetailScreen({Key? key}) : super(key: key);
@@ -57,18 +56,18 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('delete_message')),
+        title: Text('Delete Message'),
         content: const Text(
             'Are you sure you want to delete this message? It will be permanently removed from your device.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.tr('cancel')),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(context.tr('delete')),
+            child: Text('Delete'),
           ),
         ],
       ),

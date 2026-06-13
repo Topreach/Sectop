@@ -4,7 +4,6 @@ import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../services/auth_service.dart';
-import '../../../core/localization.dart';
 
 /// Screen for account deletion with 30-day grace period.
 class DeleteAccountScreen extends StatefulWidget {
@@ -96,7 +95,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('delete_account')),
+        title: Text('Delete Account'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
