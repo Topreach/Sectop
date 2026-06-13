@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
+import '../../../core/localization.dart';
 
 /// Comprehensive "How to Use the Application" guide screen.
 class HowToUseScreen extends StatelessWidget {
@@ -10,7 +11,7 @@ class HowToUseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('How to Use'),
+        title: Text(context.tr('how_to_use')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -20,7 +21,7 @@ class HowToUseScreen extends StatelessWidget {
           // Welcome
           _sectionCard(
             icon: Icons.waving_hand,
-            title: 'Welcome to Sectop',
+            title: context.tr('welcome_title'),
             description:
                 'This guide will help you understand how to use the app effectively '
                 'for your safety and to assist others during emergencies.',

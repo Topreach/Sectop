@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../core/localization.dart';
 
 class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({Key? key}) : super(key: key);
@@ -73,7 +74,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL'),
+              child: Text(context.tr('cancel_action')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -92,7 +93,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                   setState(() {});
                 }
               },
-              child: const Text('SAVE'),
+              child: Text(context.tr('save_action')),
             ),
           ],
         );
@@ -109,7 +110,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
+            child: Text(context.tr('cancel_action')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -131,7 +132,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Emergency Contacts'),
+        title: Text(context.tr('emergency_contacts_title')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),

@@ -8,6 +8,7 @@ import '../../../core/themes.dart';
 import '../../../core/routes.dart';
 import '../../ai/services/distress_detector.dart';
 import '../services/mesh_threat_relay.dart';
+import '../../../core/localization.dart';
 
 /// Screen that monitors nearby walkie-talkie audio via the phone microphone.
 ///
@@ -259,7 +260,7 @@ class _WalkieTalkieMonitorScreenState
               Navigator.of(context).pushNamed(AppRoutes.incidentReport);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Report Incident'),
+            child: Text(context.tr('report_incident')),
           ),
         ],
       ),
@@ -338,7 +339,7 @@ class _WalkieTalkieMonitorScreenState
               Navigator.of(context).pushNamed(AppRoutes.incidentReport);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('Report Incident'),
+            child: Text(context.tr('report_incident')),
           ),
         ],
       ),

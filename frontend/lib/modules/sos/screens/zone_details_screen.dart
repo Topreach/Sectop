@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
+import '../../../core/localization.dart';
 
 class ZoneDetailsScreen extends StatelessWidget {
   const ZoneDetailsScreen({Key? key}) : super(key: key);
@@ -77,7 +78,7 @@ class ZoneDetailsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DetailRow(label: 'Name', value: name),
+                  _DetailRow(label: context.tr('contact_name'), value: name),
                   const Divider(),
                   _DetailRow(label: 'Type', value: type),
                   const Divider(),

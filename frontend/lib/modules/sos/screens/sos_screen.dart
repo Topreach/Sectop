@@ -12,6 +12,7 @@ import '../../mesh/services/mesh_manager.dart';
 import '../../../shared/services/evidence_service.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
 import '../../ai/services/distress_detector.dart';
+import '../../../core/localization.dart';
 
 class SOSScreen extends StatefulWidget {
   const SOSScreen({Key? key}) : super(key: key);
@@ -244,7 +245,7 @@ class _SOSScreenState extends State<SOSScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Send SOS Alert'),
+        title: Text(context.tr('send_sos_alert_title')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -345,7 +346,7 @@ class _SOSScreenState extends State<SOSScreen>
               Center(
                 child: TextButton(
                   onPressed: _cancelCountdown,
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('cancel')),
                 ),
               ),
             const SizedBox(height: 32),
@@ -363,7 +364,7 @@ class _SOSScreenState extends State<SOSScreen>
               value: _selectedAlertType,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                hintText: 'Select alert type',
+                hintText: context.tr('select_alert_type'),
               ),
               items: _alertTypes.map((type) {
                 return DropdownMenuItem(value: type, child: Text(type));
@@ -412,7 +413,7 @@ class _SOSScreenState extends State<SOSScreen>
                 Expanded(
                   child: _buildEvidenceButton(
                     icon: Icons.camera_alt,
-                    label: 'Photo',
+                    label: context.tr('photo'),
                     color: Colors.blue,
                     onTap: _capturePhoto,
                   ),
@@ -421,7 +422,7 @@ class _SOSScreenState extends State<SOSScreen>
                 Expanded(
                   child: _buildEvidenceButton(
                     icon: Icons.videocam,
-                    label: 'Video',
+                    label: context.tr('video'),
                     color: Colors.purple,
                     onTap: _captureVideo,
                   ),
@@ -430,7 +431,7 @@ class _SOSScreenState extends State<SOSScreen>
                 Expanded(
                   child: _buildEvidenceButton(
                     icon: Icons.mic,
-                    label: 'Audio',
+                    label: context.tr('audio'),
                     color: Colors.teal,
                     onTap: _recordAudio,
                   ),

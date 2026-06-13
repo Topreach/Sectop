@@ -18,6 +18,7 @@ import '../../../shared/services/hardware_trigger_service.dart';
 import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
 import '../../ai/widgets/threat_awareness_card.dart';
+import '../../../core/localization.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -53,22 +54,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home),
-            label: 'Home',
+            label: context.tr('home'),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map_outlined),
             activeIcon: Icon(Icons.map),
-            label: 'Map',
+            label: context.tr('map'),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.inbox_outlined),
             activeIcon: Icon(Icons.inbox),
-            label: 'Inbox',
+            label: context.tr('inbox'),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
-            label: 'Profile',
+            label: context.tr('profile'),
           ),
         ],
       ),
@@ -129,7 +130,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sectop'),
+        title: Text(context.tr('app_name')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -247,7 +248,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.map_outlined,
-                      label: 'Safe Zones',
+                      label: context.tr('safe_zones'),
                       color: Colors.green,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.map),
                     ),
@@ -256,7 +257,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.wifi_tethering,
-                      label: 'Mesh Network',
+                      label: context.tr('mesh_network'),
                       color: Colors.blue,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.meshStatus),
                     ),
@@ -269,7 +270,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.inbox_outlined,
-                      label: 'Messages',
+                      label: context.tr('messages'),
                       color: Colors.purple,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
                     ),
@@ -278,7 +279,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.medical_services_outlined,
-                      label: 'First Aid',
+                      label: context.tr('first_aid'),
                       color: Colors.orange,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.firstAid),
                     ),
@@ -297,7 +298,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.campaign_outlined,
-                      label: 'Broadcasts',
+                      label: context.tr('broadcasts'),
                       color: Colors.red,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.broadcasts),
                     ),
@@ -306,7 +307,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.route_outlined,
-                      label: 'Safe Route',
+                      label: context.tr('safe_route'),
                       color: Colors.teal,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.safeRoute),
                     ),
@@ -328,7 +329,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.radio_outlined,
-                      label: 'Radio',
+                      label: context.tr('radio'),
                       color: Colors.brown,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.radioBroadcast),
                     ),
@@ -341,7 +342,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.radio,
-                      label: 'Walkie-Talkie',
+                      label: context.tr('walkie_talkie'),
                       color: const Color(0xFFE65100),
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.walkieTalkieMonitor),
                     ),
@@ -350,7 +351,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.security_outlined,
-                      label: 'Danger Zones',
+                      label: context.tr('danger_zones'),
                       color: const Color(0xFFB71C1C),
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.map),
                     ),
@@ -369,7 +370,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Connection status
               _StatusCard(
                 icon: isOnline ? Icons.cloud_done : Icons.cloud_off,
-                title: 'Cloud Connection',
+                title: context.tr('cloud_connection'),
                 subtitle: isOnline ? 'Connected' : 'Offline',
                 color: isOnline ? Colors.green : Colors.orange,
               ),
@@ -378,7 +379,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Mesh status
               _StatusCard(
                 icon: Icons.wifi_tethering,
-                title: 'Mesh Network',
+                title: context.tr('mesh_network'),
                 subtitle: '$peerCount peers connected',
                 color: peerCount > 0 ? Colors.blue : Colors.grey,
               ),
@@ -387,7 +388,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Location status
               _StatusCard(
                 icon: Icons.my_location,
-                title: 'Location Tracking',
+                title: context.tr('location_tracking'),
                 subtitle: isTracking ? 'Active' : 'Inactive',
                 color: isTracking ? Colors.green : Colors.grey,
               ),
@@ -396,7 +397,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // Sync status
               _StatusCard(
                 icon: Icons.sync,
-                title: 'Data Sync',
+                title: context.tr('data_sync'),
                 subtitle: isSyncing
                     ? 'Syncing...'
                     : '$pendingCount pending items',
@@ -428,8 +429,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('SOS sent silently'),
+          SnackBar(content: Text(context.tr('sos_sent_silently')),
             duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -599,7 +599,7 @@ class _MapViewState extends State<_MapView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Map'),
+        title: Text(context.tr('map')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -762,7 +762,7 @@ class _InboxViewState extends State<_InboxView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Inbox'),
+        title: Text(context.tr('inbox')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -786,7 +786,7 @@ class _InboxViewState extends State<_InboxView> {
                       Expanded(
                         child: _SummaryCard(
                           icon: Icons.message_outlined,
-                          label: 'Unread Messages',
+                          label: context.tr('unread_messages'),
                           count: _unreadCount,
                           color: Colors.blue,
                         ),
@@ -795,7 +795,7 @@ class _InboxViewState extends State<_InboxView> {
                       Expanded(
                         child: _SummaryCard(
                           icon: Icons.warning_amber_outlined,
-                          label: 'Active Alerts',
+                          label: context.tr('active_alerts'),
                           count: _alertCount,
                           color: Colors.red,
                         ),
@@ -856,7 +856,7 @@ class _InboxViewState extends State<_InboxView> {
                   ElevatedButton.icon(
                     onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
                     icon: const Icon(Icons.open_in_new, size: 18),
-                    label: const Text('Open Inbox'),
+                    label: Text(context.tr('open_inbox')),
                   ),
                 ],
               ),
@@ -919,7 +919,7 @@ class _ProfileView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(context.tr('profile')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -996,7 +996,7 @@ class _ProfileView extends StatelessWidget {
             // In a real app, use url_launcher
             debugPrint('Opening Privacy Policy...');
           },
-          child: const Text('Read Privacy Policy'),
+          child: Text(context.tr('read_privacy_policy')),
         ),
       ],
     );
@@ -1011,13 +1011,13 @@ class _ProfileView extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Privacy & Security'),
+              title: Text(context.tr('privacy_security_title')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SwitchListTile(
-                    title: const Text('Stealth Mode SOS'),
-                    subtitle: const Text('Silent panic trigger via hardware buttons'),
+                    title: Text(context.tr('stealth_mode_sos')),
+                    subtitle: Text(context.tr('silent_panic_trigger')),
                     value: triggerService.isStealthModeEnabled,
                     onChanged: (value) {
                       triggerService.setStealthMode(value);
@@ -1035,7 +1035,7 @@ class _ProfileView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('CLOSE'),
+                  child: Text(context.tr('close_action')),
                 ),
               ],
             );
@@ -1055,7 +1055,7 @@ class _ProfileView extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Edit Profile'),
+          title: Text(context.tr('edit_profile_title')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1091,7 +1091,7 @@ class _ProfileView extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL'),
+              child: Text(context.tr('cancel_action')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1109,11 +1109,11 @@ class _ProfileView extends StatelessWidget {
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated')),
+                    SnackBar(content: Text(context.tr('profile_updated'))),
                   );
                 }
               },
-              child: const Text('SAVE'),
+              child: Text(context.tr('save_action')),
             ),
           ],
         );
@@ -1147,7 +1147,7 @@ class _ProfileView extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: const Text('Medical Info'),
+              title: Text(context.tr('medical_info_title')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1208,7 +1208,7 @@ class _ProfileView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('CANCEL'),
+                  child: Text(context.tr('cancel_action')),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -1217,11 +1217,11 @@ class _ProfileView extends StatelessWidget {
                     if (context.mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Medical info saved')),
+                        SnackBar(content: Text(context.tr('medical_info_saved'))),
                       );
                     }
                   },
-                  child: const Text('SAVE'),
+                  child: Text(context.tr('save_action')),
                 ),
               ],
             );
@@ -1249,7 +1249,7 @@ class _ProfileView extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: const Text('Emergency Contacts'),
+              title: Text(context.tr('emergency_contacts_title')),
               content: SizedBox(
                 width: double.maxFinite,
                 child: contacts.isEmpty
@@ -1306,7 +1306,7 @@ class _ProfileView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('CLOSE'),
+                  child: Text(context.tr('close_action')),
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
@@ -1320,7 +1320,7 @@ class _ProfileView extends StatelessWidget {
                     );
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add Contact'),
+                  label: Text(context.tr('add_contact_title')),
                 ),
               ],
             );
@@ -1367,7 +1367,7 @@ class _ProfileView extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL'),
+              child: Text(context.tr('cancel_action')),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1377,7 +1377,7 @@ class _ProfileView extends StatelessWidget {
                 });
                 Navigator.pop(context);
               },
-              child: const Text('SAVE'),
+              child: Text(context.tr('save_action')),
             ),
           ],
         );

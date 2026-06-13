@@ -4,6 +4,7 @@ import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../services/auth_service.dart';
+import '../../../core/localization.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -351,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _emergencyAccess,
                       icon: const Icon(Icons.warning_amber_rounded),
-                      label: const Text('Emergency Access (No Login)'),
+                      label: Text(context.tr('emergency_access_no_login')),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primaryColor,
                         side: const BorderSide(color: AppTheme.primaryColor),

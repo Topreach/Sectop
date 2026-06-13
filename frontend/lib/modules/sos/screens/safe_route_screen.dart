@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
+import '../../../core/localization.dart';
 
 /// Screen to plan a safe route avoiding danger zones.
 /// Users select start and destination locations by place name (state/town)
@@ -212,7 +213,7 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
                     ),
                     const SizedBox(height: 8),
                     NigeriaLocationPicker(
-                      label: 'Destination',
+                      label: context.tr('destination'),
                       onLocationSelected: _onToLocationSelected,
                     ),
                   ],

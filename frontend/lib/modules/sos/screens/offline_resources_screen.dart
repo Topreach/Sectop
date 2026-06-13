@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
+import '../../../core/localization.dart';
 
 class OfflineResourcesScreen extends StatelessWidget {
   const OfflineResourcesScreen({Key? key}) : super(key: key);
@@ -9,7 +10,7 @@ class OfflineResourcesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Offline Resources'),
+        title: Text(context.tr('offline_resources')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -18,7 +19,7 @@ class OfflineResourcesScreen extends StatelessWidget {
         children: [
           // First Aid Section
           _ResourceSection(
-            title: 'First Aid',
+            title: context.tr('first_aid'),
             icon: Icons.medical_services_outlined,
             color: Colors.red,
             items: [
@@ -93,7 +94,7 @@ class OfflineResourcesScreen extends StatelessWidget {
 
           // Emergency Contacts
           _ResourceSection(
-            title: 'Emergency Contacts',
+            title: context.tr('emergency_contacts_title'),
             icon: Icons.contacts_outlined,
             color: Colors.green,
             items: [

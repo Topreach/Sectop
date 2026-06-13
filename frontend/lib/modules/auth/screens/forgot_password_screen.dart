@@ -4,6 +4,7 @@ import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../services/auth_service.dart';
+import '../../../core/localization.dart';
 
 /// Screen for requesting a password reset email.
 class ForgotPasswordScreen extends StatefulWidget {

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../core/localization.dart';
 
 /// Screen for coordinators/admins to create a new broadcast.
 class CreateBroadcastScreen extends StatefulWidget {
@@ -82,7 +83,7 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Broadcast'),
+        title: Text(context.tr('create_broadcast')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),

@@ -6,6 +6,7 @@ import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/evidence_service.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
+import '../../../core/localization.dart';
 
 /// Screen to submit an anonymous tip-off / intelligence report.
 class TipOffScreen extends StatefulWidget {
@@ -177,12 +178,12 @@ class _TipOffScreenState extends State<TipOffScreen> {
                 items: const [
                   DropdownMenuItem(value: 'suspicious_person', child: Text('Suspicious Person')),
                   DropdownMenuItem(value: 'suspicious_vehicle', child: Text('Suspicious Vehicle')),
-                  DropdownMenuItem(value: 'planned_attack', child: Text('Planned Attack')),
+                  DropdownMenuItem(value: 'planned_attack', child: Text(context.tr('planned_attack'))),
                   DropdownMenuItem(value: 'hidden_weapons', child: Text('Hidden Weapons')),
                   DropdownMenuItem(value: 'kidnapping_plot', child: Text('Kidnapping Plot')),
                   DropdownMenuItem(value: 'bombing_plot', child: Text('Bombing Plot')),
                   DropdownMenuItem(value: 'suspicious_radio_activity', child: Text('Suspicious Radio / Walkie-Talkie')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                  DropdownMenuItem(value: 'other', child: Text(context.tr('other_tip'))),
                 ],
                 onChanged: (v) => setState(() => _tipType = v!),
               ),
@@ -248,7 +249,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.camera_alt,
-                      label: 'Photo',
+                      label: context.tr('photo'),
                       color: Colors.blue,
                       onTap: _capturePhoto,
                     ),
@@ -257,7 +258,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.videocam,
-                      label: 'Video',
+                      label: context.tr('video'),
                       color: Colors.purple,
                       onTap: _captureVideo,
                     ),
@@ -266,7 +267,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   Expanded(
                     child: _buildEvidenceButton(
                       icon: Icons.mic,
-                      label: 'Audio',
+                      label: context.tr('audio'),
                       color: Colors.teal,
                       onTap: _recordAudio,
                     ),

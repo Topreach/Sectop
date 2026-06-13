@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../core/localization.dart';
 
 /// Screen for emergency radio broadcasts.
 /// When internet is cut, radio is the only way to reach rural communities.
@@ -206,10 +207,10 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'en', child: Text('English')),
-                      DropdownMenuItem(value: 'ha', child: Text('Hausa')),
+                      DropdownMenuItem(value: 'en', child: Text(context.tr('english'))),
+                      DropdownMenuItem(value: 'ha', child: Text(context.tr('hausa'))),
                       DropdownMenuItem(value: 'yo', child: Text('Yoruba')),
-                      DropdownMenuItem(value: 'ig', child: Text('Igbo')),
+                      DropdownMenuItem(value: 'ig', child: Text(context.tr('igbo'))),
                       DropdownMenuItem(value: 'pcm', child: Text('Pidgin')),
                     ],
                     onChanged: (v) => setState(() => _language = v!),

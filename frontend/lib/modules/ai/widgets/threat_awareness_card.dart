@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/themes.dart';
 import '../../../core/routes.dart';
 import '../services/threat_awareness_service.dart';
+import '../../../core/localization.dart';
 
 /// Dashboard widget that shows real-time threat awareness information.
 ///
@@ -288,7 +289,7 @@ class _ThreatAwarenessCardState extends State<ThreatAwarenessCard> {
           Expanded(
             child: _StatTile(
               icon: Icons.gps_fixed,
-              label: 'Danger Zones',
+              label: context.tr('danger_zones'),
               value: '$zoneCount',
               color: zoneCount > 0 ? Colors.red : Colors.grey,
             ),
@@ -297,7 +298,7 @@ class _ThreatAwarenessCardState extends State<ThreatAwarenessCard> {
           Expanded(
             child: _StatTile(
               icon: Icons.notifications_active,
-              label: 'Alerts',
+              label: context.tr('alerts'),
               value: '${(threatLevel * 100).toInt()}%',
               color: _threatColor(threatLevel),
             ),

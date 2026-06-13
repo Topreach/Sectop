@@ -8,6 +8,7 @@ import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
 import '../../auth/services/auth_service.dart';
+import '../../../core/localization.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -18,7 +19,7 @@ class ProfileScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(context.tr('profile')),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
@@ -97,7 +98,7 @@ class ProfileScreen extends StatelessWidget {
           onPressed: () {
             debugPrint('Opening Privacy Policy...');
           },
-          child: const Text('Read Privacy Policy'),
+          child: Text(context.tr('read_privacy_policy')),
         ),
       ],
     );
@@ -107,7 +108,7 @@ class ProfileScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Local Data'),
+        title: Text(context.tr('delete_local_data_title')),
         content: const Text(
           'This will delete all locally stored messages, cached data, and preferences. '
           'Your account (if any) will NOT be affected. This action cannot be undone.',
@@ -115,7 +116,7 @@ class ProfileScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('cancel')),
           ),
           TextButton(
             onPressed: () async {
@@ -124,12 +125,12 @@ class ProfileScreen extends StatelessWidget {
               if (ctx.mounted) {
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Local data deleted successfully')),
+                  SnackBar(content: Text(context.tr('local_data_deleted'))),
                 );
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text(context.tr('delete')),
           ),
         ],
       ),
@@ -145,13 +146,13 @@ class ProfileScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Privacy & Security'),
+              title: Text(context.tr('privacy_security_title')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SwitchListTile(
-                    title: const Text('Stealth Mode SOS'),
-                    subtitle: const Text('Silent panic trigger via hardware buttons'),
+                    title: Text(context.tr('stealth_mode_sos')),
+                    subtitle: Text(context.tr('silent_panic_trigger')),
                     value: triggerService.isStealthModeEnabled,
                     onChanged: (value) {
                       triggerService.setStealthMode(value);
@@ -169,7 +170,7 @@ class ProfileScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('CLOSE'),
+                  child: Text(context.tr('close_action')),
                 ),
               ],
             );
@@ -189,7 +190,7 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Edit Profile'),
+          title: Text(context.tr('edit_profile_title')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -225,7 +226,7 @@ class ProfileScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL'),
+              child: Text(context.tr('cancel_action')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -243,11 +244,11 @@ class ProfileScreen extends StatelessWidget {
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated')),
+                    SnackBar(content: Text(context.tr('profile_updated'))),
                   );
                 }
               },
-              child: const Text('SAVE'),
+              child: Text(context.tr('save_action')),
             ),
           ],
         );
@@ -280,7 +281,7 @@ class ProfileScreen extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: const Text('Medical Info'),
+              title: Text(context.tr('medical_info_title')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -341,7 +342,7 @@ class ProfileScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('CANCEL'),
+                  child: Text(context.tr('cancel_action')),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -350,11 +351,11 @@ class ProfileScreen extends StatelessWidget {
                     if (context.mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Medical info saved')),
+                        SnackBar(content: Text(context.tr('medical_info_saved'))),
                       );
                     }
                   },
-                  child: const Text('SAVE'),
+                  child: Text(context.tr('save_action')),
                 ),
               ],
             );
@@ -381,7 +382,7 @@ class ProfileScreen extends StatelessWidget {
             });
 
             return AlertDialog(
-              title: const Text('Emergency Contacts'),
+              title: Text(context.tr('emergency_contacts_title')),
               content: SizedBox(
                 width: double.maxFinite,
                 child: contacts.isEmpty
@@ -438,7 +439,7 @@ class ProfileScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('CLOSE'),
+                  child: Text(context.tr('close_action')),
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
@@ -452,7 +453,7 @@ class ProfileScreen extends StatelessWidget {
                     );
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add Contact'),
+                  label: Text(context.tr('add_contact_title')),
                 ),
               ],
             );
@@ -499,7 +500,7 @@ class ProfileScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL'),
+              child: Text(context.tr('cancel_action')),
             ),
             ElevatedButton(
               onPressed: () {
@@ -509,7 +510,7 @@ class ProfileScreen extends StatelessWidget {
                 });
                 Navigator.pop(context);
               },
-              child: const Text('SAVE'),
+              child: Text(context.tr('save_action')),
             ),
           ],
         );

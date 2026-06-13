@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../core/localization.dart';
 
 /// Screen for coordinators/responders to review tip-offs.
 class TipReviewScreen extends StatefulWidget {
@@ -93,7 +94,7 @@ class _TipReviewScreenState extends State<TipReviewScreen> {
                       const SizedBox(height: 16),
                       Text(_error!),
                       const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _loadTips, child: const Text('Retry')),
+                      ElevatedButton(onPressed: _loadTips, child: Text(context.tr('retry'))),
                     ],
                   ),
                 )
