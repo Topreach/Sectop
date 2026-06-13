@@ -1,5 +1,0 @@
-Total lines: 611
-Last 3 lines:
-"      'please_enter_email': 'Já»\x8dwá»\x8d táº¹ imeeli ráº¹ sii',\n"
-"      'please_enter_valid_email': 'Já»\x8dwá»\x8d táº¹ imeeli to wulo sii',\n"
-"      'please_enter_phone': 'Já»\x8dwá»\x8d t\n"
