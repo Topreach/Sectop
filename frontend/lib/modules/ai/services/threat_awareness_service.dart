@@ -128,7 +128,14 @@ class ThreatAwarenessService extends ChangeNotifier {
   // Lifecycle
   // ---------------------------------------------------------------------------
 
-  /// Start proactive threat monitoring.
+  /// Initialize the service — called by safeInit() in main.dart.
+  /// Loads cached alerts and starts proactive threat monitoring.
+  Future<void> initialize() async {
+    debugPrint('ThreatAwarenessService: Initializing...');
+    await startMonitoring();
+    debugPrint('ThreatAwarenessService: Initialization complete');
+  }
+
   /// Start proactive threat monitoring.
   Future<void> startMonitoring() async {
     if (_isMonitoring) return;
