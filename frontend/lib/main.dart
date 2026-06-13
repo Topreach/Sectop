@@ -12,6 +12,7 @@ import 'shared/services/offline_storage.dart';
 import 'shared/services/sync_manager.dart';
 import 'shared/services/service_health.dart';
 import 'shared/services/backend_api.dart';
+import 'shared/services/locale_provider.dart';
 import 'shared/widgets/responsive_layout.dart';
 import 'shared/widgets/degraded_mode_banner.dart';
 import 'modules/auth/services/auth_service.dart';
@@ -108,7 +109,6 @@ T _createFallback<T>() {
   if (factory != null) return factory() as T;
   throw StateError('No fallback constructor for $T');
 }
-
 void main() async {
   // Capture all unhandled errors globally so they don't crash the app silently.
   FlutterError.onError = (details) {
@@ -116,8 +116,10 @@ void main() async {
   };
 
   runZonedGuarded(() async {
-
     WidgetsFlutterBinding.ensureInitialized();
+
+    // Load saved language preference before app starts
+    final savedLocale = await LocaleProvider.loadSavedLocale();
 
     // Initialize Workmanager for background sync (non-web only)
     if (!kIsWeb) {
@@ -145,7 +147,7 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ));
 
-    runApp(const DangerEmergenceApp());
+    runApp(DangerEmergenceApp(initialLocale: savedLocale));
   }, (error, stack) {
     crashReporter.recordError(error, stack, context: 'runZonedGuarded');
   });
@@ -153,12 +155,18 @@ void main() async {
 
 /// Root application widget for the Danger Emergence System.
 class DangerEmergenceApp extends StatelessWidget {
-  const DangerEmergenceApp({super.key});
+  final Locale initialLocale;
+  const DangerEmergenceApp({super.key, required this.initialLocale});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Locale Provider (must be early so MaterialApp can read it)
+        ChangeNotifierProvider<LocaleProvider>(
+          create: (_) => LocaleProvider(initialLocale),
+        ),
+
         // Service Health Monitor (must be first so others can report to it)
         ChangeNotifierProvider.value(value: serviceHealth),
 
@@ -176,47 +184,53 @@ class DangerEmergenceApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => safeInit(() => SecurityManager.instance)),
         ChangeNotifierProvider(create: (_) => safeInit(() => ObservabilityService.instance)),
       ],
-      child: MaterialApp(
-        title: AppConstants.appName,
-        debugShowCheckedModeBanner: false,
+      child: Builder(
+        builder: (context) {
+          final locale = context.watch<LocaleProvider>().locale;
+          return MaterialApp(
+            title: AppConstants.appName,
+            debugShowCheckedModeBanner: false,
 
-        // Theme
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
+            // Theme
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: ThemeMode.system,
 
-        // Routing
-        initialRoute: AppRoutes.splash,
-        onGenerateRoute: AppRoutes.generateRoute,
-// Localization
-locale: const Locale('en', 'US'),
-supportedLocales: const [
-  Locale('en', 'US'),
-  Locale('yo', 'NG'),
-  Locale('ig', 'NG'),
-  Locale('ha', 'NG'),
-  Locale('es', 'ES'),
-  Locale('fr', 'FR'),
-],
-localizationsDelegates: const [
-  AppLocalizations.delegate,
-],
+            // Routing
+            initialRoute: AppRoutes.splash,
+            onGenerateRoute: AppRoutes.generateRoute,
 
-        // Performance & Responsive Layout + Degraded Mode Banner
-        builder: (context, child) {
-          return MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.noScaling,
-            ),
-            child: ResponsiveWrapper(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const DegradedModeBanner(),
-                  Expanded(child: child!),
-                ],
-              ),
-            ),
+            // Localization
+            locale: locale,
+            supportedLocales: const [
+              Locale('en', 'US'),
+              Locale('yo', 'NG'),
+              Locale('ig', 'NG'),
+              Locale('ha', 'NG'),
+              Locale('es', 'ES'),
+              Locale('fr', 'FR'),
+            ],
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+            ],
+
+            // Performance & Responsive Layout + Degraded Mode Banner
+            builder: (context, child) {
+              return MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.noScaling,
+                ),
+                child: ResponsiveWrapper(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const DegradedModeBanner(),
+                      Expanded(child: child!),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         },
       ),

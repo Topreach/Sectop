@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/sync_manager.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../shared/services/locale_provider.dart';
 import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
@@ -104,9 +104,11 @@ class _DashboardHomeState extends State<_DashboardHome> {
   }
 
   Future<void> _changeLanguage(String languageCode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('app_language', languageCode);
-    setState(() => _selectedLanguage = languageCode);
+    if (!mounted) return;
+    final localeProvider = context.read<LocaleProvider>();
+    await localeProvider.setLocale(
+      Locale(languageCode, languageCode == 'en' ? 'US' : 'NG'),
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Language changed to ${_languages[languageCode]}')),

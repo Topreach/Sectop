@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants.dart';
 import '../../../core/localization.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
+import '../../../shared/services/locale_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -45,16 +46,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _selectedLanguage = prefs.getString('app_language') ?? 'en';
     });
   }
-
-  Future<void> _changeLanguage(String languageCode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('app_language', languageCode);
-    setState(() => _selectedLanguage = languageCode);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Language changed to ${_languages[languageCode]}')),
-      );
-    }
+Future<void> _changeLanguage(String languageCode) async {
+  if (!mounted) return;
+  final localeProvider = context.read<LocaleProvider>();
+  await localeProvider.setLocale(
+    Locale(languageCode, languageCode == 'en' ? 'US' : 'NG'),
+  );
+  if (mounted) {
+    setState(() {
+      _selectedLanguage = languageCode;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Language changed to ${_languages[languageCode]}')),
+    );
+  }
+}
   }
 
   Future<void> _deleteLocalData() async {
