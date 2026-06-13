@@ -102,6 +102,7 @@ class _SOSScreenState extends State<SOSScreen>
   }
 
   @override
+  void dispose() {
     _pulseController.dispose();
     _descriptionController.removeListener(_onDescriptionChanged);
     _descriptionController.dispose();

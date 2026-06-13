@@ -403,13 +403,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
                 color: pendingCount > 0 ? Colors.orange : Colors.green,
               ),
               const SizedBox(height: 24),
-const SizedBox(height: 24),
 
-// Threat Awareness Card — Real-time intelligence monitoring
-const ThreatAwarenessCard(),
+              // Threat Awareness Card — Real-time intelligence monitoring
+              const ThreatAwarenessCard(),
 
-// Terrorist / Danger Location Finder
-const TerroristLocationCard(),
+              // Terrorist / Danger Location Finder
+              const TerroristLocationCard(),
+            ],
           ),
         ),
       ),
@@ -1000,38 +1000,6 @@ class _ProfileView extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  /// Send a silent SOS directly without showing any UI (Stealth Mode).
-  Future<void> _sendSilentSOS() async {
-    debugPrint('DashboardScreen: Sending silent SOS (stealth mode ON)');
-    try {
-      final sosService = SOSService();
-      await sosService.sendSOS(
-        alertType: 'silent_panic',
-        description: 'Stealth mode SOS triggered from dashboard',
-        isSilent: true,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('SOS sent silently'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('DashboardScreen: Silent SOS failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('SOS failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   void _showPrivacySecurityDialog(BuildContext context) {
