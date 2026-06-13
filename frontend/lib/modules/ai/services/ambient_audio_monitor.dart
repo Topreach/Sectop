@@ -202,35 +202,36 @@ class AmbientAudioMonitor extends ChangeNotifier {
       final threatService = ThreatAwarenessService();
 
       // Build description from analysis results
-      final reasons = result.reasons.isNotEmpty
-          ? result.reasons.join(', ')
+      final description = result.hasDistress
+          ? 'Distress audio detected (${result.threatLevel} threat level)'
           : 'Suspicious audio detected in your environment';
+
+      final severity = result.threatLevel == 'critical'
+          ? 'critical'
+          : result.threatLevel == 'high'
+              ? 'high'
+              : 'medium';
 
       final alert = ThreatAlert(
         id: 'ambient_${DateTime.now().millisecondsSinceEpoch}',
         type: 'ambient_audio',
         title: '⚠️ Suspicious Audio Detected',
-        description: reasons,
-        severity: result.priority == 'critical'
-            ? 'critical'
-            : result.priority == 'high'
-                ? 'high'
-                : 'medium',
+        description: description,
+        severity: severity,
         confidence: result.confidence,
         timestamp: DateTime.now(),
         sourceData: {
-          'detectedKeywords': result.reasons,
-          'label': result.label,
-          'confidence': result.confidence,
+          'hasDistress': result.hasDistress.toString(),
+          'threatLevel': result.threatLevel,
+          'confidence': result.confidence.toString(),
           'method': 'ambient_audio_monitor',
         },
       );
 
-      // Add to threat awareness service
-      // Use a private method accessor via reflection-like approach
-      // Since ThreatAlert is a public class, we can add it directly
-      debugPrint('AmbientAudioMonitor: Threat detected - ${result.label} '
-          '(confidence: ${result.confidence}, priority: ${result.priority})');
+      debugPrint('AmbientAudioMonitor: Threat detected - '
+          'hasDistress=${result.hasDistress}, '
+          'threatLevel=${result.threatLevel}, '
+          'confidence=${result.confidence})');
     } catch (e) {
       debugPrint('AmbientAudioMonitor: Failed to handle threat detection: $e');
     }

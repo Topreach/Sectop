@@ -388,7 +388,7 @@ class ThreatAwarenessService extends ChangeNotifier {
     _currentThreatLevel = 0.0;
     _nearbyIncidentCount = 0;
     _nearbyDangerZoneCount = 0;
-    await _storage.remove(_alertsStorageKey);
+    await _storage.removeSetting(_alertsStorageKey);
     notifyListeners();
   }
 
@@ -575,8 +575,8 @@ class ThreatAwarenessService extends ChangeNotifier {
 
   Future<void> _cacheAlerts() async {
     try {
-      final json = json.encode(_alerts.map((a) => a.toJson()).toList());
-      await _storage.setSetting(_alertsStorageKey, json);
+      final encoded = json.encode(_alerts.map((a) => a.toJson()).toList());
+      await _storage.saveSetting(_alertsStorageKey, encoded);
     } catch (e) {
       debugPrint('ThreatAwarenessService: Failed to cache alerts: $e');
     }
