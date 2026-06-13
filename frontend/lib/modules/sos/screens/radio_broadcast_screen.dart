@@ -206,7 +206,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                       labelText: 'Language',
                       border: OutlineInputBorder(),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(value: 'en', child: Text(context.tr('english'))),
                       DropdownMenuItem(value: 'ha', child: Text(context.tr('hausa'))),
                       DropdownMenuItem(value: 'yo', child: Text('Yoruba')),

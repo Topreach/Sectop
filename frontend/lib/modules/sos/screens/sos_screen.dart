@@ -362,7 +362,7 @@ class _SOSScreenState extends State<SOSScreen>
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _selectedAlertType,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: OutlineInputBorder(),
                 hintText: context.tr('select_alert_type'),
               ),

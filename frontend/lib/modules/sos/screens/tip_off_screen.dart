@@ -175,7 +175,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
-                items: const [
+                items: [
                   DropdownMenuItem(value: 'suspicious_person', child: Text('Suspicious Person')),
                   DropdownMenuItem(value: 'suspicious_vehicle', child: Text('Suspicious Vehicle')),
                   DropdownMenuItem(value: 'planned_attack', child: Text(context.tr('planned_attack'))),
