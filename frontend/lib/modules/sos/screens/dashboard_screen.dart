@@ -228,10 +228,11 @@ class _DashboardHomeState extends State<_DashboardHome> {
                             fontSize: 14,
                             color: Colors.white70,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
               ),
               const SizedBox(height: 20),
 
