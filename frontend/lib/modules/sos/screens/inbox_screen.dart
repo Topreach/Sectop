@@ -518,7 +518,6 @@ class _MessagesTabState extends State<_MessagesTab> {
                             if (confirmed == true) {
                               widget.onDelete(msg['id'] as String);
                             }
-                            }
                           },
                         ),
                       ],
