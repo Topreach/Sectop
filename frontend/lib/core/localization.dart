@@ -425,7 +425,6 @@ class AppLocalizations {
       'warning': 'Warning',
       'urgent': 'Urgent',
       'critical': 'Critical',
-      'seconds': 'seconds',
       'describe_emergency_hint': 'Describe your emergency situation...',
     },
     'yo': {

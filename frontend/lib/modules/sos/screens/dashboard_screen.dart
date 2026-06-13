@@ -221,6 +221,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                             color: Colors.white,
                             letterSpacing: 6,
                           ),
+                        ),
                         Text(
                           context.tr('tap_emergency'),
                           style: const TextStyle(

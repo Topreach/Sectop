@@ -350,24 +350,23 @@ class _SOSScreenState extends State<SOSScreen>
                 ),
               ),
             const SizedBox(height: 32),
-// Alert Type
-Text(
-  context.tr('alert_type'),
-  style: const TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-  ),
-),
-const SizedBox(height: 8),
-DropdownButtonFormField<String>(
-  value: _selectedAlertType,
-  decoration: InputDecoration(
-    border: const OutlineInputBorder(),
-    hintText: context.tr('select_alert_type'),
-  ),
-  items: _alertTypes.map((type) {
-    return DropdownMenuItem(value: type, child: Text(context.tr(type)));
-  }).toList(),
+            // Alert Type
+            Text(
+              context.tr('alert_type'),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedAlertType,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: context.tr('select_alert_type'),
+              ),
+              items: _alertTypes.map((type) {
+                return DropdownMenuItem(value: type, child: Text(context.tr(type)));
               }).toList(),
               onChanged: (value) {
                 setState(() => _selectedAlertType = value);
@@ -398,14 +397,13 @@ DropdownButtonFormField<String>(
             // Real-time AI distress analysis
             _buildAiAnalysisCard(),
             const SizedBox(height: 16),
-// Evidence Capture Section
-Text(
-  context.tr('capture_evidence_optional'),
-  style: const TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-  ),
-),
+            // Evidence Capture Section
+            Text(
+              context.tr('capture_evidence_optional'),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             Row(
