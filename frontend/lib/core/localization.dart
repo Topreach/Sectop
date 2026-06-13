@@ -707,7 +707,7 @@ class AppLocalizations {
         'permission_location': 'Ipo',
         'permission_notifications': 'Awọn ifitonileti',
         'permission_bluetooth': 'Bluetooth',
-        'permission_storage': 'Ibi ipamọ',,
+        'permission_storage': 'Ibi ipamọ',
       },
       'ig': {
         'app_name': 'App Name',
@@ -946,8 +946,6 @@ class AppLocalizations {
         'emergency_tools': 'Emergency Tools',
         'broadcasts': 'Broadcasts',
         'radio': 'Radio',
-        'walkie_talkie': 'Walkie Talkie',
-        'danger_zones': 'Danger Zones',
         'data_sync': 'Data Sync',
         'syncing': 'Syncing',
         'pending_items': 'Pending Items',
@@ -973,7 +971,6 @@ class AppLocalizations {
         'your_location_sent': 'Your Location Sent',
         'failed_to_send_sos': 'Failed To Send Sos',
         'permissions_required': 'Permissions Required',
-        'grant_permissions': 'Grant Permissions',
         'location': 'Location',
         'bluetooth': 'Bluetooth',
         'storage': 'Storage',
@@ -1042,7 +1039,7 @@ class AppLocalizations {
         'permission_location': 'Permission Location',
         'permission_notifications': 'Permission Notifications',
         'permission_bluetooth': 'Permission Bluetooth',
-        'permission_storage': 'Permission Storage',,
+        'permission_storage': 'Permission Storage'
       },
       'ha': {
         'app_name': 'App Name',
@@ -1281,8 +1278,6 @@ class AppLocalizations {
         'emergency_tools': 'Emergency Tools',
         'broadcasts': 'Broadcasts',
         'radio': 'Radio',
-        'walkie_talkie': 'Walkie Talkie',
-        'danger_zones': 'Danger Zones',
         'data_sync': 'Data Sync',
         'syncing': 'Syncing',
         'pending_items': 'Pending Items',
@@ -1308,7 +1303,6 @@ class AppLocalizations {
         'your_location_sent': 'Your Location Sent',
         'failed_to_send_sos': 'Failed To Send Sos',
         'permissions_required': 'Permissions Required',
-        'grant_permissions': 'Grant Permissions',
         'location': 'Location',
         'bluetooth': 'Bluetooth',
         'storage': 'Storage',
@@ -1377,9 +1371,14 @@ class AppLocalizations {
         'permission_location': 'Permission Location',
         'permission_notifications': 'Permission Notifications',
         'permission_bluetooth': 'Permission Bluetooth',
-        'permission_storage': 'Permission Storage',,
+        'permission_storage': 'Permission Storage'
       },
     };
+
+  String translate(String key) {
+    return _localizedStrings[locale.languageCode]?[key] ?? key;
+  }
+}
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
@@ -1394,5 +1393,4 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
 extension AppLocalizationsX on BuildContext {
   AppLocalizations get loc => AppLocalizations.of(this);
   String tr(String key) => loc.translate(key);
-}
 }
