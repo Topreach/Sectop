@@ -67,7 +67,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _themeMode = ThemeMode.system;
         _dataSaverMode = false;
         _autoDownloadMaps = true;
-        _selectedLanguage = 'en';
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

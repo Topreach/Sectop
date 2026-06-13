@@ -320,11 +320,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         _errorMessage = null;
                       });
                     },
-                                        child: Text(
-                                          _isLogin
-                                              ? "Don't have an account? Register"
-                                              : 'Already have an account? Sign In',
-                                        ),
+                    child: Text(
+                      _isLogin
+                          ? "Don't have an account? Register"
+                          : 'Already have an account? Sign In',
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   // Emergency access divider
