@@ -10,6 +10,7 @@ import '../../../core/themes.dart';
 import '../services/sos_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../../shared/services/evidence_service.dart';
+import '../../../shared/services/hardware_trigger_service.dart';
 import '../../ai/services/distress_detector.dart';
 
 class SOSScreen extends StatefulWidget {
@@ -52,20 +53,52 @@ class _SOSScreenState extends State<SOSScreen>
     'Structural Damage',
     'Other Emergency',
   ];
+@override
+void initState() {
+  super.initState();
+  _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
+  _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+    CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+  );
+  _pulseController.repeat(reverse: true);
 
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _pulseController.repeat(reverse: true);
+  _descriptionController.addListener(_onDescriptionChanged);
 
-    _descriptionController.addListener(_onDescriptionChanged);
+  // If stealth mode is enabled, send silent SOS immediately without UI
+  _checkStealthMode();
+}
+
+/// If stealth mode is ON, send a silent SOS immediately and show sent view.
+Future<void> _checkStealthMode() async {
+  final hardwareService = HardwareTriggerService();
+  if (hardwareService.isStealthModeEnabled) {
+    debugPrint('SOSScreen: Stealth mode ON — sending silent SOS immediately');
+    final sosService = SOSService();
+    try {
+      await sosService.sendSOS(
+        alertType: 'silent_panic',
+        description: 'Stealth mode SOS triggered from SOS screen',
+        isSilent: true,
+      );
+      if (mounted) {
+        setState(() {
+          _isSent = true;
+        });
+      }
+      // Navigate back to dashboard after 2 seconds (no UI shown)
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      }
+    } catch (e) {
+      debugPrint('SOSScreen: Stealth mode SOS failed: $e');
+      // Fall through to normal UI if silent send fails
+    }
+  }
+}
   }
 
   @override

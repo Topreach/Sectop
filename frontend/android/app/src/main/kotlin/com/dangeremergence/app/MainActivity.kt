@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.PowerManager
+import android.view.KeyEvent
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,12 +25,25 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL_DEVICE = "com.dangeremergence/device"
         private const val EVENT_MESH_DATA = "com.dangeremergence/mesh_data"
         private const val EVENT_LOCATION = "com.dangeremergence/location_updates"
+        private const val EVENT_HARDWARE_TRIGGERS = "com.dangeremergence/hardware_triggers"
+        private const val PANIC_EVENT = "panic_sequence_detected"
+
+        // Volume button panic detection: both buttons pressed within this window (ms)
+        private const val PANIC_WINDOW_MS = 500L
     }
 
     private var meshEventSink: EventChannel.EventSink? = null
     private var locationEventSink: EventChannel.EventSink? = null
+    private var hardwareEventSink: EventChannel.EventSink? = null
     private var meshReceiver: BroadcastReceiver? = null
+    private var hardwareReceiver: BroadcastReceiver? = null
     private lateinit var securityProvider: SecurityProvider
+
+    // Volume button panic detection state
+    private var lastVolumeUpTime = 0L
+    private var lastVolumeDownTime = 0L
+    private var volumePressCount = 0
+    private var firstVolumePressTime = 0L
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -86,6 +100,20 @@ class MainActivity : FlutterActivity() {
 
                 override fun onCancel(arguments: Any?) {
                     locationEventSink = null
+                }
+            })
+
+        // ── Hardware Triggers EventChannel (Stealth Mode SOS) ────────────────
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_HARDWARE_TRIGGERS)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    hardwareEventSink = events
+                    registerHardwareReceiver()
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    unregisterHardwareReceiver()
+                    hardwareEventSink = null
                 }
             })
     }
@@ -247,6 +275,95 @@ class MainActivity : FlutterActivity() {
             unregisterReceiver(it)
             meshReceiver = null
         }
+    }
+
+    // ── Hardware Trigger Receiver (Stealth Mode SOS) ─────────────────────────
+
+    private fun registerHardwareReceiver() {
+        if (hardwareReceiver == null) {
+            hardwareReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    when (intent?.action) {
+                        "com.dangeremergence.PANIC_TRIGGERED" -> {
+                            hardwareEventSink?.success(PANIC_EVENT)
+                        }
+                    }
+                }
+            }
+            val filter = IntentFilter("com.dangeremergence.PANIC_TRIGGERED")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(hardwareReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(hardwareReceiver, filter)
+            }
+        }
+    }
+
+    private fun unregisterHardwareReceiver() {
+        hardwareReceiver?.let {
+            unregisterReceiver(it)
+            hardwareReceiver = null
+        }
+    }
+
+    /**
+     * Detect volume button panic sequence (Volume Up + Volume Down pressed
+     * simultaneously, or 5 rapid presses of either volume button within 2 seconds).
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val now = System.currentTimeMillis()
+
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                // Check if Volume Down was pressed within the panic window
+                if (now - lastVolumeDownTime < PANIC_WINDOW_MS) {
+                    triggerPanic()
+                    return true
+                }
+                lastVolumeUpTime = now
+                trackVolumePress(now)
+                return true
+            }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                // Check if Volume Up was pressed within the panic window
+                if (now - lastVolumeUpTime < PANIC_WINDOW_MS) {
+                    triggerPanic()
+                    return true
+                }
+                lastVolumeDownTime = now
+                trackVolumePress(now)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    /**
+     * Track rapid volume button presses (5 presses within 2 seconds triggers panic).
+     */
+    private fun trackVolumePress(now: Long) {
+        if (now - firstVolumePressTime > 2000) {
+            // Reset counter if more than 2 seconds have passed
+            volumePressCount = 1
+            firstVolumePressTime = now
+        } else {
+            volumePressCount++
+            if (volumePressCount >= 5) {
+                triggerPanic()
+                volumePressCount = 0
+            }
+        }
+    }
+
+    /**
+     * Trigger panic SOS by sending a broadcast that the hardware receiver picks up,
+     * which then forwards the event to Flutter via the EventChannel.
+     */
+    private fun triggerPanic() {
+        val panicIntent = Intent("com.dangeremergence.PANIC_TRIGGERED")
+        sendBroadcast(panicIntent)
+        // Also directly notify the sink if already listening
+        hardwareEventSink?.success(PANIC_EVENT)
     }
 
     /**

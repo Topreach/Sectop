@@ -15,6 +15,7 @@ import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
+import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -175,7 +176,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
               // SOS Button - Large and prominent
               GestureDetector(
                 onTap: () {
-                  Navigator.of(context).pushNamed(AppRoutes.sos);
+                  // If stealth mode is ON, send silent SOS directly without navigation
+                  final hardwareService = HardwareTriggerService();
+                  if (hardwareService.isStealthModeEnabled) {
+                    _sendSilentSOS();
+                  } else {
+                    Navigator.of(context).pushNamed(AppRoutes.sos);
+                  }
                 },
                 child: Container(
                   height: 180,
@@ -977,6 +984,38 @@ class _ProfileView extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// Send a silent SOS directly without showing any UI (Stealth Mode).
+  Future<void> _sendSilentSOS() async {
+    debugPrint('DashboardScreen: Sending silent SOS (stealth mode ON)');
+    try {
+      final sosService = SOSService();
+      await sosService.sendSOS(
+        alertType: 'silent_panic',
+        description: 'Stealth mode SOS triggered from dashboard',
+        isSilent: true,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('SOS sent silently'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('DashboardScreen: Silent SOS failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('SOS failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showPrivacySecurityDialog(BuildContext context) {

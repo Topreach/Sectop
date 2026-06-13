@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../modules/sos/services/sos_service.dart';
 
 /// Service to handle hardware-based SOS triggers (Stealth Mode).
@@ -12,23 +13,50 @@ class HardwareTriggerService {
   factory HardwareTriggerService() => _instance;
   HardwareTriggerService._internal();
 
+  static const String _stealthModePrefKey = 'stealth_mode_enabled';
+  static const String _channelName = 'com.dangeremergence/hardware_triggers';
+  static const String _panicEvent = 'panic_sequence_detected';
+
   bool _isStealthModeEnabled = false;
   StreamSubscription? _volumeSubscription;
+  EventChannel? _eventChannel;
+  StreamSubscription? _panicSubscription;
 
   bool get isStealthModeEnabled => _isStealthModeEnabled;
 
   /// Initialize hardware triggers.
-  /// NOTE: This would ideally use a package like 'hardware_buttons' or
-  /// 'flutter_volume_key_listener' to listen for volume events.
+  /// Loads persisted stealth mode state and registers native hardware listeners.
   Future<void> initialize() async {
-    // Placeholder for actual hardware button listener initialization.
-    debugPrint('HardwareTriggerService: Initialized');
+    // Load persisted stealth mode state
+    final prefs = await SharedPreferences.getInstance();
+    _isStealthModeEnabled = prefs.getBool(_stealthModePrefKey) ?? false;
+    debugPrint('HardwareTriggerService: Initialized, stealth mode = $_isStealthModeEnabled');
+
+    // Register native hardware button listener via EventChannel
+    _eventChannel = const EventChannel(_channelName);
+    _panicSubscription = _eventChannel!
+        .receiveBroadcastStream()
+        .listen((event) {
+      if (event == _panicEvent) {
+        triggerPanicSOS();
+      }
+    }, onError: (error) {
+      debugPrint('HardwareTriggerService: EventChannel error: $error');
+    });
+
+    debugPrint('HardwareTriggerService: Native hardware listener registered');
   }
 
   /// Toggle stealth mode. When enabled, SOS triggers will not show any UI.
+  /// The setting is persisted to SharedPreferences.
   void setStealthMode(bool enabled) {
     _isStealthModeEnabled = enabled;
     debugPrint('HardwareTriggerService: Stealth mode ${enabled ? 'ON' : 'OFF'}');
+
+    // Persist to SharedPreferences (fire-and-forget)
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool(_stealthModePrefKey, enabled);
+    });
   }
 
   /// Triggered when the "Panic" hardware sequence is detected.
@@ -47,5 +75,11 @@ class HardwareTriggerService {
       description: 'Triggered via hardware buttons',
       isSilent: _isStealthModeEnabled,
     );
+  }
+
+  /// Clean up resources.
+  void dispose() {
+    _panicSubscription?.cancel();
+    _volumeSubscription?.cancel();
   }
 }
