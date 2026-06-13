@@ -1,7 +1,9 @@
 package com.dangeremergence.service;
 
+import com.dangeremergence.model.Incident;
 import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.model.User;
+import com.dangeremergence.model.Zone;
 import com.dangeremergence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -91,6 +93,84 @@ public class FcmPushService {
         }
     }
 
+    /**
+     * Send push notification for a threat intelligence alert (incident, danger zone, etc.)
+     * to all users near the given coordinates.
+     */
+    @Async
+    public void notifyThreatAlertToNearbyUsers(
+            double latitude, double longitude, double radiusKm,
+            String title, String body, String type,
+            String severity, Map<String, String> extraData) {
+        if (fcmServerKey == null || fcmServerKey.isEmpty()) {
+            log.debug("FCM not configured - skipping threat push notification");
+            return;
+        }
+
+        try {
+            double latDelta = radiusKm / 111.0;
+            double lonDelta = radiusKm / (111.0 * Math.cos(Math.toRadians(latitude)));
+            List<User> nearbyUsers = userRepository.findUsersInArea(
+                    latitude - latDelta,
+                    latitude + latDelta,
+                    longitude - lonDelta,
+                    longitude + lonDelta
+            );
+
+            for (User user : nearbyUsers) {
+                if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
+                    sendThreatPushNotification(user.getFcmToken(), title, body, type, severity,
+                            latitude, longitude, extraData);
+                }
+            }
+            log.info("FCM: Notified {} nearby users for threat alert '{}'", nearbyUsers.size(), title);
+        } catch (Exception e) {
+            log.error("FCM threat push failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Send push notification for a new verified incident to nearby users.
+     */
+    @Async
+    public void notifyIncidentToNearbyUsers(Incident incident) {
+        String title = String.format("⚠️ %s Reported Nearby",
+                incident.getIncidentType().substring(0, 1).toUpperCase()
+                        + incident.getIncidentType().substring(1));
+        String body = incident.getDescription() != null
+                ? incident.getDescription().substring(0, Math.min(incident.getDescription().length(), 150))
+                : "A " + incident.getIncidentType() + " incident has been reported in your area";
+        String severity = incident.getSeverity() != null ? incident.getSeverity().name().toLowerCase() : "medium";
+
+        Map<String, String> extraData = new java.util.HashMap<>();
+        extraData.put("incidentId", incident.getId());
+        extraData.put("incidentType", incident.getIncidentType());
+
+        notifyThreatAlertToNearbyUsers(
+                incident.getLatitude(), incident.getLongitude(), 20.0,
+                title, body, "incident", severity, extraData);
+    }
+
+    /**
+     * Send push notification for a new danger zone to nearby users.
+     */
+    @Async
+    public void notifyDangerZoneToNearbyUsers(Zone zone) {
+        String title = String.format("🚨 Danger Zone: %s", zone.getName());
+        String body = zone.getDescription() != null
+                ? zone.getDescription().substring(0, Math.min(zone.getDescription().length(), 150))
+                : "A danger zone has been created in your area";
+        String severity = zone.getSeverity() != null ? zone.getSeverity() : "medium";
+
+        Map<String, String> extraData = new java.util.HashMap<>();
+        extraData.put("zoneId", zone.getId());
+        extraData.put("zoneName", zone.getName());
+
+        notifyThreatAlertToNearbyUsers(
+                zone.getLatitude(), zone.getLongitude(), zone.getRadius() != null ? zone.getRadius() : 5.0,
+                title, body, "danger_zone", severity, extraData);
+    }
+
     private void sendPushNotification(String fcmToken, SOSAlert alert) {
         try {
             String priority = alert.getPriority() >= 9 ? "high" : "normal";
@@ -151,6 +231,72 @@ public class FcmPushService {
                     });
         } catch (Exception e) {
             log.warn("FCM send failed: {}", e.getMessage());
+        }
+    }
+
+    private void sendThreatPushNotification(
+            String fcmToken, String title, String body, String type,
+            String severity, double latitude, double longitude,
+            Map<String, String> extraData) {
+        try {
+            String priority = "high".equals(severity) || "critical".equals(severity) ? "high" : "normal";
+
+            // Build data payload as a JSON string
+            StringBuilder dataJson = new StringBuilder();
+            dataJson.append("{");
+            dataJson.append("\"type\":\"").append(escapeJson(type)).append("\"");
+            dataJson.append(",\"severity\":\"").append(escapeJson(severity)).append("\"");
+            dataJson.append(",\"latitude\":\"").append(latitude).append("\"");
+            dataJson.append(",\"longitude\":\"").append(longitude).append("\"");
+            dataJson.append(",\"timestamp\":\"").append(System.currentTimeMillis()).append("\"");
+            if (extraData != null) {
+                for (Map.Entry<String, String> entry : extraData.entrySet()) {
+                    dataJson.append(",\"").append(escapeJson(entry.getKey())).append("\":\"")
+                            .append(escapeJson(entry.getValue())).append("\"");
+                }
+            }
+            dataJson.append("}");
+
+            String json = String.format("""
+                {
+                  "to": "%s",
+                  "priority": "%s",
+                  "notification": {
+                    "title": "%s",
+                    "body": "%s",
+                    "sound": "default",
+                    "priority": "%s",
+                    "channelId": "threat_alerts"
+                  },
+                  "data": %s
+                }
+                """,
+                escapeJson(fcmToken),
+                priority,
+                escapeJson(title),
+                escapeJson(body),
+                priority,
+                dataJson.toString()
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(fcmApiUrl))
+                    .header("Authorization", "key=" + fcmServerKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> {
+                        if (response.statusCode() == 200) {
+                            log.debug("FCM threat push sent successfully");
+                        } else {
+                            log.warn("FCM threat push returned status: {}", response.statusCode());
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("FCM threat send failed: {}", e.getMessage());
         }
     }
 

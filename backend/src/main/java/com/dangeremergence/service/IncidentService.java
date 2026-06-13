@@ -4,6 +4,7 @@ import com.dangeremergence.model.Incident;
 import com.dangeremergence.model.Incident.IncidentSeverity;
 import com.dangeremergence.model.Incident.IncidentStatus;
 import com.dangeremergence.model.User;
+import com.dangeremergence.model.Zone;
 import com.dangeremergence.repository.IncidentRepository;
 import com.dangeremergence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,8 @@ public class IncidentService {
     private final IncidentRepository incidentRepository;
     private final UserRepository userRepository;
     private final MqttService mqttService;
+    private final ZoneService zoneService;
+    private final NigeriaLocationService nigeriaLocationService;
 
     /**
      * Create a new incident report. Supports anonymous reporting.
@@ -248,30 +251,69 @@ public class IncidentService {
         }
     }
 
+    @Async
     protected void autoCreateDangerZone(Incident incident) {
-        // This would call ZoneService to create a temporary danger zone
-        // around the incident location. For now, just log it.
-        log.info("High-severity incident at ({}, {}) - danger zone creation triggered",
-                incident.getLatitude(), incident.getLongitude());
+        try {
+            // Determine radius based on severity
+            double radiusKm;
+            int expiryHours;
+            switch (incident.getSeverity()) {
+                case critical:
+                    radiusKm = 5.0;
+                    expiryHours = 48;
+                    break;
+                case high:
+                    radiusKm = 3.0;
+                    expiryHours = 24;
+                    break;
+                default:
+                    radiusKm = 1.0;
+                    expiryHours = 12;
+                    break;
+            }
+
+            // Build zone name from incident type and location
+            String zoneName = String.format("%s Zone - %s",
+                    incident.getIncidentType().toUpperCase(),
+                    incident.getState() != null ? incident.getState() : "Unknown");
+
+            Zone zone = Zone.builder()
+                    .name(zoneName)
+                    .type(Zone.ZoneType.hazard)
+                    .description(String.format("Auto-created from %s incident: %s (severity: %s)",
+                            incident.getIncidentType(),
+                            incident.getDescription() != null ? incident.getDescription() : "No description",
+                            incident.getSeverity()))
+                    .latitude(incident.getLatitude())
+                    .longitude(incident.getLongitude())
+                    .radius(radiusKm)
+                    .severity(incident.getSeverity().name().toLowerCase())
+                    .status(Zone.ZoneStatus.active)
+                    .createdBy("system")
+                    .expiresAt(LocalDateTime.now().plusHours(expiryHours))
+                    .build();
+
+            Zone created = zoneService.createZone(zone);
+            log.info("Auto-created danger zone '{}' (id={}) for {} incident at ({}, {}) radius={}km expires={}",
+                    created.getName(), created.getId(),
+                    incident.getIncidentType(),
+                    incident.getLatitude(), incident.getLongitude(),
+                    radiusKm, created.getExpiresAt());
+
+            // Publish zone creation to MQTT
+            mqttService.publish("zones/new", created);
+        } catch (Exception e) {
+            log.warn("Failed to auto-create danger zone for incident {}: {}",
+                    incident.getId(), e.getMessage());
+        }
     }
 
     /**
      * Resolve Nigeria State and LGA from GPS coordinates using reverse geocoding.
-     * Falls back to approximate grid-based lookup.
+     * Delegates to NigeriaLocationService for accurate state/LGA resolution.
      */
     private String[] resolveNigeriaGeoInfo(double latitude, double longitude) {
-        // Simplified Nigeria geo-boundary resolution
-        // In production, this would use a proper reverse geocoding service
-        String state = "Unknown";
-        String lga = "Unknown";
-
-        // Nigeria bounding box (approximate)
-        if (latitude >= 4.0 && latitude <= 14.0 && longitude >= 2.5 && longitude <= 15.0) {
-            state = "Nigeria";
-            lga = "General";
-        }
-
-        return new String[]{state, lga};
+        return nigeriaLocationService.resolve(latitude, longitude);
     }
 
     private int severityToInt(IncidentSeverity severity) {

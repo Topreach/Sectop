@@ -29,6 +29,7 @@ public class TipOffService {
     private final UserRepository userRepository;
     private final MqttService mqttService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final NigeriaLocationService nigeriaLocationService;
 
     /**
      * Submit a new tip-off. Supports anonymous reporting.
@@ -297,20 +298,12 @@ public class TipOffService {
 
     /**
      * Resolve Nigeria State and LGA from GPS coordinates.
+     * Delegates to NigeriaLocationService for accurate state/LGA resolution.
      */
     private String[] resolveNigeriaGeoInfo(Double latitude, Double longitude) {
         if (latitude == null || longitude == null) {
             return new String[]{"Unknown", "Unknown"};
         }
-        String state = "Unknown";
-        String lga = "Unknown";
-
-        if (latitude >= 4.0 && latitude <= 14.0 &&
-            longitude >= 2.5 && longitude <= 15.0) {
-            state = "Nigeria";
-            lga = "General";
-        }
-
-        return new String[]{state, lga};
+        return nigeriaLocationService.resolve(latitude, longitude);
     }
 }

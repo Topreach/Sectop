@@ -28,6 +28,7 @@ public class SOSAlertService {
     private final AlertPubSubService alertPubSubService;
     private final FcmPushService fcmPushService;
     private final SmsGatewayService smsGatewayService;
+    private final NigeriaLocationService nigeriaLocationService;
 
     @Transactional
     public SOSAlert createAlert(String userId, String alertType, String description,
@@ -152,27 +153,10 @@ public class SOSAlertService {
     }
 
     private String[] resolveNigeriaGeoInfo(Double lat, Double lng) {
-        String state = "Unknown";
-        String lga = "Unknown";
-
-        if (lat >= 9.0 && lat <= 9.2 && lng >= 7.3 && lng <= 7.6) {
-            state = "FCT";
-            lga = "Abuja Municipal";
-        } else if (lat >= 6.4 && lat <= 6.7 && lng >= 3.2 && lng <= 3.6) {
-            state = "Lagos";
-            lga = "Ikeja";
-        } else if (lat >= 11.8 && lat <= 12.1 && lng >= 13.1 && lng <= 13.3) {
-            state = "Borno";
-            lga = "Maiduguri";
-        } else if (lat >= 10.4 && lat <= 10.6 && lng >= 7.3 && lng <= 7.5) {
-            state = "Kaduna";
-            lga = "Kaduna North";
-        } else if (lat >= 4.7 && lat <= 4.9 && lng >= 6.9 && lng <= 7.1) {
-            state = "Rivers";
-            lga = "Port Harcourt";
+        if (lat == null || lng == null) {
+            return new String[]{"Unknown", "Unknown"};
         }
-
-        return new String[]{state, lga};
+        return nigeriaLocationService.resolve(lat, lng);
     }
 
     @Transactional

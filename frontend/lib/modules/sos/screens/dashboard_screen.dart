@@ -17,6 +17,7 @@ import '../../maps/services/map_service.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
 import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
+import '../../ai/widgets/threat_awareness_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -402,30 +403,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
                 color: pendingCount > 0 ? Colors.orange : Colors.green,
               ),
               const SizedBox(height: 24),
+const SizedBox(height: 24),
 
-              // Terrorist / Danger Location Finder
-              const TerroristLocationCard(),
+// Threat Awareness Card — Real-time intelligence monitoring
+const ThreatAwarenessCard(),
 
-              // Recent Alerts
-              const Text(
-                'Recent Alerts',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    'No recent alerts',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ),
-            ],
+// Terrorist / Danger Location Finder
+const TerroristLocationCard(),
           ),
         ),
       ),

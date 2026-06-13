@@ -23,6 +23,7 @@ import 'modules/security/services/security_manager.dart';
 import 'modules/observability/services/observability_service.dart';
 import 'shared/services/hardware_trigger_service.dart';
 import 'shared/services/crash_reporter.dart';
+import 'modules/ai/services/threat_awareness_service.dart';
 
 /// Background task dispatcher for Workmanager.
 @pragma('vm:entry-point')
@@ -101,6 +102,7 @@ final Map<Type, Object Function()> _fallbackRegistry = {
   MeshManager: () => MeshManager(),
   BackendApi: () => BackendApi(),
   HardwareTriggerService: () => HardwareTriggerService(),
+  ThreatAwarenessService: () => ThreatAwarenessService(),
 };
 
 /// Creates a fallback instance for a service type when initialization fails.
@@ -183,6 +185,7 @@ class DangerEmergenceApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => safeInit(() => MeshManager())),
         ChangeNotifierProvider(create: (_) => safeInit(() => SecurityManager.instance)),
         ChangeNotifierProvider(create: (_) => safeInit(() => ObservabilityService.instance)),
+        ChangeNotifierProvider(create: (_) => safeInit(() => ThreatAwarenessService())),
       ],
       child: Builder(
         builder: (context) {
