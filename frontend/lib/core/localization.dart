@@ -277,7 +277,6 @@ class AppLocalizations {
       'emergency_tools': 'Emergency Tools',
       'broadcasts': 'Broadcasts',
       'radio': 'Radio',
-      'danger_zones': 'Danger Zones',
       'data_sync': 'Data Sync',
       'syncing': 'Syncing...',
       'pending_items': 'pending items',
