@@ -814,7 +814,6 @@ class AppLocalizations {
       'warning': 'Ikilọ',
       'urgent': 'Pajawiri',
       'critical': 'Lominu',
-      'seconds': 'aaya',
       'describe_emergency_hint': 'Ṣe apejuwe ipo pajawiri rẹ...',
       },
       'ig': {
@@ -1203,7 +1202,6 @@ class AppLocalizations {
         'warning': 'Warning',
         'urgent': 'Urgent',
         'critical': 'Critical',
-        'seconds': 'seconds',
         'describe_emergency_hint': 'Describe your emergency situation...'
       },
       'ha': {
@@ -1592,7 +1590,6 @@ class AppLocalizations {
         'warning': 'Warning',
         'urgent': 'Urgent',
         'critical': 'Critical',
-        'seconds': 'seconds',
         'describe_emergency_hint': 'Describe your emergency situation...'
       },
     };
