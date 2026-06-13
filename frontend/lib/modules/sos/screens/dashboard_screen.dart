@@ -940,6 +940,9 @@ class _ProfileView extends StatelessWidget {
             _ProfileOption(Icons.contacts_outlined, 'Emergency Contacts', () {
               _showEmergencyContactsDialog(context);
             }),
+            _ProfileOption(Icons.settings_outlined, 'Settings', () {
+              Navigator.of(context).pushNamed(AppRoutes.settings);
+            }),
             _ProfileOption(Icons.shield_outlined, 'Privacy & Security', () {
               _showPrivacySecurityDialog(context);
             }),
