@@ -21,6 +21,7 @@ frontend/android/release-keystore.jks
 danger-emergence.apk
 danger-emergence-debug.apk
 *.apk
+*.aab
 
 # Debug logs
 crash_log.txt
