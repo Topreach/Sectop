@@ -121,10 +121,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: AppTheme.primaryColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Icon(
-                      Icons.warning_amber_rounded,
-                      size: 48,
-                      color: Colors.white,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/icons/Sectoplogo.png',
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),

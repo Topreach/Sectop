@@ -384,6 +384,13 @@ build_apk() {
   # Get dependencies
   flutter pub get
 
+  # Generate launcher icons from Sectoplogo.png
+  log_info "Generating Android launcher icons from Sectoplogo.png..."
+  flutter pub run flutter_launcher_icons 2>/dev/null || {
+    log_warn "flutter_launcher_icons generation failed (will use existing mipmap icons)"
+  }
+  log_ok "Launcher icons generated"
+
   # Ensure local.properties exists with correct SDK path
   log_info "Ensuring local.properties is configured..."
   echo "sdk.dir=$ANDROID_SDK_ROOT" > "$FRONTEND_DIR/android/local.properties"

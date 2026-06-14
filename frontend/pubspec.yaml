@@ -101,6 +101,8 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   image_path: "assets/icons/Sectoplogo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/Sectoplogo.png"
 
 flutter:
   uses-material-design: true
