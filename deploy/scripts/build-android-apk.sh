@@ -389,6 +389,20 @@ build_apk() {
   flutter pub run flutter_launcher_icons 2>/dev/null || {
     log_warn "flutter_launcher_icons generation failed (will use existing mipmap icons)"
   }
+
+  # Generate adaptive icon foreground drawable (fixes circular reference in ic_launcher.xml)
+  log_info "Generating adaptive icon foreground drawable..."
+  python3 -c "
+from PIL import Image
+img = Image.open('$FRONTEND_DIR/assets/icons/Sectoplogo.png')
+img.resize((432, 432), Image.LANCZOS).save('$FRONTEND_DIR/android/app/src/main/res/drawable/ic_launcher_foreground.png', 'PNG')
+print('Foreground drawable created')
+" 2>/dev/null || python -c "
+from PIL import Image
+img = Image.open('$FRONTEND_DIR/assets/icons/Sectoplogo.png')
+img.resize((432, 432), Image.LANCZOS).save('$FRONTEND_DIR/android/app/src/main/res/drawable/ic_launcher_foreground.png', 'PNG')
+print('Foreground drawable created')
+" 2>/dev/null || log_warn "Could not generate foreground drawable (Pillow not available)"
   log_ok "Launcher icons generated"
 
   # Ensure local.properties exists with correct SDK path
