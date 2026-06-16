@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/constants.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../shared/services/backend_api.dart';
 import '../../security/services/security_manager.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../auth/services/auth_service.dart';
@@ -51,6 +52,31 @@ class SOSService extends ChangeNotifier {
 
   /// Initialize SOS service and load active alerts.
   Future<void> initialize() async {
+    // Primary: Load alerts from server (online-first for fast delivery)
+    try {
+      final api = BackendApi();
+      final userId = _authService.currentUser?.id;
+      if (userId != null) {
+        final result = await api.getUserAlerts(userId);
+        final rawAlerts = result['alerts'];
+        if (rawAlerts is List) {
+          final serverAlerts = rawAlerts.cast<Map<String, dynamic>>().toList();
+          // Cache server alerts locally for offline fallback
+          for (final alert in serverAlerts) {
+            await _storage.saveSOSAlert(alert);
+          }
+          _activeAlerts = serverAlerts.map((a) => SOSAlert.fromMap(a)).toList();
+          notifyListeners();
+          // Connect to WebSocket for real-time delivery confirmation
+          unawaited(_connectWebSocket());
+          return;
+        }
+      }
+    } catch (_) {
+      debugPrint('SOSService: Server unavailable, loading alerts from local storage...');
+    }
+
+    // Fallback: Load from local storage when server is unreachable
     final alerts = await _storage.getActiveSOSAlerts();
     _activeAlerts = alerts.map((a) => SOSAlert.fromMap(a)).toList();
     notifyListeners();
@@ -227,11 +253,19 @@ class SOSService extends ChangeNotifier {
 
       _currentAlert = alert;
 
-      // Step 1: Store locally first (guaranteed persistence)
-      await _storage.saveSOSAlert(alert.toMap());
+      // Step 1: Try cloud API first (online-first for fast delivery)
+      bool cloudSuccess = false;
+      try {
+        final api = BackendApi();
+        await api.post('/alerts', body: alert.toMap());
+        cloudSuccess = true;
+        debugPrint('SOSService: Alert sent to cloud successfully');
+      } catch (e) {
+        debugPrint('SOSService: Cloud send failed (no internet): $e');
+      }
 
-      // Step 2: Try cloud API if available
-      unawaited(_tryCloudSend(alert));
+      // Step 2: Store locally (for offline fallback and local history)
+      await _storage.saveSOSAlert(alert.toMap());
 
       // Step 3: Broadcast via mesh network (Bluetooth + Wi-Fi Direct)
       unawaited(_broadcastViaMesh(alert));
@@ -247,7 +281,7 @@ class SOSService extends ChangeNotifier {
       // Step 6: Start location tracking for dynamic updates
       _startLocationTracking(alert.id);
 
-      // Step 6: Capture last-gasp evidence (audio/photo)
+      // Step 7: Capture last-gasp evidence (audio/photo)
       unawaited(EvidenceService().captureLastGasp(alert.id));
 
       _activeAlerts.insert(0, alert);
@@ -380,6 +414,18 @@ class SOSService extends ChangeNotifier {
     final responderId = _authService.currentUser?.id;
     if (responderId == null) return;
 
+    // Primary: Notify server first (online-first)
+    try {
+      final api = BackendApi();
+      await api.post('/alerts/$alertId/acknowledge', body: {
+        'responder_id': responderId,
+      });
+      debugPrint('SOSService: Alert $alertId acknowledged on server');
+    } catch (e) {
+      debugPrint('SOSService: Server acknowledge failed (no internet): $e');
+    }
+
+    // Update local storage
     await _storage.update('sos_alerts', {
       'acknowledged_by': responderId,
       'updated_at': DateTime.now().millisecondsSinceEpoch,
@@ -408,6 +454,16 @@ class SOSService extends ChangeNotifier {
 
   /// Resolve an SOS alert.
   Future<void> resolveAlert(String alertId) async {
+    // Primary: Notify server first (online-first)
+    try {
+      final api = BackendApi();
+      await api.post('/alerts/$alertId/resolve');
+      debugPrint('SOSService: Alert $alertId resolved on server');
+    } catch (e) {
+      debugPrint('SOSService: Server resolve failed (no internet): $e');
+    }
+
+    // Update local storage
     await _storage.resolveSOSAlert(alertId, resolvedBy: _authService.currentUser?.id);
 
     // Broadcast resolution

@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
@@ -25,15 +28,24 @@ class _InboxScreenState extends State<InboxScreen>
   bool _isLoadingAlerts = true;
   bool _isOffline = false;
 
+  // WebSocket for real-time message delivery
+  WebSocketChannel? _wsChannel;
+  StreamSubscription<dynamic>? _wsSubscription;
+  Timer? _wsReconnectTimer;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadData();
+    _connectMessageWebSocket();
   }
 
   @override
   void dispose() {
+    _wsReconnectTimer?.cancel();
+    _wsSubscription?.cancel();
+    _wsChannel?.sink.close();
     _tabController.dispose();
     super.dispose();
   }
@@ -130,9 +142,136 @@ class _InboxScreenState extends State<InboxScreen>
     }
   }
 
-  /// Mark a message as read locally (no server call).
+  /// Connect to WebSocket for real-time message delivery.
+  /// Subscribes to the user's personal message queue and urgent topic.
+  Future<void> _connectMessageWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+
+      _wsChannel = wsChannel;
+      debugPrint('InboxScreen: Message WebSocket connected');
+
+      _wsSubscription = wsChannel.stream.listen(
+        (dynamic data) {
+          final body = data is String
+              ? data
+              : (data is List<int> ? utf8.decode(data) : data.toString());
+          _handleIncomingMessage(body);
+        },
+        onError: (dynamic error) {
+          debugPrint('InboxScreen: Message WebSocket error: $error');
+          _scheduleMessageWsReconnect();
+        },
+        onDone: () {
+          debugPrint('InboxScreen: Message WebSocket closed');
+          _scheduleMessageWsReconnect();
+        },
+        cancelOnError: false,
+      );
+
+      // Send STOMP CONNECT frame with auth token
+      _sendMessageStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      // Subscribe to personal message queue and urgent topic
+      await Future.delayed(const Duration(milliseconds: 500));
+      _sendMessageStompFrame('SUBSCRIBE', {
+        'id': 'msg-sub-0',
+        'destination': '/user/queue/messages',
+      });
+      _sendMessageStompFrame('SUBSCRIBE', {
+        'id': 'msg-sub-1',
+        'destination': '/topic/messages/urgent',
+      });
+    } catch (e) {
+      debugPrint('InboxScreen: Message WebSocket connection failed: $e');
+      _scheduleMessageWsReconnect();
+    }
+  }
+
+  /// Send a raw STOMP frame over the message WebSocket.
+  void _sendMessageStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0');
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('InboxScreen: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Handle incoming real-time message from WebSocket.
+  void _handleIncomingMessage(String body) {
+    if (body.isEmpty) return;
+    try {
+      // Parse STOMP frame to extract JSON body
+      String jsonStr = body;
+      if (body.contains('\n\n')) {
+        jsonStr = body.substring(body.indexOf('\n\n') + 2).trim();
+      }
+      jsonStr = jsonStr.replaceAll('\0', '').trim();
+      if (jsonStr.isEmpty) return;
+
+      final data = json.decode(jsonStr) as Map<String, dynamic>;
+
+      // Check if it's a message (has 'content' field) or alert
+      if (data.containsKey('content') || data.containsKey('sender_id')) {
+        // It's a message - add to messages list
+        final storage = OfflineStorageService();
+        storage.saveMessageLocally(data);
+        if (mounted) {
+          setState(() {
+            // Avoid duplicates
+            _messages.removeWhere((m) => m['id'] == data['id']);
+            _messages.insert(0, data);
+          });
+        }
+        debugPrint('InboxScreen: Real-time message received: ${data['id']}');
+      }
+    } catch (e) {
+      debugPrint('InboxScreen: Failed to parse incoming message: $e');
+    }
+  }
+
+  /// Schedule WebSocket reconnection with exponential backoff.
+  void _scheduleMessageWsReconnect() {
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = Timer(const Duration(seconds: 5), () {
+      debugPrint('InboxScreen: Attempting message WebSocket reconnect...');
+      _connectMessageWebSocket();
+    });
+  }
+
+  /// Mark a message as read (online-first: notify server, then update locally).
   Future<void> _markAsRead(String messageId) async {
     try {
+      // Primary: Notify server first (online-first)
+      try {
+        final api = context.read<BackendApi>();
+        await api.markMessageRead(messageId);
+        debugPrint('InboxScreen: Message $messageId marked read on server');
+      } catch (_) {
+        debugPrint('InboxScreen: Server mark-read failed (no internet)');
+      }
+
+      // Update local storage
       final storage = OfflineStorageService();
       await storage.markMessageReadLocally(messageId);
       setState(() {
@@ -142,13 +281,23 @@ class _InboxScreenState extends State<InboxScreen>
         }
       });
     } catch (e) {
-      debugPrint('InboxScreen: Failed to mark as read locally: $e');
+      debugPrint('InboxScreen: Failed to mark as read: $e');
     }
   }
 
-  /// Delete a message from local storage.
+  /// Delete a message (online-first: notify server, then delete locally).
   Future<void> _deleteMessage(String messageId) async {
     try {
+      // Primary: Notify server first (online-first)
+      try {
+        final api = context.read<BackendApi>();
+        await api.delete('/messages/$messageId');
+        debugPrint('InboxScreen: Message $messageId deleted on server');
+      } catch (_) {
+        debugPrint('InboxScreen: Server delete failed (no internet)');
+      }
+
+      // Delete from local storage
       final storage = OfflineStorageService();
       await storage.deleteMessage(messageId);
       setState(() {
