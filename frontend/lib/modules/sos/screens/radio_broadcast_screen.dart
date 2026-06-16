@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/offline_storage.dart';
+import '../../auth/services/auth_service.dart';
 
 /// Screen for emergency radio broadcasts.
 /// When internet is cut, radio is the only way to reach rural communities.
@@ -18,6 +22,8 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   final _targetLgaController = TextEditingController();
   final _frequencyController = TextEditingController(text: '95.1');
   final BackendApi _api = BackendApi();
+  final AuthService _authService = AuthService();
+  final OfflineStorageService _storage = OfflineStorageService();
 
   String _severity = 'urgent';
   String _broadcastType = 'emergency';
@@ -32,6 +38,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   void initState() {
     super.initState();
     _loadHistory();
+    _autoFillLocation();
   }
 
   @override
@@ -42,6 +49,23 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
     _targetLgaController.dispose();
     _frequencyController.dispose();
     super.dispose();
+  }
+
+  /// Auto-fill the user's state and LGA from their stored profile or settings.
+  Future<void> _autoFillLocation() async {
+    try {
+      // Try to get location from stored settings (set during profile setup)
+      final savedState = await _storage.getSetting('user_state');
+      final savedLga = await _storage.getSetting('user_lga');
+      if (savedState != null && savedState.isNotEmpty) {
+        _targetStateController.text = savedState;
+      }
+      if (savedLga != null && savedLga.isNotEmpty) {
+        _targetLgaController.text = savedLga;
+      }
+    } catch (_) {
+      // Non-fatal — user can type manually
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -64,21 +88,45 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
       return;
     }
 
+    // Fix 2: Role check — only coordinators can broadcast
+    final user = _authService.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You must be logged in to broadcast')),
+      );
+      return;
+    }
+    if (!_authService.isCoordinator) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Only coordinators can send radio broadcasts'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
+
+    // Build the request payload with Fix 1: add createdById
+    final payload = {
+      'title': _titleController.text.trim(),
+      'message': _messageController.text.trim(),
+      'language': _language,
+      'severity': _severity,
+      'broadcastType': _broadcastType,
+      'createdById': user.id,
+      'targetFrequency': double.tryParse(_frequencyController.text),
+      'targetState': _targetStateController.text.trim().isEmpty
+          ? null : _targetStateController.text.trim(),
+      'targetLga': _targetLgaController.text.trim().isEmpty
+          ? null : _targetLgaController.text.trim(),
+      'anonymous': _isAnonymous,
+    };
+
     try {
-      await _api.createRadioBroadcast({
-        'title': _titleController.text.trim(),
-        'message': _messageController.text.trim(),
-        'language': _language,
-        'severity': _severity,
-        'broadcastType': _broadcastType,
-        'targetFrequency': double.tryParse(_frequencyController.text),
-        'targetState': _targetStateController.text.trim().isEmpty
-            ? null : _targetStateController.text.trim(),
-        'targetLga': _targetLgaController.text.trim().isEmpty
-            ? null : _targetLgaController.text.trim(),
-        'anonymous': _isAnonymous,
-      });
+      // Fix 3: Online-first — try server
+      await _api.createRadioBroadcast(payload);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -89,10 +137,73 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
         _loadHistory();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${'Failed:'} $e')),
-        );
+      final errorStr = e.toString();
+
+      // Fix 3: Offline fallback — save locally when server is unreachable
+      if (errorStr.contains('SocketException') ||
+          errorStr.contains('Connection refused') ||
+          errorStr.contains('HandshakeException') ||
+          errorStr.contains('503') ||
+          errorStr.contains('Circuit breaker')) {
+        // Server unreachable — save locally for later sync
+        try {
+          await _storage.insert('messages', {
+            'id': 'radio_${DateTime.now().millisecondsSinceEpoch}',
+            'sender_id': user.id,
+            'content': '[RADIO] ${payload['title']}: ${payload['message']}',
+            'message_type': 'radio_broadcast',
+            'priority': 3,
+            'status': 'pending',
+            'sync_state': 'offline',
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('No internet — broadcast saved locally. Will send when online.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } catch (saveError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to save broadcast offline: $saveError')),
+            );
+          }
+        }
+      } else if (errorStr.contains('403') || errorStr.contains('Forbidden')) {
+        // Fix 2: Role authorization error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Access denied. Only coordinators can broadcast.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else if (errorStr.contains('MQTT') || errorStr.contains('mqtt')) {
+        // Fix 5: MQTT failure — the broadcast was created but MQTT publish failed
+        // This is a non-fatal error; the broadcast is stored in the database
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Broadcast saved to server. Radio delivery may be delayed.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        _titleController.clear();
+        _messageController.clear();
+        _loadHistory();
+      } else {
+        // Other errors
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: $e')),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -111,7 +222,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${'Failed:'} $e')),
+          SnackBar(content: Text('Failed: $e')),
         );
       }
     }
@@ -237,6 +348,8 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                     decoration: InputDecoration(
                       labelText: 'Target State',
                       border: const OutlineInputBorder(),
+                      // Fix 4: Show hint that location is auto-filled
+                      hintText: 'Auto-detected from profile',
                     ),
                   ),
                 ),
@@ -247,6 +360,8 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
                     decoration: InputDecoration(
                       labelText: 'Target LGA',
                       border: const OutlineInputBorder(),
+                      // Fix 4: Show hint that location is auto-filled
+                      hintText: 'Auto-detected from profile',
                     ),
                   ),
                 ),
