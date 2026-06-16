@@ -50,6 +50,11 @@ class BackendApi {
   static const Duration _resetTimeout = Duration(seconds: 30);
   DateTime? _lastFailureTime;
 
+  // In-memory auth token cache — avoids async SharedPreferences read on every request
+  String? _cachedToken;
+  DateTime? _tokenCacheTime;
+  static const Duration _tokenCacheDuration = Duration(minutes: 5);
+
   // ---------------------------------------------------------------------------
   // Auth headers
   // ---------------------------------------------------------------------------
@@ -57,7 +62,14 @@ class BackendApi {
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{'Content-Type': 'application/json'};
     try {
-      final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      // Use cached token if still fresh
+      String? token = _cachedToken;
+      if (token == null || _tokenCacheTime == null ||
+          DateTime.now().difference(_tokenCacheTime!) > _tokenCacheDuration) {
+        token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+        _cachedToken = token;
+        _tokenCacheTime = DateTime.now();
+      }
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
@@ -65,8 +77,14 @@ class BackendApi {
     return headers;
   }
 
+  /// Invalidate the cached auth token (call after logout).
+  void invalidateTokenCache() {
+    _cachedToken = null;
+    _tokenCacheTime = null;
+  }
+
   // ---------------------------------------------------------------------------
-  // Resilience: retry with exponential backoff + circuit breaker
+  // Resilience: fast retry with minimal backoff + circuit breaker
   // ---------------------------------------------------------------------------
 
   Future<T> _retryWithBackoff<T>(Future<T> Function() request) async {
@@ -77,7 +95,8 @@ class BackendApi {
       } catch (e) {
         attempt++;
         if (attempt >= _retryCount) rethrow;
-        final delay = Duration(seconds: min(pow(2, attempt).toInt(), 10));
+        // Minimal backoff: 500ms for first retry — fast enough for instant messaging feel
+        final delay = Duration(milliseconds: 500 * attempt);
         debugPrint('BackendApi: Retry $attempt/$_retryCount after $delay: $e');
         await Future.delayed(delay);
       }

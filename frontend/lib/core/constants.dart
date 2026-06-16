@@ -50,11 +50,11 @@ class AppConstants {
   static const int batchSyncSize = 50;
 
   // API
+  // API
   static const String apiBaseUrl = 'https://sectop.resultscaleai.com/api';
   static const String apiVersion = 'v1';
-  static const int apiTimeout = 30; // seconds
-  static const int apiRetryCount = 3;
-
+  static const int apiTimeout = 10; // seconds — reduced for instant messaging feel
+  static const int apiRetryCount = 1; // reduced — single retry is enough for fast UX
   // WebSocket / STOMP
   static const String wsBaseUrl = 'wss://sectop.resultscaleai.com/ws';
 

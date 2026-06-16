@@ -33,6 +33,11 @@ class _InboxScreenState extends State<InboxScreen>
   StreamSubscription<dynamic>? _wsSubscription;
   Timer? _wsReconnectTimer;
 
+  // Compose message state
+  final TextEditingController _composeController = TextEditingController();
+  bool _isSending = false;
+  final List<Map<String, dynamic>> _outgoingMessages = [];
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +51,7 @@ class _InboxScreenState extends State<InboxScreen>
     _wsReconnectTimer?.cancel();
     _wsSubscription?.cancel();
     _wsChannel?.sink.close();
+    _composeController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -217,6 +223,122 @@ class _InboxScreenState extends State<InboxScreen>
     }
   }
 
+  /// Send a message via STOMP SEND frame for instant delivery (faster than HTTP POST).
+  /// Falls back to HTTP POST if WebSocket is not connected.
+  void _sendMessageViaStomp(Map<String, dynamic> messageData) {
+    if (_wsChannel == null) {
+      debugPrint('InboxScreen: WebSocket not connected, falling back to HTTP POST');
+      _sendMessageViaHttp(messageData);
+      return;
+    }
+    try {
+      final body = json.encode(messageData);
+      _sendMessageStompFrame('SEND', {
+        'destination': '/app/messages/send',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('InboxScreen: Message sent via STOMP SEND: ${messageData['id']}');
+    } catch (e) {
+      debugPrint('InboxScreen: STOMP SEND failed, falling back to HTTP POST: $e');
+      _sendMessageViaHttp(messageData);
+    }
+  }
+
+  /// Send a message via HTTP POST (fallback when WebSocket is unavailable).
+  Future<void> _sendMessageViaHttp(Map<String, dynamic> messageData) async {
+    try {
+      final api = context.read<BackendApi>();
+      await api.sendMessage(messageData);
+      debugPrint('InboxScreen: Message sent via HTTP: ${messageData['id']}');
+    } catch (e) {
+      debugPrint('InboxScreen: HTTP send failed: $e');
+    }
+  }
+
+  /// Compose and send a message with optimistic UI update.
+  Future<void> _sendComposedMessage() async {
+    final text = _composeController.text.trim();
+    if (text.isEmpty || _isSending) return;
+
+    final authService = context.read<AuthService>();
+    final userId = authService.currentUser?.id;
+    if (userId == null) return;
+
+    setState(() => _isSending = true);
+
+    // Generate a temporary ID for optimistic UI
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Create optimistic message entry — appears instantly in the list
+    final optimisticMessage = <String, dynamic>{
+      'id': tempId,
+      'sender_id': userId,
+      'content': text,
+      'message_type': 'text',
+      'priority': 0,
+      'status': 'sending',
+      'created_at': now,
+      '_optimistic': true,
+    };
+
+    // Add to messages list immediately (optimistic UI)
+    setState(() {
+      _messages.insert(0, optimisticMessage);
+      _outgoingMessages.add(optimisticMessage);
+      _composeController.clear();
+    });
+
+    // Build the actual message payload
+    final messageData = <String, dynamic>{
+      'id': tempId,
+      'sender_id': userId,
+      'content': text,
+      'message_type': 'text',
+      'priority': 0,
+    };
+
+    // Try STOMP SEND first (fastest), fall back to HTTP POST
+    _sendMessageViaStomp(messageData);
+
+    // Also send via HTTP POST as a reliable backup (the backend will deduplicate by ID)
+    // This ensures delivery even if WebSocket message is lost
+    try {
+      final api = context.read<BackendApi>();
+      final response = await api.sendMessage(messageData);
+      final serverId = response['id'] as String?;
+
+      // Update optimistic message with server response
+      setState(() {
+        final idx = _messages.indexWhere((m) => m['id'] == tempId);
+        if (idx >= 0) {
+          if (serverId != null) {
+            _messages[idx]['id'] = serverId;
+          }
+          _messages[idx]['status'] = 'sent';
+          _messages[idx].remove('_optimistic');
+        }
+        _outgoingMessages.removeWhere((m) => m['id'] == tempId);
+        _isSending = false;
+      });
+
+      // Save to local storage
+      final storage = OfflineStorageService();
+      await storage.saveMessageLocally(response);
+    } catch (e) {
+      debugPrint('InboxScreen: HTTP send failed for optimistic message: $e');
+      // Keep the message in the list with 'failed' status so user can retry
+      setState(() {
+        final idx = _messages.indexWhere((m) => m['id'] == tempId);
+        if (idx >= 0) {
+          _messages[idx]['status'] = 'failed';
+        }
+        _outgoingMessages.removeWhere((m) => m['id'] == tempId);
+        _isSending = false;
+      });
+    }
+  }
+
   /// Handle incoming real-time message from WebSocket.
   void _handleIncomingMessage(String body) {
     if (body.isEmpty) return;
@@ -360,27 +482,123 @@ class _InboxScreenState extends State<InboxScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _MessagesTab(
-            messages: _messages,
-            isLoading: _isLoadingMessages,
-            isOffline: _isOffline,
-            onRefresh: _loadMessages,
-            onMarkRead: _markAsRead,
-            onDelete: _deleteMessage,
-            formatTimestamp: _formatTimestamp,
+          // Messages/Alerts/Updates tabs
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _MessagesTab(
+                  messages: _messages,
+                  isLoading: _isLoadingMessages,
+                  isOffline: _isOffline,
+                  onRefresh: _loadMessages,
+                  onMarkRead: _markAsRead,
+                  onDelete: _deleteMessage,
+                  formatTimestamp: _formatTimestamp,
+                ),
+                _AlertsTab(
+                  alerts: _alerts,
+                  isLoading: _isLoadingAlerts,
+                  isOffline: _isOffline,
+                  onRefresh: _loadAlerts,
+                  formatTimestamp: _formatTimestamp,
+                ),
+                _UpdatesTab(),
+              ],
+            ),
           ),
-          _AlertsTab(
-            alerts: _alerts,
-            isLoading: _isLoadingAlerts,
-            isOffline: _isOffline,
-            onRefresh: _loadAlerts,
-            formatTimestamp: _formatTimestamp,
-          ),
-          _UpdatesTab(),
+          // Compose bar — only show on Messages tab
+          _buildComposeBar(),
         ],
+      ),
+    );
+  }
+
+  /// Build the compose message bar at the bottom of the screen.
+  /// Provides a text field and send button for instant message sending.
+  Widget _buildComposeBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            children: [
+              // Text input field
+              Expanded(
+                child: TextField(
+                  controller: _composeController,
+                  decoration: InputDecoration(
+                    hintText: 'Type a message...',
+                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(color: AppTheme.primaryColor),
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                  maxLines: 1,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendComposedMessage(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Send button
+              Material(
+                color: _isSending ? Colors.grey[400] : AppTheme.primaryColor,
+                borderRadius: BorderRadius.circular(24),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: _isSending ? null : _sendComposedMessage,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    child: _isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

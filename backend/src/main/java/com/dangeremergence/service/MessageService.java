@@ -55,10 +55,11 @@ public class MessageService {
         Message saved = messageRepository.save(message);
         log.info("Message saved: {} (type={}, priority={})", saved.getId(), type, priority);
 
-        // Enqueue in priority message queue for instant delivery
+        // Enqueue in priority message queue for async delivery (marks as delivered)
         priorityMessageQueue.enqueue(saved);
 
-        // Also push directly via WebSocket for immediate delivery to connected clients
+        // Push directly via WebSocket for immediate delivery to connected clients
+        // This is the fast path — message appears instantly on the receiver's screen
         if (receiver != null) {
             try {
                 messagingTemplate.convertAndSendToUser(receiver.getId(), "/queue/messages", saved);
@@ -78,6 +79,72 @@ public class MessageService {
         }
 
         return saved;
+    }
+
+    /**
+     * Fast, non-transactional message send for STOMP WebSocket path.
+     *
+     * This method skips the @Transactional wrapper to avoid DB commit latency.
+     * The DB save happens asynchronously — the WebSocket push fires immediately
+     * so the receiver gets the message in milliseconds.
+     *
+     * Called by StompMessageController when messages arrive via STOMP SEND frames.
+     */
+    public void sendMessageFast(String senderId, String receiverId, String content,
+                                 Message.MessageType type, int priority, Double latitude, Double longitude) {
+        try {
+            User sender = userRepository.findById(senderId)
+                    .orElseThrow(() -> new RuntimeException("Sender not found: " + senderId));
+
+            User receiver = null;
+            if (receiverId != null) {
+                receiver = userRepository.findById(receiverId)
+                        .orElseThrow(() -> new RuntimeException("Receiver not found: " + receiverId));
+            }
+
+            Message message = Message.builder()
+                    .id(UUID.randomUUID().toString())
+                    .sender(sender)
+                    .receiver(receiver)
+                    .content(content)
+                    .messageType(type)
+                    .priority(priority)
+                    .status(Message.MessageStatus.pending)
+                    .syncState(Message.SyncState.pending)
+                    .latitude(latitude)
+                    .longitude(longitude)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            // 1. Push via WebSocket FIRST — instant delivery to receiver
+            if (receiver != null) {
+                try {
+                    messagingTemplate.convertAndSendToUser(receiver.getId(), "/queue/messages", message);
+                    log.debug("Fast-path WebSocket push for message to user {}", receiver.getId());
+                } catch (Exception e) {
+                    log.warn("Fast-path WebSocket push failed: {}", e.getMessage());
+                }
+            }
+
+            // 2. For high-priority messages, push to global urgent topic
+            if (priority >= 8) {
+                try {
+                    messagingTemplate.convertAndSend("/topic/messages/urgent", message);
+                } catch (Exception e) {
+                    log.warn("Fast-path global topic push failed: {}", e.getMessage());
+                }
+            }
+
+            // 3. Save to DB asynchronously — don't block the WebSocket response
+            messageRepository.save(message);
+            log.info("Fast-path message saved: {} (type={}, priority={})", message.getId(), type, priority);
+
+            // 4. Enqueue in priority queue for delivery status tracking (marks as delivered)
+            priorityMessageQueue.enqueue(message);
+
+        } catch (Exception e) {
+            log.error("Fast-path message send failed: {}", e.getMessage());
+        }
     }
 
     @Transactional

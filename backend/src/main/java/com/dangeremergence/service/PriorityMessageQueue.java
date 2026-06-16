@@ -5,8 +5,6 @@ import com.dangeremergence.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -87,41 +85,22 @@ public class PriorityMessageQueue {
 
     /**
      * Process a message from the priority queue.
-     * Delivers via WebSocket first (fastest), then updates DB.
+     *
+     * NOTE: WebSocket push is NOT done here because MessageService.sendMessage()
+     * and sendMessageFast() already push via WebSocket directly for instant delivery.
+     * This method only marks the message as delivered in the database.
+     *
+     * This avoids duplicate WebSocket pushes and reduces latency.
      */
     private void processMessage(Message message) {
-        String receiverId = message.getReceiver() != null ? message.getReceiver().getId() : null;
-
-        // 1. Push via WebSocket/STOMP to receiver's personal queue
-        if (receiverId != null) {
-            try {
-                messagingTemplate.convertAndSendToUser(
-                        receiverId,
-                        "/queue/messages",
-                        message
-                );
-                log.debug("Message {} pushed via WebSocket to user {}", message.getId(), receiverId);
-            } catch (Exception e) {
-                log.warn("WebSocket push failed for message {}: {}", message.getId(), e.getMessage());
-            }
-        }
-
-        // 2. For high-priority messages, also push to global topic
-        if (message.getPriority() >= 8) {
-            try {
-                messagingTemplate.convertAndSend("/topic/messages/urgent", message);
-            } catch (Exception e) {
-                log.warn("Global topic push failed: {}", e.getMessage());
-            }
-        }
-
-        // 3. Mark as delivered in DB
+        // Mark as delivered in DB only — WebSocket push is already done by MessageService
         try {
             messageRepository.findById(message.getId()).ifPresent(msg -> {
                 msg.setStatus(Message.MessageStatus.delivered);
                 msg.setDeliveredAt(java.time.LocalDateTime.now());
                 messageRepository.save(msg);
             });
+            log.debug("Message {} marked as delivered in DB", message.getId());
         } catch (Exception e) {
             log.error("Failed to update message status: {}", e.getMessage());
         }
