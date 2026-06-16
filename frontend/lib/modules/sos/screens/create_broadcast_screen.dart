@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../auth/services/auth_service.dart';
 
 /// Screen for coordinators/admins to create a new broadcast.
 class CreateBroadcastScreen extends StatefulWidget {
@@ -17,6 +18,8 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
   final _messageController = TextEditingController();
   final _targetStateController = TextEditingController();
   final _targetLgaController = TextEditingController();
+
+  final AuthService _authService = AuthService();
 
   String _severity = 'urgent';
   String _broadcastType = 'general';
@@ -35,6 +38,16 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Double-check role before submitting
+    final user = _authService.currentUser;
+    if (user == null || (user.role != 'coordinator' && user.role != 'admin')) {
+      setState(() {
+        _backendError = 'You do not have permission to create broadcasts. '
+            'Only coordinators and admins can create broadcasts.';
+      });
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
       _backendError = null;
@@ -49,6 +62,7 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
             ? null : _targetStateController.text.trim(),
         'targetLga': _targetLgaController.text.trim().isEmpty
             ? null : _targetLgaController.text.trim(),
+        'createdById': user.id,
       });
 
       if (mounted) {

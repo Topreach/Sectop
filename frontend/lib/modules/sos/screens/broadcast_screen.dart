@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../auth/services/auth_service.dart';
 
 /// Screen to view active broadcasts/alerts.
 class BroadcastScreen extends StatefulWidget {
@@ -13,9 +14,15 @@ class BroadcastScreen extends StatefulWidget {
 
 class _BroadcastScreenState extends State<BroadcastScreen> {
   final BackendApi _api = BackendApi();
+  final AuthService _authService = AuthService();
   List<dynamic> _broadcasts = [];
   bool _isLoading = true;
   String? _error;
+
+  bool get _canCreateBroadcast {
+    final user = _authService.currentUser;
+    return user != null && (user.role == 'coordinator' || user.role == 'admin');
+  }
 
   @override
   void initState() {
@@ -78,11 +85,12 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.createBroadcast),
-            tooltip: 'Create Broadcast',
-          ),
+          if (_canCreateBroadcast)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.createBroadcast),
+              tooltip: 'Create Broadcast',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadBroadcasts,
