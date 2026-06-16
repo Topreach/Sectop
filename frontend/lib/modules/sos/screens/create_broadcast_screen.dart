@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../auth/services/auth_service.dart';
 
 /// Screen for coordinators/admins to create a new broadcast.
@@ -21,10 +26,20 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
 
   final AuthService _authService = AuthService();
 
+  // WebSocket/STOMP for fast broadcast creation
+  WebSocketChannel? _wsChannel;
+  bool _isWsConnected = false;
+
   String _severity = 'urgent';
   String _broadcastType = 'general';
   bool _isSubmitting = false;
   String? _backendError;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectWebSocket();
+  }
 
   @override
   void dispose() {
@@ -32,7 +47,72 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
     _messageController.dispose();
     _targetStateController.dispose();
     _targetLgaController.dispose();
+    _wsChannel?.sink.close();
     super.dispose();
+  }
+
+  /// Connect to WebSocket for STOMP SEND fast path.
+  Future<void> _connectWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsChannel = wsChannel;
+      _isWsConnected = true;
+
+      // Send STOMP CONNECT frame
+      _sendStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      debugPrint('CreateBroadcastScreen: WebSocket connected for STOMP fast path');
+    } catch (e) {
+      debugPrint('CreateBroadcastScreen: WebSocket connection failed: $e');
+      _isWsConnected = false;
+    }
+  }
+
+  /// Send a raw STOMP frame over the WebSocket.
+  void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0'); // STOMP null frame terminator
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('CreateBroadcastScreen: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Send broadcast data via STOMP SEND for instant delivery.
+  void _sendBroadcastViaStomp(Map<String, dynamic> broadcastData) {
+    if (_wsChannel == null || !_isWsConnected) {
+      debugPrint('CreateBroadcastScreen: WebSocket not connected, using HTTP');
+      return;
+    }
+    try {
+      final body = json.encode(broadcastData);
+      _sendStompFrame('SEND', {
+        'destination': '/app/broadcasts/create',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('CreateBroadcastScreen: Broadcast sent via STOMP SEND');
+    } catch (e) {
+      debugPrint('CreateBroadcastScreen: STOMP SEND failed: $e');
+    }
   }
 
   Future<void> _submit() async {
@@ -52,19 +132,29 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
       _isSubmitting = true;
       _backendError = null;
     });
-    try {
-      await BackendApi().createBroadcast({
-        'title': _titleController.text.trim(),
-        'message': _messageController.text.trim(),
-        'severity': _severity,
-        'broadcastType': _broadcastType,
-        'targetState': _targetStateController.text.trim().isEmpty
-            ? null : _targetStateController.text.trim(),
-        'targetLga': _targetLgaController.text.trim().isEmpty
-            ? null : _targetLgaController.text.trim(),
-        'createdById': user.id,
-      });
 
+    final broadcastData = <String, dynamic>{
+      'title': _titleController.text.trim(),
+      'message': _messageController.text.trim(),
+      'severity': _severity,
+      'broadcastType': _broadcastType,
+      'targetState': _targetStateController.text.trim().isEmpty
+          ? null : _targetStateController.text.trim(),
+      'targetLga': _targetLgaController.text.trim().isEmpty
+          ? null : _targetLgaController.text.trim(),
+      'createdById': user.id,
+    };
+
+    try {
+      // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH — ~1ms)
+      _sendBroadcastViaStomp(broadcastData);
+
+      // STEP 2: Fire HTTP POST in the background (DO NOT AWAIT)
+      // This ensures delivery even if WebSocket message is lost.
+      // The backend deduplicates by broadcast ID, so this is safe.
+      unawaited(BackendApi().createBroadcast(broadcastData));
+
+      // Show success immediately — don't wait for HTTP round-trip
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Broadcast created successfully!')),

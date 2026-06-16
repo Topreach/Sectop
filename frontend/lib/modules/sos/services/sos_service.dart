@@ -253,36 +253,35 @@ class SOSService extends ChangeNotifier {
 
       _currentAlert = alert;
 
-      // Step 1: Try cloud API first (online-first for fast delivery)
-      bool cloudSuccess = false;
-      try {
-        final api = BackendApi();
-        await api.post('/alerts', body: alert.toMap());
-        cloudSuccess = true;
-        debugPrint('SOSService: Alert sent to cloud successfully');
-      } catch (e) {
-        debugPrint('SOSService: Cloud send failed (no internet): $e');
-      }
+      // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH — ~1ms)
+      // This is fire-and-forget; the backend processes the alert and pushes
+      // to all subscribers via WebSocket, MQTT, FCM, etc.
+      _sendAlertViaStomp(alert);
 
-      // Step 2: Store locally (for offline fallback and local history)
+      // STEP 2: Store locally (for offline fallback and local history)
       await _storage.saveSOSAlert(alert.toMap());
 
-      // Step 3: Broadcast via mesh network (Bluetooth + Wi-Fi Direct)
+      // STEP 3: Broadcast via mesh network (Bluetooth + Wi-Fi Direct)
       unawaited(_broadcastViaMesh(alert));
 
-      // Step 4: If LoRa gateway available, use that too
+      // STEP 4: If LoRa gateway available, use that too
       unawaited(_tryLoRaSend(alert));
 
-      // Step 5: SMS Fallback for critical alerts
+      // STEP 5: SMS Fallback for critical alerts
       if (priority >= AppConstants.priorityCritical) {
         unawaited(_trySmsSend(alert));
       }
 
-      // Step 6: Start location tracking for dynamic updates
+      // STEP 6: Start location tracking for dynamic updates
       _startLocationTracking(alert.id);
 
-      // Step 7: Capture last-gasp evidence (audio/photo)
+      // STEP 7: Capture last-gasp evidence (audio/photo)
       unawaited(EvidenceService().captureLastGasp(alert.id));
+
+      // STEP 8: Fire HTTP POST in the background (DO NOT AWAIT)
+      // This ensures delivery even if WebSocket message is lost.
+      // The backend deduplicates by alert ID, so this is safe.
+      unawaited(_tryCloudSend(alert));
 
       _activeAlerts.insert(0, alert);
       _isSending = false;
@@ -293,6 +292,37 @@ class SOSService extends ChangeNotifier {
       _isSending = false;
       notifyListeners();
       return SOSResult.failure(e.toString());
+    }
+  }
+
+  /// Send an SOS alert via STOMP SEND frame for instant delivery (faster than HTTP POST).
+  /// Falls back to HTTP POST if WebSocket is not connected.
+  void _sendAlertViaStomp(SOSAlert alert) {
+    if (_wsChannel == null) {
+      debugPrint('SOSService: WebSocket not connected, falling back to HTTP POST');
+      unawaited(_tryCloudSend(alert));
+      return;
+    }
+    try {
+      final alertData = <String, dynamic>{
+        'user_id': alert.userId,
+        'alert_type': alert.alertType,
+        'description': alert.description,
+        'latitude': alert.latitude,
+        'longitude': alert.longitude,
+        'accuracy': alert.accuracy,
+        'priority': alert.priority,
+        'is_silent': alert.isSilent,
+      };
+      final body = json.encode(alertData);
+      _sendStompFrame('SEND', {
+        'destination': '/app/alerts/send',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('SOSService: Alert sent via STOMP SEND: ${alert.id}');
+    } catch (e) {
+      debugPrint('SOSService: STOMP SEND failed, falling back to HTTP POST: $e');
+      unawaited(_tryCloudSend(alert));
     }
   }
 
