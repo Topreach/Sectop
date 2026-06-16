@@ -96,6 +96,7 @@ class ThreatAwarenessService extends ChangeNotifier {
   List<ThreatAlert> _alerts = [];
   bool _isMonitoring = false;
   bool _isLoading = false;
+  bool _isOffline = false; // True when operating in offline/fallback mode
   String? _lastError;
   double _currentThreatLevel = 0.0; // 0.0 - 1.0
   int _nearbyIncidentCount = 0;
@@ -123,6 +124,7 @@ class ThreatAwarenessService extends ChangeNotifier {
   List<ThreatAlert> get alerts => List.unmodifiable(_alerts);
   bool get isMonitoring => _isMonitoring;
   bool get isLoading => _isLoading;
+  bool get isOffline => _isOffline;
   String? get lastError => _lastError;
   double get currentThreatLevel => _currentThreatLevel;
   int get nearbyIncidentCount => _nearbyIncidentCount;
@@ -220,50 +222,124 @@ class ThreatAwarenessService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Threat Polling
   // ---------------------------------------------------------------------------
+/// Poll all threat sources and update state.
+/// Tries internet first; falls back to cached data from SQLite when offline.
+Future<void> pollThreats() async {
+  if (_isLoading) return;
+  _isLoading = true;
+  notifyListeners();
 
-  /// Poll all threat sources and update state.
-  Future<void> pollThreats() async {
-    if (_isLoading) return;
-    _isLoading = true;
+  try {
+    final mapService = MapService();
+    final position = mapService.currentPosition;
+
+    if (position == null) {
+      debugPrint('ThreatAwarenessService: No position available, skipping poll');
+      _isLoading = false;
+      return;
+    }
+
+    // Fetch nearby incidents
+    final incidents = await _incidentService.getNearbyIncidents(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      radiusKm: _threatRadiusKm,
+    );
+
+    // Fetch nearby danger zones
+    final zonesResponse = await _api.getZonesNearby(
+      position.latitude,
+      position.longitude,
+      radiusDegrees: _threatRadiusKm / 111.0,
+    );
+    final zones = zonesResponse['zones'] as List? ?? [];
+
+    // Fetch active alerts
+    final alertsResponse = await _api.getActiveAlerts();
+    final activeAlerts = alertsResponse['alerts'] as List? ?? [];
+
+    // Online success — update counts, process, cache
+    _isOffline = false;
+    _nearbyIncidentCount = incidents.length;
+    _nearbyDangerZoneCount = zones.length;
+
+    // Calculate overall threat level (0.0 - 1.0)
+    _calculateThreatLevel(incidents, zones, activeAlerts);
+
+    // Generate alerts for new threats
+    _processIncidents(incidents);
+    _processDangerZones(zones);
+    _processActiveAlerts(activeAlerts);
+
+    // Trim to max
+    if (_alerts.length > _maxAlerts) {
+      _alerts = _alerts.sublist(0, _maxAlerts);
+    }
+
+    // Cache alerts to SharedPreferences
+    await _cacheAlerts();
+
+    // Cache incidents, zones, and alerts to SQLite for offline fallback
+    await _cachePollDataToSqlite(incidents, zones, activeAlerts);
+
+    _lastError = null;
+    _isLoading = false;
     notifyListeners();
+  } catch (e) {
+    // OFFLINE FALLBACK: Load cached data from SQLite when server is unreachable
+    debugPrint('ThreatAwarenessService: Poll failed (offline fallback): $e');
+    _isOffline = true;
+    _lastError = 'Offline mode — showing cached threat data';
 
     try {
-      final mapService = MapService();
-      final position = mapService.currentPosition;
+      // Load cached incidents from SQLite
+      final cachedIncidents = await _storage.query('incidents',
+          orderBy: 'created_at DESC', limit: 50);
+      final incidents = cachedIncidents.map((row) => {
+        'id': row['id'],
+        'incidentType': row['type'],
+        'severity': row['severity'],
+        'description': row['description'],
+        'latitude': row['latitude'],
+        'longitude': row['longitude'],
+        'status': row['status'],
+      }).toList();
 
-      if (position == null) {
-        debugPrint('ThreatAwarenessService: No position available, skipping poll');
-        _isLoading = false;
-        return;
-      }
+      // Load cached zones from SQLite
+      final cachedZones = await _storage.query('zones',
+          where: 'status = ?', whereArgs: ['active'],
+          orderBy: 'created_at DESC', limit: 50);
+      final zones = cachedZones.map((row) => {
+        'id': row['id'],
+        'name': row['name'],
+        'type': row['type'],
+        'severity': row['severity'],
+        'latitude': row['latitude'],
+        'longitude': row['longitude'],
+        'status': row['status'],
+      }).toList();
 
-      // Fetch nearby incidents
-      final incidents = await _incidentService.getNearbyIncidents(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        radiusKm: _threatRadiusKm,
-      );
+      // Load cached SOS alerts from SQLite
+      final cachedAlerts = await _storage.query('sos_alerts',
+          where: 'status = ?', whereArgs: ['active'],
+          orderBy: 'created_at DESC', limit: 50);
+      final activeAlerts = cachedAlerts.map((row) => {
+        'id': row['id'],
+        'type': row['alert_type'],
+        'message': row['description'],
+        'latitude': row['latitude'],
+        'longitude': row['longitude'],
+        'status': row['status'],
+      }).toList();
 
-      // Fetch nearby danger zones
-      final zonesResponse = await _api.getZonesNearby(
-        position.latitude,
-        position.longitude,
-        radiusDegrees: _threatRadiusKm / 111.0,
-      );
-      final zones = zonesResponse['zones'] as List? ?? [];
-
-      // Fetch active alerts
-      final alertsResponse = await _api.getActiveAlerts();
-      final activeAlerts = alertsResponse['alerts'] as List? ?? [];
-
-      // Update counts
+      // Update counts from cached data
       _nearbyIncidentCount = incidents.length;
       _nearbyDangerZoneCount = zones.length;
 
-      // Calculate overall threat level (0.0 - 1.0)
+      // Calculate threat level from cached data
       _calculateThreatLevel(incidents, zones, activeAlerts);
 
-      // Generate alerts for new threats
+      // Process cached data into alerts (dedup logic prevents duplicates)
       _processIncidents(incidents);
       _processDangerZones(zones);
       _processActiveAlerts(activeAlerts);
@@ -272,19 +348,14 @@ class ThreatAwarenessService extends ChangeNotifier {
       if (_alerts.length > _maxAlerts) {
         _alerts = _alerts.sublist(0, _maxAlerts);
       }
-
-      // Cache alerts
-      await _cacheAlerts();
-
-      _lastError = null;
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _lastError = e.toString();
-      _isLoading = false;
-      debugPrint('ThreatAwarenessService: Poll failed: $e');
-      notifyListeners();
+    } catch (cacheError) {
+      debugPrint('ThreatAwarenessService: Offline fallback also failed: $cacheError');
     }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+}
   }
 
   // ---------------------------------------------------------------------------
@@ -292,6 +363,7 @@ class ThreatAwarenessService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   /// Analyze recent messages from the inbox for threat content.
+  /// Tries backend AI first; falls back to local keyword analysis when offline.
   Future<void> analyzeRecentMessages() async {
     try {
       // Get recent messages from offline storage
@@ -310,7 +382,7 @@ class ThreatAwarenessService extends ChangeNotifier {
           continue;
         }
 
-        // Analyze via ML service
+        // Try backend AI first
         final result = await _distressDetector.analyzeMessage(text);
 
         if (result.priority == 'high' || result.priority == 'critical') {
@@ -332,11 +404,133 @@ class ThreatAwarenessService extends ChangeNotifier {
               'label': result.label,
             },
           ));
+        } else if (result.method == 'error') {
+          // OFFLINE FALLBACK: Backend AI unreachable — use local keyword analysis
+          final localResult = _localKeywordAnalysis(text);
+          if (localResult != null) {
+            _addAlert(ThreatAlert(
+              id: 'msg_local_${DateTime.now().millisecondsSinceEpoch}',
+              type: 'message_analysis',
+              title: localResult['title'] as String,
+              description: localResult['description'] as String,
+              latitude: (msg['latitude'] as num?)?.toDouble(),
+              longitude: (msg['longitude'] as num?)?.toDouble(),
+              severity: localResult['severity'] as String,
+              confidence: localResult['confidence'] as double,
+              timestamp: DateTime.now(),
+              sourceData: {
+                'messageId': msgId,
+                'text': text,
+                'label': localResult['label'] as String,
+                'method': 'local_keyword',
+              },
+            ));
+          }
         }
       }
     } catch (e) {
       debugPrint('ThreatAwarenessService: Message analysis failed: $e');
     }
+  }
+
+  /// Local keyword-based threat analysis fallback for offline mode.
+  /// Returns null if no threat keywords are found.
+  Map<String, dynamic>? _localKeywordAnalysis(String text) {
+    final lower = text.toLowerCase();
+
+    // Threat keyword categories with severity levels
+    final threatKeywords = <String, Map<String, dynamic>>{
+      // Kidnapping / Abduction
+      'kidnap': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.7},
+      'kidnapped': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.8},
+      'abduction': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.7},
+      'abducted': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.8},
+      'ransom': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.6},
+
+      // Terrorism / Bombing
+      'terrorist': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
+      'terrorism': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.8},
+      'bomb': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
+      'bombing': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.8},
+      'explosion': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
+      'suicide attack': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.8},
+      'ied': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
+
+      // Banditry / Armed robbery
+      'bandit': {'severity': 'high', 'label': 'banditry', 'confidence': 0.7},
+      'banditry': {'severity': 'high', 'label': 'banditry', 'confidence': 0.8},
+      'armed robbery': {'severity': 'high', 'label': 'armed_robbery', 'confidence': 0.7},
+      'gunmen': {'severity': 'high', 'label': 'banditry', 'confidence': 0.6},
+      'gunshot': {'severity': 'high', 'label': 'banditry', 'confidence': 0.7},
+
+      // Herdsmen attack
+      'herdsmen': {'severity': 'high', 'label': 'herdsmen_attack', 'confidence': 0.6},
+      'fulani herdsmen': {'severity': 'high', 'label': 'herdsmen_attack', 'confidence': 0.7},
+
+      // Cult / Ritual violence
+      'cult': {'severity': 'high', 'label': 'cult_violence', 'confidence': 0.6},
+      'ritual': {'severity': 'high', 'label': 'ritual_killings', 'confidence': 0.6},
+      'ritual killing': {'severity': 'critical', 'label': 'ritual_killings', 'confidence': 0.7},
+
+      // General danger / distress
+      'help': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
+      'emergency': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
+      'danger': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
+      'attack': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
+      'kill': {'severity': 'high', 'label': 'violence', 'confidence': 0.5},
+      'murder': {'severity': 'critical', 'label': 'violence', 'confidence': 0.6},
+
+      // Political / Communal violence
+      'political violence': {'severity': 'high', 'label': 'political_violence', 'confidence': 0.6},
+      'communal clash': {'severity': 'high', 'label': 'communal_clash', 'confidence': 0.7},
+      'ethnic clash': {'severity': 'high', 'label': 'communal_clash', 'confidence': 0.7},
+
+      // Suspicious activity
+      'suspicious': {'severity': 'medium', 'label': 'suspicious_activity', 'confidence': 0.5},
+      'surveillance': {'severity': 'medium', 'label': 'suspicious_activity', 'confidence': 0.5},
+      'following me': {'severity': 'high', 'label': 'suspicious_activity', 'confidence': 0.6},
+    };
+
+    // Check for keyword matches
+    final matched = <Map<String, dynamic>>[];
+    for (final entry in threatKeywords.entries) {
+      if (lower.contains(entry.key)) {
+        matched.add(entry.value);
+      }
+    }
+
+    if (matched.isEmpty) return null;
+
+    // Use the highest severity match
+    matched.sort((a, b) {
+      final severityOrder = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1};
+      final aOrder = severityOrder[a['severity']] ?? 0;
+      final bOrder = severityOrder[b['severity']] ?? 0;
+      return bOrder.compareTo(aOrder);
+    });
+
+    final best = matched.first;
+    final severity = best['severity'] as String;
+    final label = best['label'] as String;
+    final confidence = best['confidence'] as double;
+
+    // Only alert for high/critical in local mode
+    if (severity != 'high' && severity != 'critical') return null;
+
+    final typeLabel = _getIncidentTypeLabel(label);
+    final matchedKeywords = matched
+        .map((m) => m['label'] as String)
+        .toSet()
+        .map((l) => _getIncidentTypeLabel(l))
+        .join(', ');
+
+    return {
+      'title': '⚠️ $typeLabel Suspected (Offline)',
+      'description': 'Message contains keywords related to: $matchedKeywords',
+      'severity': severity,
+      'confidence': confidence,
+      'label': label,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -669,6 +863,73 @@ class ThreatAwarenessService extends ChangeNotifier {
       case 'political_violence': return 'Political Violence';
       case 'communal_clash': return 'Communal Clash';
       default: return type[0].toUpperCase() + type.substring(1);
+    }
+  }
+
+  /// Cache polled data (incidents, zones, alerts) to SQLite for offline fallback.
+  Future<void> _cachePollDataToSqlite(
+    List<Map<String, dynamic>> incidents,
+    List<dynamic> zones,
+    List<dynamic> alerts,
+  ) async {
+    try {
+      // Cache incidents
+      for (final inc in incidents) {
+        final id = inc['id'] as String?;
+        if (id == null) continue;
+        await _storage.upsert('incidents', {
+          'id': id,
+          'title': inc['incidentType'] as String? ?? 'Unknown',
+          'description': inc['description'] as String? ?? '',
+          'type': inc['incidentType'] as String? ?? 'unknown',
+          'severity': inc['severity'] as String? ?? 'medium',
+          'latitude': inc['latitude'],
+          'longitude': inc['longitude'],
+          'status': inc['status'] as String? ?? 'reported',
+          'created_at': DateTime.now().millisecondsSinceEpoch,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+
+      // Cache zones
+      for (final z in zones) {
+        final zone = z as Map<String, dynamic>;
+        final id = zone['id'] as String?;
+        if (id == null) continue;
+        await _storage.upsert('zones', {
+          'id': id,
+          'name': zone['name'] as String? ?? 'Unknown Zone',
+          'type': zone['type'] as String? ?? 'danger',
+          'description': zone['description'] as String? ?? '',
+          'latitude': zone['latitude'],
+          'longitude': zone['longitude'],
+          'radius': (zone['radius'] as num?)?.toDouble() ?? 100.0,
+          'severity': zone['severity'] as String? ?? 'medium',
+          'status': 'active',
+          'created_at': DateTime.now().millisecondsSinceEpoch,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+
+      // Cache SOS alerts
+      for (final a in alerts) {
+        final alert = a as Map<String, dynamic>;
+        final id = alert['id'] as String?;
+        if (id == null) continue;
+        await _storage.upsert('sos_alerts', {
+          'id': id,
+          'user_id': alert['userId'] as String? ?? 'unknown',
+          'alert_type': alert['type'] as String? ?? 'sos',
+          'description': alert['message'] as String? ?? '',
+          'latitude': alert['latitude'],
+          'longitude': alert['longitude'],
+          'status': 'active',
+          'created_at': DateTime.now().millisecondsSinceEpoch,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Failed to cache poll data: $e');
     }
   }
 

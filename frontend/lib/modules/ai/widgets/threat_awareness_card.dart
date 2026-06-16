@@ -132,6 +132,7 @@ class _ThreatAwarenessCardState extends State<ThreatAwarenessCard> {
     double threatLevel,
     int unreadCount,
   ) {
+    final isOffline = service.isOffline;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -160,20 +161,52 @@ class _ThreatAwarenessCardState extends State<ThreatAwarenessCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _threatLabel(threatLevel),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: _threatColor(threatLevel),
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      _threatLabel(threatLevel),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: _threatColor(threatLevel),
+                      ),
+                    ),
+                    if (isOffline) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.wifi_off, size: 10, color: Colors.orange),
+                            SizedBox(width: 3),
+                            Text(
+                              'OFFLINE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Real-time threat monitoring active',
+                  isOffline
+                      ? 'Showing cached threat data (offline mode)'
+                      : 'Real-time threat monitoring active',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    color: isOffline ? Colors.orange[700] : Colors.grey[600],
                   ),
                 ),
               ],

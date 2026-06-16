@@ -121,8 +121,16 @@ class AmbientAudioMonitor extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   /// Capture a short audio clip and send it for AI analysis.
+  /// Skips capture when offline (backend AI unreachable) to save battery.
   Future<void> _captureAndAnalyze() async {
     if (_isRecording || _isAnalyzing) return;
+
+    // Skip capture when offline — backend AI is required for audio analysis
+    final threatService = ThreatAwarenessService();
+    if (threatService.isOffline) {
+      debugPrint('AmbientAudioMonitor: Offline mode — skipping audio capture');
+      return;
+    }
 
     try {
       _isRecording = true;
