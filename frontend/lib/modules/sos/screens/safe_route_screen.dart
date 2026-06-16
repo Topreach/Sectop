@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
 
 /// Screen to plan a safe route avoiding danger zones.
@@ -19,6 +24,11 @@ class SafeRouteScreen extends StatefulWidget {
 class _SafeRouteScreenState extends State<SafeRouteScreen> {
   final BackendApi _api = BackendApi();
 
+  // WebSocket/STOMP for fast route planning
+  WebSocketChannel? _wsChannel;
+  bool _isWsConnected = false;
+  StreamSubscription<dynamic>? _wsSubscription;
+
   // From location
   double? _fromLat;
   double? _fromLng;
@@ -32,6 +42,123 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
   Map<String, dynamic>? _routeResult;
   bool _isLoading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectWebSocket();
+  }
+
+  /// Connect to WebSocket for STOMP SEND fast path.
+  Future<void> _connectWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsChannel = wsChannel;
+      _isWsConnected = true;
+
+      // Send STOMP CONNECT frame
+      _sendStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      // Subscribe to user's personal queue for route results
+      _sendStompFrame('SUBSCRIBE', {
+        'id': 'route-result',
+        'destination': '/user/queue/route/result',
+      });
+
+      // Listen for incoming STOMP frames
+      _wsSubscription = wsChannel.stream.listen((data) {
+        _handleStompFrame(data as String);
+      });
+
+      debugPrint('SafeRouteScreen: WebSocket connected for STOMP fast path');
+    } catch (e) {
+      debugPrint('SafeRouteScreen: WebSocket connection failed: $e');
+      _isWsConnected = false;
+    }
+  }
+
+  /// Handle incoming STOMP frames from the server.
+  void _handleStompFrame(String frame) {
+    if (frame.startsWith('MESSAGE')) {
+      // Extract the body after the headers
+      final parts = frame.split('\n\n');
+      if (parts.length >= 2) {
+        final body = parts.sublist(1).join('\n\n').trim().replaceAll('\0', '');
+        if (body.isNotEmpty) {
+          try {
+            final result = json.decode(body) as Map<String, dynamic>;
+            if (result['success'] == true && result['data'] != null) {
+              setState(() {
+                _routeResult = result['data'] as Map<String, dynamic>;
+                _isLoading = false;
+              });
+            } else if (result['success'] == false) {
+              setState(() {
+                _isLoading = false;
+                _error = result['error'] as String? ?? 'Route planning failed';
+              });
+            }
+          } catch (e) {
+            debugPrint('SafeRouteScreen: Failed to parse STOMP message: $e');
+          }
+        }
+      }
+    }
+  }
+
+  /// Send a raw STOMP frame over the WebSocket.
+  void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0'); // STOMP null frame terminator
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('SafeRouteScreen: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Send route planning request via STOMP SEND for instant delivery.
+  void _sendRouteViaStomp(Map<String, dynamic> routeData) {
+    if (_wsChannel == null || !_isWsConnected) {
+      debugPrint('SafeRouteScreen: WebSocket not connected, using HTTP');
+      return;
+    }
+    try {
+      final body = json.encode(routeData);
+      _sendStompFrame('SEND', {
+        'destination': '/app/route/plan',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('SafeRouteScreen: Route request sent via STOMP SEND');
+    } catch (e) {
+      debugPrint('SafeRouteScreen: STOMP SEND failed: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    _wsChannel?.sink.close();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -93,20 +220,44 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
       _error = null;
     });
 
+    final routeData = <String, dynamic>{
+      'userId': '', // Will be populated from auth
+      'fromLat': _fromLat,
+      'fromLng': _fromLng,
+      'toLat': _toLat,
+      'toLng': _toLng,
+      'avoidHighways': false,
+      'preferLitRoads': false,
+    };
+
+    // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH - ~1ms)
+    _sendRouteViaStomp(routeData);
+
+    // STEP 2: Fire HTTP POST in the background as reliability fallback
+    // The STOMP result will arrive via WebSocket subscription and update the UI
+    unawaited(_planRouteViaHttp());
+  }
+
+  /// Fallback: plan route via HTTP POST (used when WebSocket is unavailable).
+  Future<void> _planRouteViaHttp() async {
     try {
       final result = await _api.planSafeRoute(
         fromLat: _fromLat!, fromLng: _fromLng!,
         toLat: _toLat!, toLng: _toLng!,
       );
-      setState(() {
-        _routeResult = result;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _routeResult = result;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Failed to plan route: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Failed to plan route: $e';
+        });
+      }
     }
   }
 

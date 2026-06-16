@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../core/routes.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../ai/services/distress_detector.dart';
 import '../services/mesh_threat_relay.dart';
 
@@ -27,6 +30,11 @@ class _WalkieTalkieMonitorScreenState
   final AudioRecorder _recorder = AudioRecorder();
   final DistressDetector _detector = DistressDetector();
   final MeshThreatRelayService _threatRelay = MeshThreatRelayService();
+
+  // WebSocket/STOMP for fast audio analysis
+  WebSocketChannel? _wsChannel;
+  bool _isWsConnected = false;
+  StreamSubscription<dynamic>? _wsSubscription;
 
   bool _isMonitoring = false;
   bool _isAnalyzing = false;
@@ -51,6 +59,7 @@ class _WalkieTalkieMonitorScreenState
   void initState() {
     super.initState();
     _checkPermission();
+    _connectWebSocket();
     // Start listening for remote threat alerts from mesh peers
     _threatRelay.startListening();
     _threatRelay.onRemoteThreatReceived = (alert) {
@@ -61,8 +70,148 @@ class _WalkieTalkieMonitorScreenState
     };
   }
 
+  /// Connect to WebSocket for STOMP SEND fast path.
+  Future<void> _connectWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsChannel = wsChannel;
+      _isWsConnected = true;
+
+      // Send STOMP CONNECT frame
+      _sendStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      // Subscribe to user's personal queue for audio analysis results
+      _sendStompFrame('SUBSCRIBE', {
+        'id': 'audio-result',
+        'destination': '/user/queue/analyze/audio/result',
+      });
+
+      // Listen for incoming STOMP frames
+      _wsSubscription = wsChannel.stream.listen((data) {
+        _handleStompFrame(data as String);
+      });
+
+      debugPrint('WalkieTalkieMonitor: WebSocket connected for STOMP fast path');
+    } catch (e) {
+      debugPrint('WalkieTalkieMonitor: WebSocket connection failed: $e');
+      _isWsConnected = false;
+    }
+  }
+
+  /// Handle incoming STOMP frames from the server.
+  void _handleStompFrame(String frame) {
+    if (frame.startsWith('MESSAGE')) {
+      // Extract the body after the headers
+      final parts = frame.split('\n\n');
+      if (parts.length >= 2) {
+        final body = parts.sublist(1).join('\n\n').trim().replaceAll('\0', '');
+        if (body.isNotEmpty) {
+          try {
+            final result = json.decode(body) as Map<String, dynamic>;
+            if (result['success'] == true && result['data'] != null) {
+              _processAnalysisResult(result['data'] as Map<String, dynamic>);
+            }
+          } catch (e) {
+            debugPrint('WalkieTalkieMonitor: Failed to parse STOMP message: $e');
+          }
+        }
+      }
+    }
+  }
+
+  /// Process an audio analysis result received via STOMP.
+  void _processAnalysisResult(Map<String, dynamic> data) {
+    if (!mounted) return;
+
+    final hasDistress = data['hasDistress'] as bool? ?? false;
+    final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.0;
+    final method = data['method'] as String? ?? 'stomp';
+    final threatLevel = data['threatLevel'] as String?;
+
+    final timestamp = DateTime.now();
+    final walkieResult = WalkieTalkieResult(
+      timestamp: timestamp,
+      isThreat: hasDistress,
+      confidence: confidence,
+      method: method,
+    );
+
+    setState(() {
+      _totalScans++;
+      if (hasDistress) _threatsDetected++;
+      _results.insert(0, walkieResult);
+      _isAnalyzing = false;
+
+      // Keep only last 50 results
+      if (_results.length > 50) {
+        _results.removeRange(50, _results.length);
+      }
+    });
+
+    // If threat detected, show alert and broadcast to mesh peers
+    if (hasDistress && mounted) {
+      final audioResult = AudioAnalysisResult(
+        hasDistress: hasDistress,
+        confidence: confidence,
+        method: method,
+        threatLevel: threatLevel,
+      );
+      _showThreatAlert(audioResult);
+      _broadcastThreatToMesh(audioResult);
+    }
+  }
+
+  /// Send a raw STOMP frame over the WebSocket.
+  void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0'); // STOMP null frame terminator
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('WalkieTalkieMonitor: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Send audio data via STOMP SEND for instant analysis.
+  void _sendAudioViaStomp(Map<String, dynamic> audioData) {
+    if (_wsChannel == null || !_isWsConnected) {
+      debugPrint('WalkieTalkieMonitor: WebSocket not connected, using HTTP');
+      return;
+    }
+    try {
+      final body = json.encode(audioData);
+      _sendStompFrame('SEND', {
+        'destination': '/app/analyze/audio',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('WalkieTalkieMonitor: Audio sent via STOMP SEND');
+    } catch (e) {
+      debugPrint('WalkieTalkieMonitor: STOMP SEND failed: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _wsSubscription?.cancel();
+    _wsChannel?.sink.close();
     _stopMonitoring();
     _recorder.dispose();
     _monitorTimer?.cancel();
@@ -173,16 +322,39 @@ class _WalkieTalkieMonitorScreenState
       final audioBytes = await file.readAsBytes();
       final base64Audio = base64Encode(audioBytes);
 
-      // Send to backend AI for analysis
+      final audioData = {
+        'userId': '',
+        'audio': base64Audio,
+        'transcript': null,
+      };
+
+      // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH - ~1ms)
+      _sendAudioViaStomp(audioData);
+
+      // STEP 2: Fire HTTP POST in the background as reliability fallback
+      // The STOMP result will arrive via WebSocket subscription and update the UI
+      unawaited(_analyzeViaHttp(base64Audio, file));
+
+      // Clean up temp file
+      try {
+        await file.delete();
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('WalkieTalkieMonitor: Capture failed: $e');
+      if (mounted) setState(() => _isAnalyzing = false);
+    }
+  }
+
+  /// Fallback: analyze audio via HTTP POST.
+  Future<void> _analyzeViaHttp(String base64Audio, File file) async {
+    try {
       final result = await _detector.analyzeAudio(base64Audio);
 
       if (!mounted) return;
 
-      final timestamp = DateTime.now();
       final isThreat = result.hasDistress;
-
       final walkieResult = WalkieTalkieResult(
-        timestamp: timestamp,
+        timestamp: DateTime.now(),
         isThreat: isThreat,
         confidence: result.confidence,
         method: result.method,
@@ -205,13 +377,8 @@ class _WalkieTalkieMonitorScreenState
         _showThreatAlert(result);
         _broadcastThreatToMesh(result);
       }
-
-      // Clean up temp file
-      try {
-        await file.delete();
-      } catch (_) {}
     } catch (e) {
-      debugPrint('WalkieTalkieMonitor: Capture failed: $e');
+      debugPrint('WalkieTalkieMonitor: HTTP fallback failed: $e');
       if (mounted) setState(() => _isAnalyzing = false);
     }
   }

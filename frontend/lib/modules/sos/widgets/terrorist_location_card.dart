@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../core/routes.dart';
 import '../../../shared/services/backend_api.dart';
@@ -9,6 +12,7 @@ import '../../maps/services/map_service.dart';
 
 /// Card widget that shows nearby danger zones (terrorist hotspots) on the
 /// dashboard. Fetches data from the backend API and falls back to local cache.
+/// Also subscribes to real-time zone updates via WebSocket.
 class TerroristLocationCard extends StatefulWidget {
   const TerroristLocationCard({Key? key}) : super(key: key);
 
@@ -21,10 +25,129 @@ class _TerroristLocationCardState extends State<TerroristLocationCard> {
   bool _isLoading = true;
   String? _error;
 
+  // WebSocket/STOMP for real-time zone updates
+  WebSocketChannel? _wsChannel;
+  bool _isWsConnected = false;
+  StreamSubscription<dynamic>? _wsSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadDangerZones();
+    _connectWebSocket();
+  }
+
+  /// Connect to WebSocket for real-time danger zone updates.
+  Future<void> _connectWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsChannel = wsChannel;
+      _isWsConnected = true;
+
+      // Send STOMP CONNECT frame
+      _sendStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      // Subscribe to danger zone updates topic
+      _sendStompFrame('SUBSCRIBE', {
+        'id': 'danger-zones',
+        'destination': '/topic/zones/danger',
+      });
+
+      // Listen for incoming STOMP frames
+      _wsSubscription = wsChannel.stream.listen((data) {
+        _handleStompFrame(data as String);
+      });
+
+      debugPrint('TerroristLocationCard: WebSocket connected for real-time zone updates');
+    } catch (e) {
+      debugPrint('TerroristLocationCard: WebSocket connection failed: $e');
+      _isWsConnected = false;
+    }
+  }
+
+  /// Handle incoming STOMP frames from the server.
+  void _handleStompFrame(String frame) {
+    if (frame.startsWith('MESSAGE')) {
+      // Extract the body after the headers
+      final parts = frame.split('\n\n');
+      if (parts.length >= 2) {
+        final body = parts.sublist(1).join('\n\n').trim().replaceAll('\0', '');
+        if (body.isNotEmpty) {
+          try {
+            final data = json.decode(body);
+            if (data is Map<String, dynamic>) {
+              // Single zone update
+              _updateZoneFromMessage(data);
+            } else if (data is List) {
+              // Batch zone update
+              for (final zone in data) {
+                if (zone is Map<String, dynamic>) {
+                  _updateZoneFromMessage(zone);
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint('TerroristLocationCard: Failed to parse STOMP message: $e');
+          }
+        }
+      }
+    }
+  }
+
+  /// Update the local zone list from a WebSocket message.
+  void _updateZoneFromMessage(Map<String, dynamic> zoneData) {
+    if (!mounted) return;
+    final zoneId = zoneData['id'] as String?;
+    if (zoneId == null) return;
+
+    setState(() {
+      // Check if this zone already exists
+      final existingIndex = _dangerZones.indexWhere((z) => z['id'] == zoneId);
+      if (existingIndex >= 0) {
+        // Update existing zone
+        _dangerZones[existingIndex] = zoneData;
+      } else {
+        // Add new zone at the beginning
+        _dangerZones.insert(0, zoneData);
+      }
+      _error = null;
+    });
+  }
+
+  /// Send a raw STOMP frame over the WebSocket.
+  void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0'); // STOMP null frame terminator
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('TerroristLocationCard: Failed to send STOMP frame: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    _wsChannel?.sink.close();
+    super.dispose();
   }
 
   Future<void> _loadDangerZones() async {

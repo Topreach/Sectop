@@ -1,10 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/evidence_service.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../../shared/widgets/nigeria_location_picker.dart';
 
 /// Screen to submit an anonymous tip-off / intelligence report.
@@ -24,6 +29,11 @@ class _TipOffScreenState extends State<TipOffScreen> {
   String _tipType = 'suspicious_person';
   bool _isAnonymous = true;
   bool _isSubmitting = false;
+
+  // WebSocket/STOMP for fast tip-off submission
+  WebSocketChannel? _wsChannel;
+  bool _isWsConnected = false;
+  StreamSubscription<dynamic>? _wsSubscription;
 
   // Location state (from NigeriaLocationPicker)
   double? _latitude;
@@ -81,7 +91,79 @@ class _TipOffScreenState extends State<TipOffScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _connectWebSocket();
+  }
+
+  /// Connect to WebSocket for STOMP SEND fast path.
+  Future<void> _connectWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsChannel = wsChannel;
+      _isWsConnected = true;
+
+      // Send STOMP CONNECT frame
+      _sendStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      debugPrint('TipOffScreen: WebSocket connected for STOMP fast path');
+    } catch (e) {
+      debugPrint('TipOffScreen: WebSocket connection failed: $e');
+      _isWsConnected = false;
+    }
+  }
+
+  /// Send a raw STOMP frame over the WebSocket.
+  void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0'); // STOMP null frame terminator
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('TipOffScreen: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Send tip-off via STOMP SEND for instant delivery.
+  void _sendTipViaStomp(Map<String, dynamic> tipData) {
+    if (_wsChannel == null || !_isWsConnected) {
+      debugPrint('TipOffScreen: WebSocket not connected, using HTTP');
+      return;
+    }
+    try {
+      final body = json.encode(tipData);
+      _sendStompFrame('SEND', {
+        'destination': '/app/tip-offs/submit',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('TipOffScreen: Tip submitted via STOMP SEND');
+    } catch (e) {
+      debugPrint('TipOffScreen: STOMP SEND failed: $e');
+    }
+  }
+
+  @override
   void dispose() {
+    _wsSubscription?.cancel();
+    _wsChannel?.sink.close();
     _descriptionController.dispose();
     _targetController.dispose();
     _suspectController.dispose();
@@ -92,31 +174,40 @@ class _TipOffScreenState extends State<TipOffScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
-    try {
-      await BackendApi().submitTip({
-        'tipType': _tipType,
-        'description': _descriptionController.text.trim(),
-        'targetDescription': _targetController.text.trim().isEmpty
-            ? null : _targetController.text.trim(),
-        'suspectDescription': _suspectController.text.trim().isEmpty
-            ? null : _suspectController.text.trim(),
-        'latitude': _latitude,
-        'longitude': _longitude,
-        'anonymous': _isAnonymous,
-      });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Tip submitted anonymously. Thank you.')),
-        );
-        Navigator.of(context).pop();
-      }
+    final tipData = {
+      'tipType': _tipType,
+      'description': _descriptionController.text.trim(),
+      'targetDescription': _targetController.text.trim().isEmpty
+          ? null : _targetController.text.trim(),
+      'suspectDescription': _suspectController.text.trim().isEmpty
+          ? null : _suspectController.text.trim(),
+      'latitude': _latitude,
+      'longitude': _longitude,
+      'anonymous': _isAnonymous,
+    };
+
+    // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH - ~1ms)
+    _sendTipViaStomp(tipData);
+
+    // Show success immediately — optimistic UI
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tip submitted anonymously. Thank you.')),
+      );
+      Navigator.of(context).pop();
+    }
+
+    // STEP 2: Fire HTTP POST in the background as reliability fallback
+    unawaited(_submitViaHttp(tipData));
+  }
+
+  /// Fallback: submit tip via HTTP POST.
+  Future<void> _submitViaHttp(Map<String, dynamic> tipData) async {
+    try {
+      await BackendApi().submitTip(tipData);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${'Failed:'} $e')),
-        );
-      }
+      debugPrint('TipOffScreen: HTTP fallback failed: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

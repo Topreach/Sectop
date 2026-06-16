@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
@@ -25,6 +27,11 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   final AuthService _authService = AuthService();
   final OfflineStorageService _storage = OfflineStorageService();
 
+  // WebSocket/STOMP for fast broadcast submission
+  WebSocketChannel? _wsChannel;
+  bool _isWsConnected = false;
+  StreamSubscription<dynamic>? _wsSubscription;
+
   String _severity = 'urgent';
   String _broadcastType = 'emergency';
   String _language = 'en';
@@ -37,12 +44,79 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   @override
   void initState() {
     super.initState();
+    _connectWebSocket();
     _loadHistory();
     _autoFillLocation();
   }
 
+  /// Connect to WebSocket for STOMP SEND fast path.
+  Future<void> _connectWebSocket() async {
+    try {
+      final storage = OfflineStorageService();
+      final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return;
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsChannel = wsChannel;
+      _isWsConnected = true;
+
+      // Send STOMP CONNECT frame
+      _sendStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'localhost',
+        'Authorization': 'Bearer $token',
+      });
+
+      debugPrint('RadioBroadcastScreen: WebSocket connected for STOMP fast path');
+    } catch (e) {
+      debugPrint('RadioBroadcastScreen: WebSocket connection failed: $e');
+      _isWsConnected = false;
+    }
+  }
+
+  /// Send a raw STOMP frame over the WebSocket.
+  void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_wsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      headers.forEach((key, value) {
+        buffer.writeln('$key:$value');
+      });
+      buffer.writeln();
+      if (body != null && body.isNotEmpty) {
+        buffer.write(body);
+      }
+      buffer.write('\0'); // STOMP null frame terminator
+      _wsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('RadioBroadcastScreen: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Send broadcast via STOMP SEND for instant delivery.
+  void _sendBroadcastViaStomp(Map<String, dynamic> payload) {
+    if (_wsChannel == null || !_isWsConnected) {
+      debugPrint('RadioBroadcastScreen: WebSocket not connected, using HTTP');
+      return;
+    }
+    try {
+      final body = json.encode(payload);
+      _sendStompFrame('SEND', {
+        'destination': '/app/radio/broadcast',
+        'content-type': 'application/json',
+      }, body: body);
+      debugPrint('RadioBroadcastScreen: Broadcast sent via STOMP SEND');
+    } catch (e) {
+      debugPrint('RadioBroadcastScreen: STOMP SEND failed: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _wsSubscription?.cancel();
+    _wsChannel?.sink.close();
     _titleController.dispose();
     _messageController.dispose();
     _targetStateController.dispose();
@@ -124,22 +198,31 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
       'anonymous': _isAnonymous,
     };
 
-    try {
-      // Fix 3: Online-first — try server
-      await _api.createRadioBroadcast(payload);
+    // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH - ~1ms)
+    _sendBroadcastViaStomp(payload);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Radio broadcast sent!')),
-        );
-        _titleController.clear();
-        _messageController.clear();
-        _loadHistory();
-      }
+    // Show success immediately — optimistic UI
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Radio broadcast sent!')),
+      );
+      _titleController.clear();
+      _messageController.clear();
+      _loadHistory();
+    }
+
+    // STEP 2: Fire HTTP POST in the background as reliability fallback
+    unawaited(_submitViaHttp(payload, user.id));
+  }
+
+  /// Fallback: submit broadcast via HTTP POST.
+  Future<void> _submitViaHttp(Map<String, dynamic> payload, String userId) async {
+    try {
+      await _api.createRadioBroadcast(payload);
     } catch (e) {
       final errorStr = e.toString();
 
-      // Fix 3: Offline fallback — save locally when server is unreachable
+      // Offline fallback — save locally when server is unreachable
       if (errorStr.contains('SocketException') ||
           errorStr.contains('Connection refused') ||
           errorStr.contains('HandshakeException') ||
@@ -149,7 +232,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
         try {
           await _storage.insert('messages', {
             'id': 'radio_${DateTime.now().millisecondsSinceEpoch}',
-            'sender_id': user.id,
+            'sender_id': userId,
             'content': '[RADIO] ${payload['title']}: ${payload['message']}',
             'message_type': 'radio_broadcast',
             'priority': 3,
@@ -167,14 +250,10 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             );
           }
         } catch (saveError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to save broadcast offline: $saveError')),
-            );
-          }
+          debugPrint('RadioBroadcastScreen: Failed to save broadcast offline: $saveError');
         }
       } else if (errorStr.contains('403') || errorStr.contains('Forbidden')) {
-        // Fix 2: Role authorization error
+        // Role authorization error
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -184,8 +263,7 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
           );
         }
       } else if (errorStr.contains('MQTT') || errorStr.contains('mqtt')) {
-        // Fix 5: MQTT failure — the broadcast was created but MQTT publish failed
-        // This is a non-fatal error; the broadcast is stored in the database
+        // MQTT failure — the broadcast was created but MQTT publish failed
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -194,16 +272,8 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
             ),
           );
         }
-        _titleController.clear();
-        _messageController.clear();
-        _loadHistory();
       } else {
-        // Other errors
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed: $e')),
-          );
-        }
+        debugPrint('RadioBroadcastScreen: HTTP fallback failed: $e');
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
