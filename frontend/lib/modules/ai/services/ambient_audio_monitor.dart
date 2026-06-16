@@ -228,6 +228,9 @@ class AmbientAudioMonitor extends ChangeNotifier {
         },
       );
 
+      // Actually add the alert to the threat awareness service
+      threatService.addAlert(alert);
+
       debugPrint('AmbientAudioMonitor: Threat detected - '
           'hasDistress=${result.hasDistress}, '
           'threatLevel=${result.threatLevel}, '

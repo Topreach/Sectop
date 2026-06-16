@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../incidents/services/incident_service.dart';
@@ -101,6 +103,15 @@ class ThreatAwarenessService extends ChangeNotifier {
   Timer? _pollTimer;
   Timer? _analysisTimer;
 
+  // Notification & Vibration
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  bool _notificationsInitialized = false;
+
+  /// Callback invoked when a critical/high alert is added.
+  /// The dashboard screen sets this to show a popup dialog.
+  void Function(ThreatAlert alert)? onCriticalAlert;
+
   // Configuration
   static const int _pollIntervalSeconds = 60; // Poll incidents every 60s
   static const int _analysisIntervalSeconds = 300; // Analyze messages every 5min
@@ -132,8 +143,30 @@ class ThreatAwarenessService extends ChangeNotifier {
   /// Loads cached alerts and starts proactive threat monitoring.
   Future<void> initialize() async {
     debugPrint('ThreatAwarenessService: Initializing...');
+    await _initNotifications();
     await startMonitoring();
     debugPrint('ThreatAwarenessService: Initialization complete');
+  }
+
+  /// Initialize local notifications plugin.
+  Future<void> _initNotifications() async {
+    if (_notificationsInitialized) return;
+    try {
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+      await _localNotifications.initialize(initSettings);
+      _notificationsInitialized = true;
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Failed to init notifications: $e');
+    }
   }
 
   /// Start proactive threat monitoring.
@@ -403,6 +436,11 @@ class ThreatAwarenessService extends ChangeNotifier {
   // Internal Helpers
   // ---------------------------------------------------------------------------
 
+  /// Public method to add an alert from external sources (e.g., AmbientAudioMonitor).
+  void addAlert(ThreatAlert alert) {
+    _addAlert(alert);
+  }
+
   void _addAlert(ThreatAlert alert) {
     // Avoid duplicates by checking if similar alert already exists
     final exists = _alerts.any((a) =>
@@ -413,6 +451,78 @@ class ThreatAwarenessService extends ChangeNotifier {
     if (!exists) {
       _alerts.insert(0, alert);
       notifyListeners();
+
+      // Trigger notification for critical/high severity alerts
+      if (alert.severity == 'critical' || alert.severity == 'high') {
+        _triggerUrgentNotification(alert);
+      }
+    }
+  }
+
+  /// Trigger vibration, system notification, and popup callback for urgent alerts.
+  void _triggerUrgentNotification(ThreatAlert alert) {
+    // 1. Haptic feedback (vibration)
+    try {
+      HapticFeedback.heavyImpact();
+    } catch (_) {}
+
+    // 2. System notification (works even when app is in background)
+    if (_notificationsInitialized) {
+      try {
+        final androidDetails = AndroidNotificationDetails(
+          'threat_alerts',
+          'Threat Alerts',
+          channelDescription: 'Urgent threat and danger alerts',
+          importance: alert.severity == 'critical'
+              ? Importance.max
+              : Importance.high,
+          priority: alert.severity == 'critical'
+              ? Priority.max
+              : Priority.high,
+          playSound: true,
+          enableVibration: true,
+          vibrationPattern: alert.severity == 'critical'
+              ? [0, 500, 200, 500, 200, 500] // S.O.S pattern
+              : [0, 300, 100, 300],
+          showWhen: true,
+          autoCancel: true,
+          color: alert.severity == 'critical'
+              ? const Color(0xFFFF0000)
+              : const Color(0xFFFF9800),
+          ledColor: alert.severity == 'critical'
+              ? const Color(0xFFFF0000)
+              : const Color(0xFFFF9800),
+          ledOnMs: 1000,
+          ledOffMs: 500,
+        );
+        final iosDetails = DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          sound: alert.severity == 'critical'
+              ? 'alert_critical.wav'
+              : 'alert_high.wav',
+        );
+        final details = NotificationDetails(
+          android: androidDetails,
+          iOS: iosDetails,
+        );
+        _localNotifications.show(
+          alert.id.hashCode,
+          alert.title,
+          alert.description,
+          details,
+        );
+      } catch (e) {
+        debugPrint('ThreatAwarenessService: Failed to show notification: $e');
+      }
+    }
+
+    // 3. Invoke popup callback (set by dashboard screen)
+    try {
+      onCriticalAlert?.call(alert);
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: onCriticalAlert callback failed: $e');
     }
   }
 

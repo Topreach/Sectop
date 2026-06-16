@@ -17,6 +17,7 @@ import '../../../shared/services/hardware_trigger_service.dart';
 import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
 import '../../ai/widgets/threat_awareness_card.dart';
+import '../../ai/services/threat_awareness_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -83,6 +84,111 @@ class _DashboardHome extends StatefulWidget {
 }
 
 class _DashboardHomeState extends State<_DashboardHome> {
+  @override
+  void initState() {
+    super.initState();
+    // Register popup callback for critical threat alerts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final threatService = context.read<ThreatAwarenessService>();
+      threatService.onCriticalAlert = (alert) {
+        if (!mounted) return;
+        _showThreatPopup(context, alert);
+      };
+    });
+  }
+
+  @override
+  void dispose() {
+    // Unregister callback to avoid memory leaks
+    try {
+      ThreatAwarenessService().onCriticalAlert = null;
+    } catch (_) {}
+    super.dispose();
+  }
+
+  /// Show a popup dialog for critical/high threat alerts.
+  void _showThreatPopup(BuildContext context, ThreatAlert alert) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              alert.severity == 'critical'
+                  ? Icons.dangerous
+                  : Icons.warning_amber_rounded,
+              color: alert.severity == 'critical'
+                  ? Colors.red
+                  : Colors.orange,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                alert.severity == 'critical'
+                    ? '🚨 CRITICAL ALERT'
+                    : '⚠️ HIGH ALERT',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: alert.severity == 'critical'
+                      ? Colors.red
+                      : Colors.orange,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              alert.title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(alert.description),
+            if (alert.latitude != null && alert.longitude != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Location: ${alert.latitude!.toStringAsFixed(4)}, ${alert.longitude!.toStringAsFixed(4)}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+            const SizedBox(height: 4),
+            Text(
+              'Confidence: ${(alert.confidence * 100).toInt()}%',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              // Mark as read
+              ThreatAwarenessService().markAsRead(alert.id);
+            },
+            child: const Text('ACKNOWLEDGE'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              ThreatAwarenessService().markAsRead(alert.id);
+              // Navigate to map to see the threat
+              Navigator.of(context).pushNamed(AppRoutes.map);
+            },
+            child: const Text('VIEW ON MAP'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOnline = context.select<SyncManager, bool>((s) => s.isOnline);
