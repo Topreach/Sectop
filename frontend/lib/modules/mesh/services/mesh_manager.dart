@@ -136,7 +136,7 @@ class MeshManager extends ChangeNotifier {
     }
   }
 
-  /// Broadcast a message — stores locally and attempts backend relay.
+  /// Broadcast a message — tries backend relay first, falls back to local storage.
   Future<void> broadcastMessage({
     required MessageType type,
     required Map<String, dynamic> payload,
@@ -151,13 +151,8 @@ class MeshManager extends ChangeNotifier {
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
 
-    // Store locally
-    _messages.insert(0, message);
-    if (_messages.length > AppConstants.maxOfflineMessages) {
-      _messages.removeLast();
-    }
-
-    // Try backend relay
+    // Try backend relay first (online-first for fast delivery)
+    bool backendSuccess = false;
     try {
       await _api.broadcastMeshMessage(
         _deviceId,
@@ -165,8 +160,19 @@ class MeshManager extends ChangeNotifier {
         priority.index,
         payload,
       );
+      backendSuccess = true;
     } catch (e) {
-      debugPrint('MeshManager: Backend broadcast failed (queued locally): $e');
+      debugPrint('MeshManager: Backend broadcast failed (no internet): $e');
+    }
+
+    // Store locally regardless (for offline fallback)
+    _messages.insert(0, message);
+    if (_messages.length > AppConstants.maxOfflineMessages) {
+      _messages.removeLast();
+    }
+
+    if (!backendSuccess) {
+      debugPrint('MeshManager: Message queued locally (backend unavailable)');
     }
 
     notifyListeners();

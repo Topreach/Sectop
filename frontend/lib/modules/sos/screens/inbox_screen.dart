@@ -55,19 +55,9 @@ class _InboxScreenState extends State<InboxScreen>
         return;
       }
 
-      // Primary: Load messages from local storage (offline-first)
       final storage = OfflineStorageService();
-      final localMessages = await storage.getLocalMessages(userId);
-      if (localMessages.isNotEmpty) {
-        setState(() {
-          _messages = localMessages;
-          _isLoadingMessages = false;
-          _isOffline = false;
-        });
-        return;
-      }
 
-      // Fallback: Try loading from server if local is empty
+      // Primary: Load messages from server (online-first for fast delivery)
       try {
         final api = context.read<BackendApi>();
         final result = await api.getMessages(userId);
@@ -79,7 +69,7 @@ class _InboxScreenState extends State<InboxScreen>
           serverMessages = [];
         }
 
-        // Cache server messages locally
+        // Cache server messages locally for offline fallback
         for (final msg in serverMessages) {
           await storage.saveMessageLocally(msg);
         }
@@ -89,13 +79,18 @@ class _InboxScreenState extends State<InboxScreen>
           _isLoadingMessages = false;
           _isOffline = false;
         });
+        return;
       } catch (_) {
-        setState(() {
-          _messages = [];
-          _isLoadingMessages = false;
-          _isOffline = true;
-        });
+        debugPrint('InboxScreen: Server unavailable, trying local storage...');
       }
+
+      // Fallback: Load from local storage when server is unreachable
+      final localMessages = await storage.getLocalMessages(userId);
+      setState(() {
+        _messages = localMessages;
+        _isLoadingMessages = false;
+        _isOffline = localMessages.isEmpty;
+      });
     } catch (e) {
       debugPrint('InboxScreen: Failed to load messages: $e');
       setState(() {

@@ -59,7 +59,8 @@ class AuthService extends ChangeNotifier {
   }
 
   /// Authenticate user with email and password.
-  /// Falls back to offline credentials if no internet.
+  /// Online-first: requires internet for authentication.
+  /// Falls back to offline credentials only if server is unreachable.
   Future<AuthResult> login(String email, String password) async {
     _isLoading = true;
     notifyListeners();
@@ -79,7 +80,6 @@ class AuthService extends ChangeNotifier {
       }
 
       // Server responded with an error (e.g. 401 Unauthorized)
-      // Return the server's error message instead of falling through to offline
       String serverError = 'Invalid email or password';
       try {
         final errorBody = json.decode(response.body);
@@ -87,17 +87,16 @@ class AuthService extends ChangeNotifier {
           serverError = errorBody['error'] as String;
         }
       } catch (_) {}
-      // Clear any previously authenticated state on login failure
       _currentUser = null;
       _isLoading = false;
       notifyListeners();
       return AuthResult.failure(serverError);
     } catch (_) {
-      // Network error - try offline authentication
-      debugPrint('Online auth failed, trying offline...');
+      // Network error — try offline authentication as fallback
+      debugPrint('Online auth failed (no internet), trying offline fallback...');
     }
 
-    // Offline authentication
+    // Offline authentication fallback (only reached when server is unreachable)
     final users = await _storage.query('users',
         where: 'email = ?',
         whereArgs: [email]);
@@ -111,17 +110,20 @@ class AuthService extends ChangeNotifier {
           _currentUser = UserProfile.fromMap(user);
           await _storage.saveSetting(AppConstants.keyUserId, user['id']);
           notifyListeners();
-          return AuthResult.success(user);
+          return AuthResult.success(user, offline: true);
         }
       }
     }
 
     _isLoading = false;
     notifyListeners();
-    return AuthResult.failure('Invalid credentials or no internet connection');
+    return AuthResult.failure('No internet connection. Offline credentials not found.');
   }
 
   /// Register a new user.
+  /// Register a new user.
+  /// Online-first: requires internet for registration.
+  /// Falls back to offline storage only if server is unreachable.
   Future<AuthResult> register(UserProfile profile, String password) async {
     _isLoading = true;
     notifyListeners();
@@ -151,16 +153,15 @@ class AuthService extends ChangeNotifier {
           serverError = errorBody['error'] as String;
         }
       } catch (_) {}
-      // Clear any previously authenticated state on login failure
       _currentUser = null;
       _isLoading = false;
       notifyListeners();
       return AuthResult.failure(serverError);
     } catch (_) {
-      debugPrint('Online registration failed, saving offline...');
+      debugPrint('Online registration failed (no internet), saving offline...');
     }
 
-    // Offline registration - store locally for later sync
+    // Offline registration fallback (only when server is unreachable)
     final userMap = profile.toMap();
     userMap['auth_hash'] = _encryption.hashString(password);
     userMap['created_at'] = DateTime.now().millisecondsSinceEpoch;
@@ -173,7 +174,6 @@ class AuthService extends ChangeNotifier {
 
     return AuthResult.success(userMap, offline: true);
   }
-
   /// Emergency bypass - one-tap access for disaster situations.
   Future<AuthResult> emergencyAccess() async {
     _isLoading = true;
