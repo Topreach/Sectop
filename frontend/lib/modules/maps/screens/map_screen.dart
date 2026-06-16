@@ -6,6 +6,7 @@ import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/offline_storage.dart';
 import '../../auth/services/auth_service.dart';
 import '../../incidents/services/incident_service.dart';
 import '../../sos/screens/safe_route_screen.dart';
@@ -76,6 +77,19 @@ class _MapScreenState extends State<MapScreen> {
         alerts.addAll(List<Map<String, dynamic>>.from(activeAlerts['alerts']));
       }
 
+      // Cache zones and alerts locally for offline use
+      try {
+        final storage = OfflineStorageService();
+        for (final zone in zones) {
+          await storage.saveZone(zone);
+        }
+        for (final alert in alerts) {
+          await storage.insert(AppConstants.tableSOSAlerts, alert);
+        }
+      } catch (_) {
+        // Non-fatal cache error
+      }
+
       // Load incidents (kidnapping, terrorism, etc.)
       List<Map<String, dynamic>> incidents = [];
       List<Map<String, dynamic>> heatmap = [];
@@ -108,11 +122,35 @@ class _MapScreenState extends State<MapScreen> {
         _isOffline = false;
       });
     } catch (e) {
-      debugPrint('MapScreen: Failed to load data: $e');
-      setState(() {
-        _isLoading = false;
-        _isOffline = true;
-      });
+      debugPrint('MapScreen: Server unreachable, loading cached data: $e');
+      // Offline fallback: load cached zones, alerts, incidents from local storage
+      try {
+        final storage = OfflineStorageService();
+        final cachedZones = await storage.query('zones',
+            where: 'status = ?',
+            whereArgs: ['active'],
+            orderBy: 'created_at DESC');
+        final cachedAlerts = await storage.query(AppConstants.tableSOSAlerts,
+            where: 'status = ?',
+            whereArgs: ['active'],
+            orderBy: 'created_at DESC');
+
+        setState(() {
+          _allZones = cachedZones;
+          _allAlerts = cachedAlerts;
+          _allIncidents = [];
+          _heatmapCells = [];
+          _isLoading = false;
+          _isOffline = true;
+        });
+        debugPrint('MapScreen: Loaded ${cachedZones.length} zones, ${cachedAlerts.length} alerts from cache');
+      } catch (cacheError) {
+        debugPrint('MapScreen: Cache load also failed: $cacheError');
+        setState(() {
+          _isLoading = false;
+          _isOffline = true;
+        });
+      }
     }
   }
 

@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/constants.dart';
+import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../mesh/services/mesh_manager.dart';
 
@@ -31,18 +32,54 @@ class MapService extends ChangeNotifier {
   Position? get currentPosition => _currentPosition;
   bool get isTracking => _isTracking;
 
-  /// Initialize map service, load cached zones, and start location tracking.
+  /// Initialize map service — try server first, fall back to local cache.
   Future<void> initialize() async {
-    final zones = await _storage.query('zones',
-        where: 'status = ?',
-        whereArgs: ['active'],
-        orderBy: 'created_at DESC');
-    _activeZones = zones.map((z) => Zone.fromMap(z)).toList();
-    notifyListeners();
+    await _loadZonesOnlineFirst();
 
     // Automatically start location tracking so the dashboard shows "Active"
     // instead of "Inactive" after permissions are granted.
     await startLocationTracking();
+  }
+
+  /// Load zones online-first: try server, cache results, fall back to local.
+  Future<void> _loadZonesOnlineFirst() async {
+    try {
+      final api = BackendApi();
+      final results = await Future.wait([
+        api.get('/zones/active'),
+        api.get('/zones/danger'),
+      ], eagerError: false);
+
+      final List<Map<String, dynamic>> merged = [];
+      for (final result in results) {
+        if (result['zones'] is List) {
+          for (final z in result['zones'] as List) {
+            final zMap = z as Map<String, dynamic>;
+            final exists = merged.any((e) => e['id'] == zMap['id']);
+            if (!exists) merged.add(zMap);
+          }
+        }
+      }
+
+      if (merged.isNotEmpty) {
+        // Cache to local storage
+        for (final zone in merged) {
+          await _storage.saveZone(zone);
+        }
+        _activeZones = merged.map((z) => Zone.fromMap(z)).toList();
+        debugPrint('MapService: Loaded ${merged.length} zones from server');
+      }
+    } catch (e) {
+      debugPrint('MapService: Server unreachable, loading cached zones: $e');
+      // Fall back to local storage
+      final zones = await _storage.query('zones',
+          where: 'status = ?',
+          whereArgs: ['active'],
+          orderBy: 'created_at DESC');
+      _activeZones = zones.map((z) => Zone.fromMap(z)).toList();
+      debugPrint('MapService: Loaded ${_activeZones.length} zones from cache');
+    }
+    notifyListeners();
   }
 
   /// Start tracking the user's location.
@@ -228,12 +265,35 @@ class MapService extends ChangeNotifier {
     }
   }
 
-  /// Calculate safe evacuation route to nearest safe zone.
+  /// Calculate safe evacuation route — try server first, fall back to local.
   Future<List<Map<String, double>>> calculateEvacuationRoute({
     required double fromLat,
     required double fromLon,
   }) async {
-    // Find nearest safe zone
+    // Try server first for danger-aware route planning
+    try {
+      final api = BackendApi();
+      final result = await api.post('/route/plan', {
+        'fromLat': fromLat,
+        'fromLon': fromLon,
+      });
+      if (result['waypoints'] is List) {
+        final waypoints = result['waypoints'] as List;
+        if (waypoints.isNotEmpty) {
+          return waypoints.map((wp) {
+            final w = wp as Map<String, dynamic>;
+            return {
+              'lat': (w['lat'] as num).toDouble(),
+              'lon': (w['lon'] as num).toDouble(),
+            };
+          }).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('MapService: Route server unreachable, using local fallback: $e');
+    }
+
+    // Fallback: find nearest safe zone from local data
     Zone? nearestSafeZone;
     double minDistance = double.infinity;
 
@@ -250,8 +310,7 @@ class MapService extends ChangeNotifier {
 
     if (nearestSafeZone == null) return [];
 
-    // In production, use offline routing engine (e.g., GraphHopper)
-    // For now, return direct line path
+    // Return direct line path as fallback
     return [
       {'lat': fromLat, 'lon': fromLon},
       {'lat': nearestSafeZone.latitude, 'lon': nearestSafeZone.longitude},

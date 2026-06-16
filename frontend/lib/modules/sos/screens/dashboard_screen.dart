@@ -516,18 +516,49 @@ class _MapViewState extends State<_MapView> {
           position.latitude,
           position.longitude,
         );
+        final zones = result['zones'] is List
+            ? List<Map<String, dynamic>>.from(result['zones'])
+            : [];
+        // Cache zones locally for offline use
+        try {
+          final storage = OfflineStorageService();
+          for (final zone in zones) {
+            await storage.saveZone(zone);
+          }
+        } catch (_) {}
         setState(() {
-          _nearbyZones = result['zones'] is List
-              ? List<Map<String, dynamic>>.from(result['zones'])
-              : [];
+          _nearbyZones = zones;
           _isLoadingZones = false;
         });
       } else {
         setState(() => _isLoadingZones = false);
       }
     } catch (e) {
-      debugPrint('_MapView: Failed to load zones: $e');
-      setState(() => _isLoadingZones = false);
+      debugPrint('_MapView: Server unreachable, loading cached zones: $e');
+      // Offline fallback: load nearby zones from local storage
+      try {
+        final mapService = context.read<MapService>();
+        final position = mapService.currentPosition ??
+            await mapService.getCurrentLocation();
+        if (position != null) {
+          final storage = OfflineStorageService();
+          final cachedZones = await storage.getZonesNearLocation(
+            position.latitude,
+            position.longitude,
+            radiusKm: 5.0,
+          );
+          setState(() {
+            _nearbyZones = cachedZones;
+            _isLoadingZones = false;
+          });
+          debugPrint('_MapView: Loaded ${cachedZones.length} cached zones');
+        } else {
+          setState(() => _isLoadingZones = false);
+        }
+      } catch (cacheError) {
+        debugPrint('_MapView: Cache load also failed: $cacheError');
+        setState(() => _isLoadingZones = false);
+      }
     }
   }
 
