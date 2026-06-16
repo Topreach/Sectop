@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.model.Zone;
+import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.ZoneService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,132 @@ public class PredictiveController {
     @Autowired
     private ZoneService zoneService;
 
+    @Autowired
+    private PredictiveService predictiveService;
+
+    // ========================================================================
+    // ML Service Proxy Endpoints (new — call the Python ML service)
+    // ========================================================================
+
+    /**
+     * Get a forecast for a specific geographic area.
+     * Proxies to the ML service's Prophet + XGBoost hybrid model.
+     *
+     * Request body:
+     *   { "latitude": 9.08, "longitude": 7.48, "radius_km": 50, "hours": 72 }
+     */
+    @PostMapping("/ml-forecast")
+    public ResponseEntity<Map<String, Object>> mlForecast(@RequestBody Map<String, Object> request) {
+        double latitude = ((Number) request.getOrDefault("latitude", 0.0)).doubleValue();
+        double longitude = ((Number) request.getOrDefault("longitude", 0.0)).doubleValue();
+        double radiusKm = ((Number) request.getOrDefault("radius_km", 50.0)).doubleValue();
+        int hours = ((Number) request.getOrDefault("hours", 48)).intValue();
+
+        if (latitude == 0.0 && longitude == 0.0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "latitude and longitude are required"));
+        }
+
+        Map<String, Object> result = predictiveService.getForecast(latitude, longitude, radiusKm, hours);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Get batch forecasts for multiple areas.
+     *
+     * Request body:
+     *   { "areas": [{ "latitude": ..., "longitude": ..., "radius_km": ..., "hours": ... }] }
+     */
+    @PostMapping("/ml-forecast/batch")
+    public ResponseEntity<Map<String, Object>> mlBatchForecast(@RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> areas = (List<Map<String, Object>>) request.getOrDefault("areas", List.of());
+
+        if (areas.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "areas list is required"));
+        }
+
+        Map<String, Object> result = predictiveService.getBatchForecast(areas);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Detect hotspots (high-risk areas) within a geographic region.
+     *
+     * Request body:
+     *   { "latitude": 9.08, "longitude": 7.48, "radius_km": 100 }
+     */
+    @PostMapping("/hotspots")
+    public ResponseEntity<Map<String, Object>> hotspots(@RequestBody Map<String, Object> request) {
+        double latitude = ((Number) request.getOrDefault("latitude", 0.0)).doubleValue();
+        double longitude = ((Number) request.getOrDefault("longitude", 0.0)).doubleValue();
+        double radiusKm = ((Number) request.getOrDefault("radius_km", 100.0)).doubleValue();
+
+        if (latitude == 0.0 && longitude == 0.0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "latitude and longitude are required"));
+        }
+
+        Map<String, Object> result = predictiveService.detectHotspots(latitude, longitude, radiusKm);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Trigger model training on the ML service.
+     *
+     * Request body:
+     *   { "force_retrain": false }
+     */
+    @PostMapping("/train")
+    public ResponseEntity<Map<String, Object>> train(@RequestBody Map<String, Object> request) {
+        boolean forceRetrain = (boolean) request.getOrDefault("force_retrain", false);
+
+        Map<String, Object> result = predictiveService.triggerTraining(forceRetrain);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Get the current training status.
+     */
+    @GetMapping("/training-status")
+    public ResponseEntity<Map<String, Object>> trainingStatus() {
+        Map<String, Object> result = predictiveService.getTrainingStatus();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Get model information (version, metrics, feature importance).
+     */
+    @GetMapping("/model-info")
+    public ResponseEntity<Map<String, Object>> modelInfo() {
+        Map<String, Object> result = predictiveService.getModelInfo();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Get forecast for all 36 Nigerian states + FCT.
+     */
+    @PostMapping("/forecast/all-states")
+    public ResponseEntity<Map<String, Object>> forecastAllStates() {
+        Map<String, Object> result = predictiveService.getAllStatesForecast();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Health check for the predictive ML service.
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        Map<String, Object> result = predictiveService.healthCheck();
+        return ResponseEntity.ok(result);
+    }
+
+    // ========================================================================
+    // Legacy Endpoints (preserved for backward compatibility)
+    // ========================================================================
+
+    /**
+     * Legacy forecast endpoint — uses synthetic data.
+     * Kept for backward compatibility with existing frontend code.
+     */
     @PostMapping("/forecast")
     public ResponseEntity<Map<String, Object>> forecast(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
@@ -47,6 +174,10 @@ public class PredictiveController {
         return ResponseEntity.ok(Map.of("forecasts", forecasts));
     }
 
+    /**
+     * Legacy anomaly detection endpoint — uses Z-score.
+     * Kept for backward compatibility.
+     */
     @PostMapping("/anomaly")
     public ResponseEntity<Map<String, Object>> detectAnomaly(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
@@ -88,6 +219,10 @@ public class PredictiveController {
         ));
     }
 
+    /**
+     * Legacy resource optimization endpoint — uses greedy assignment.
+     * Kept for backward compatibility.
+     */
     @PostMapping("/optimize-resources")
     public ResponseEntity<Map<String, Object>> optimizeResources(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")

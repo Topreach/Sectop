@@ -231,7 +231,7 @@ class BackendApi {
   // Predictive Analytics
   // ---------------------------------------------------------------------------
 
-  /// Get danger zone forecasts.
+  /// Get danger zone forecasts (legacy — uses synthetic data).
   Future<Map<String, dynamic>> forecastDangerZones(
     List<String> zoneIds, {
     int historyHours = 72,
@@ -244,12 +244,12 @@ class BackendApi {
     });
   }
 
-  /// Detect anomalies in a time series of values.
+  /// Detect anomalies in a time series of values (legacy).
   Future<Map<String, dynamic>> detectAnomaly(List<double> values) async {
     return post('/predictive/anomaly', body: {'values': values});
   }
 
-  /// Optimize resource deployment across zones and responders.
+  /// Optimize resource deployment across zones and responders (legacy).
   Future<Map<String, dynamic>> optimizeResources(
     List<Map<String, dynamic>> zones,
     List<Map<String, dynamic>> responders,
@@ -258,6 +258,70 @@ class BackendApi {
       'zones': zones,
       'responders': responders,
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // ML Predictive Model (Prophet + XGBoost)
+  // ---------------------------------------------------------------------------
+
+  /// Get ML-powered forecast for a geographic area.
+  Future<Map<String, dynamic>> mlForecast({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 50.0,
+    int hours = 48,
+  }) async {
+    return post('/predictive/ml-forecast', body: {
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius_km': radiusKm,
+      'hours': hours,
+    });
+  }
+
+  /// Get batch ML forecasts for multiple areas.
+  Future<Map<String, dynamic>> mlBatchForecast(
+    List<Map<String, dynamic>> areas,
+  ) async {
+    return post('/predictive/ml-forecast/batch', body: {'areas': areas});
+  }
+
+  /// Detect hotspots (high-risk areas) via ML model.
+  Future<Map<String, dynamic>> detectHotspots({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 100.0,
+  }) async {
+    return post('/predictive/hotspots', body: {
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius_km': radiusKm,
+    });
+  }
+
+  /// Trigger model training on the ML service.
+  Future<Map<String, dynamic>> triggerTraining({bool forceRetrain = false}) async {
+    return post('/predictive/train', body: {'force_retrain': forceRetrain});
+  }
+
+  /// Get current training status.
+  Future<Map<String, dynamic>> getTrainingStatus() async {
+    return get('/predictive/training-status');
+  }
+
+  /// Get model information (version, metrics, feature importance).
+  Future<Map<String, dynamic>> getModelInfo() async {
+    return get('/predictive/model-info');
+  }
+
+  /// Get forecast for all 36 Nigerian states + FCT.
+  Future<Map<String, dynamic>> forecastAllStates() async {
+    return post('/predictive/forecast/all-states');
+  }
+
+  /// Health check for the predictive ML service.
+  Future<Map<String, dynamic>> predictiveHealth() async {
+    return get('/predictive/health');
   }
 
   // ---------------------------------------------------------------------------

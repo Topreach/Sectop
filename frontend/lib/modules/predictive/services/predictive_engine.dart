@@ -6,6 +6,9 @@ import '../../../shared/services/backend_api.dart';
 ///
 /// All time series decomposition, LSTM anomaly detection, and Hungarian
 /// algorithm resource optimization have been moved to the backend.
+///
+/// New ML-powered endpoints (Prophet + XGBoost) provide spatio-temporal
+/// terrorist activity forecasting with 30-feature risk scoring.
 class PredictiveEngine {
   static final PredictiveEngine _instance = PredictiveEngine._internal();
   factory PredictiveEngine() => _instance;
@@ -18,7 +21,194 @@ class PredictiveEngine {
     debugPrint('PredictiveEngine: Thin client mode — computation is server-side');
   }
 
-  /// Forecast danger zones via backend API.
+  // ========================================================================
+  // ML-Powered Endpoints (Prophet + XGBoost)
+  // ========================================================================
+
+  /// Get ML-powered forecast for a geographic area.
+  ///
+  /// Returns a [MLForecastResult] with time-series forecast points and
+  /// hotspot predictions for the specified area.
+  Future<MLForecastResult> getMLForecast({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 50.0,
+    int hours = 48,
+  }) async {
+    try {
+      final result = await _api.mlForecast(
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: radiusKm,
+        hours: hours,
+      );
+
+      final forecastPoints = <ForecastPoint>[];
+      if (result['forecast'] is List) {
+        for (final f in result['forecast'] as List) {
+          final fMap = f as Map<String, dynamic>;
+          forecastPoints.add(ForecastPoint(
+            timestamp: DateTime.parse(fMap['timestamp'] as String),
+            riskScore: (fMap['risk_score'] as num).toDouble(),
+            alertLevel: fMap['alert_level'] as String? ?? 'Normal',
+          ));
+        }
+      }
+
+      final hotspots = <HotspotPrediction>[];
+      if (result['hotspots'] is List) {
+        for (final h in result['hotspots'] as List) {
+          final hMap = h as Map<String, dynamic>;
+          hotspots.add(HotspotPrediction(
+            latitude: (hMap['latitude'] as num).toDouble(),
+            longitude: (hMap['longitude'] as num).toDouble(),
+            riskScore: (hMap['risk_score'] as num).toDouble(),
+            alertLevel: hMap['alert_level'] as String? ?? 'Normal',
+            peakTime: hMap['peak_time'] != null
+                ? DateTime.tryParse(hMap['peak_time'] as String)
+                : null,
+            expectedCount24h: (hMap['expected_count_24h'] as num?)?.toDouble() ?? 0.0,
+            trendDirection: hMap['trend_direction'] as String? ?? 'stable',
+            contributingFactors: (hMap['contributing_factors'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [],
+            state: hMap['state'] as String?,
+            lga: hMap['lga'] as String?,
+          ));
+        }
+      }
+
+      return MLForecastResult(
+        latitude: (result['latitude'] as num?)?.toDouble() ?? latitude,
+        longitude: (result['longitude'] as num?)?.toDouble() ?? longitude,
+        forecastPoints: forecastPoints,
+        hotspots: hotspots,
+        source: result['source'] as String? ?? 'ml_service',
+      );
+    } catch (e) {
+      debugPrint('PredictiveEngine: ML forecast API failed: $e');
+      return MLForecastResult(
+        latitude: latitude,
+        longitude: longitude,
+        forecastPoints: [],
+        hotspots: [],
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Detect hotspots (high-risk areas) via ML model.
+  Future<HotspotResult> getHotspots({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 100.0,
+  }) async {
+    try {
+      final result = await _api.detectHotspots(
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: radiusKm,
+      );
+
+      final hotspots = <HotspotPrediction>[];
+      if (result['hotspots'] is List) {
+        for (final h in result['hotspots'] as List) {
+          final hMap = h as Map<String, dynamic>;
+          hotspots.add(HotspotPrediction(
+            latitude: (hMap['latitude'] as num).toDouble(),
+            longitude: (hMap['longitude'] as num).toDouble(),
+            riskScore: (hMap['risk_score'] as num).toDouble(),
+            alertLevel: hMap['alert_level'] as String? ?? 'Normal',
+            peakTime: hMap['peak_time'] != null
+                ? DateTime.tryParse(hMap['peak_time'] as String)
+                : null,
+            expectedCount24h: (hMap['expected_count_24h'] as num?)?.toDouble() ?? 0.0,
+            trendDirection: hMap['trend_direction'] as String? ?? 'stable',
+            contributingFactors: (hMap['contributing_factors'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [],
+            state: hMap['state'] as String?,
+            lga: hMap['lga'] as String?,
+          ));
+        }
+      }
+
+      return HotspotResult(
+        hotspots: hotspots,
+        cached: result['cached'] as bool? ?? false,
+      );
+    } catch (e) {
+      debugPrint('PredictiveEngine: Hotspot detection API failed: $e');
+      return HotspotResult(hotspots: [], error: e.toString());
+    }
+  }
+
+  /// Get forecast for all 36 Nigerian states + FCT.
+  Future<AllStatesForecastResult> getAllStatesForecast() async {
+    try {
+      final result = await _api.forecastAllStates();
+
+      final stateForecasts = <StateForecast>[];
+      if (result['forecasts'] is List) {
+        for (final f in result['forecasts'] as List) {
+          final fMap = f as Map<String, dynamic>;
+          stateForecasts.add(StateForecast(
+            state: fMap['state'] as String? ?? 'Unknown',
+            riskScore: (fMap['risk_score'] as num?)?.toDouble() ?? 0.0,
+            alertLevel: fMap['alert_level'] as String? ?? 'Normal',
+            trendDirection: fMap['trend_direction'] as String? ?? 'stable',
+            hotspotCount: (fMap['hotspot_count'] as num?)?.toInt() ?? 0,
+          ));
+        }
+      }
+
+      return AllStatesForecastResult(
+        forecasts: stateForecasts,
+        generatedAt: result['generated_at'] != null
+            ? DateTime.tryParse(result['generated_at'] as String)
+            : null,
+      );
+    } catch (e) {
+      debugPrint('PredictiveEngine: All-states forecast API failed: $e');
+      return AllStatesForecastResult(forecasts: [], error: e.toString());
+    }
+  }
+
+  /// Trigger model training on the ML service.
+  Future<Map<String, dynamic>> triggerTraining({bool forceRetrain = false}) async {
+    try {
+      return await _api.triggerTraining(forceRetrain: forceRetrain);
+    } catch (e) {
+      debugPrint('PredictiveEngine: Training trigger failed: $e');
+      return {'status': 'failed', 'error': e.toString()};
+    }
+  }
+
+  /// Get current training status.
+  Future<Map<String, dynamic>> getTrainingStatus() async {
+    try {
+      return await _api.getTrainingStatus();
+    } catch (e) {
+      return {'is_training': false, 'status': 'unknown'};
+    }
+  }
+
+  /// Get model information (version, metrics, feature importance).
+  Future<Map<String, dynamic>> getModelInfo() async {
+    try {
+      return await _api.getModelInfo();
+    } catch (e) {
+      return {'status': 'unavailable', 'error': e.toString()};
+    }
+  }
+
+  // ========================================================================
+  // Legacy Endpoints (preserved for backward compatibility)
+  // ========================================================================
+
+  /// Forecast danger zones via backend API (legacy — synthetic data).
   Future<PredictionResult> forecastDangerZones(
     List<ZoneInfo> zones, {
     int historyHours = 72,
@@ -73,7 +263,7 @@ class PredictiveEngine {
     }
   }
 
-  /// Detect anomalies in a time series via backend API.
+  /// Detect anomalies in a time series via backend API (legacy).
   Future<List<AnomalyResult>> detectAnomalies(List<double> values) async {
     try {
       final result = await _api.detectAnomaly(values);
@@ -98,7 +288,7 @@ class PredictiveEngine {
     }
   }
 
-  /// Optimize resource deployment via backend API.
+  /// Optimize resource deployment via backend API (legacy).
   Future<ResourcePlan> optimizeResourceDeployment(
     List<ZoneInfo> zones,
     List<ResponderInfo> responders,
@@ -153,9 +343,107 @@ class PredictiveEngine {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Data classes (preserved for UI compatibility)
-// ---------------------------------------------------------------------------
+// ========================================================================
+// ML-Powered Data Classes
+// ========================================================================
+
+/// Result of an ML-powered forecast for a geographic area.
+class MLForecastResult {
+  final double latitude;
+  final double longitude;
+  final List<ForecastPoint> forecastPoints;
+  final List<HotspotPrediction> hotspots;
+  final String? error;
+  final String source;
+
+  MLForecastResult({
+    required this.latitude,
+    required this.longitude,
+    required this.forecastPoints,
+    required this.hotspots,
+    this.error,
+    this.source = 'ml_service',
+  });
+}
+
+/// A single forecast point in a time series.
+class ForecastPoint {
+  final DateTime timestamp;
+  final double riskScore;
+  final String alertLevel;
+
+  ForecastPoint({
+    required this.timestamp,
+    required this.riskScore,
+    required this.alertLevel,
+  });
+}
+
+/// A hotspot prediction from the ML model.
+class HotspotPrediction {
+  final double latitude;
+  final double longitude;
+  final double riskScore;
+  final String alertLevel;
+  final DateTime? peakTime;
+  final double expectedCount24h;
+  final String trendDirection;
+  final List<String> contributingFactors;
+  final String? state;
+  final String? lga;
+
+  HotspotPrediction({
+    required this.latitude,
+    required this.longitude,
+    required this.riskScore,
+    required this.alertLevel,
+    this.peakTime,
+    required this.expectedCount24h,
+    required this.trendDirection,
+    required this.contributingFactors,
+    this.state,
+    this.lga,
+  });
+}
+
+/// Result of hotspot detection.
+class HotspotResult {
+  final List<HotspotPrediction> hotspots;
+  final bool cached;
+  final String? error;
+
+  HotspotResult({required this.hotspots, this.cached = false, this.error});
+}
+
+/// Forecast for a single state.
+class StateForecast {
+  final String state;
+  final double riskScore;
+  final String alertLevel;
+  final String trendDirection;
+  final int hotspotCount;
+
+  StateForecast({
+    required this.state,
+    required this.riskScore,
+    required this.alertLevel,
+    required this.trendDirection,
+    required this.hotspotCount,
+  });
+}
+
+/// Result of all-states forecast.
+class AllStatesForecastResult {
+  final List<StateForecast> forecasts;
+  final DateTime? generatedAt;
+  final String? error;
+
+  AllStatesForecastResult({required this.forecasts, this.generatedAt, this.error});
+}
+
+// ========================================================================
+// Legacy Data Classes (preserved for UI compatibility)
+// ========================================================================
 
 class ZoneInfo {
   final String id;

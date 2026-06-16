@@ -92,6 +92,14 @@ ml:
     timeout: 30000
     model: bart-emergency
 
+# Predictive ML Cache Configuration
+predictive:
+  cache:
+    ttl:
+      forecast: 300        # 5 minutes for area forecasts
+      hotspot: 120         # 2 minutes for hotspot detections
+      batch: 600           # 10 minutes for batch forecasts
+
 # MQTT Configuration
 mqtt:
   broker: ${MQTT_BROKER:tcp://localhost:1883}

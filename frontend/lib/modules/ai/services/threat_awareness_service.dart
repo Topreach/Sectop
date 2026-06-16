@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/constants.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../incidents/services/incident_service.dart';
@@ -14,7 +16,7 @@ import 'ambient_audio_monitor.dart';
 /// Result of a threat analysis.
 class ThreatAlert {
   final String id;
-  final String type; // 'incident', 'danger_zone', 'sos_alert', 'message_analysis'
+  final String type; // 'incident', 'danger_zone', 'sos_alert', 'message_analysis', 'prediction'
   final String title;
   final String description;
   final double? latitude;
@@ -77,6 +79,8 @@ class ThreatAlert {
 /// - Threat level calculation for current location
 /// - Push-style alert generation for the dashboard
 /// - Local caching of threat alerts for offline access
+/// - Real-time ML prediction updates via WebSocket
+/// - Periodic polling of ML hotspot predictions (fallback)
 class ThreatAwarenessService extends ChangeNotifier {
   static final ThreatAwarenessService _instance =
       ThreatAwarenessService._internal();
@@ -96,13 +100,21 @@ class ThreatAwarenessService extends ChangeNotifier {
   List<ThreatAlert> _alerts = [];
   bool _isMonitoring = false;
   bool _isLoading = false;
-  bool _isOffline = false; // True when operating in offline/fallback mode
+  bool _isOffline = false;
   String? _lastError;
-  double _currentThreatLevel = 0.0; // 0.0 - 1.0
+  double _currentThreatLevel = 0.0;
   int _nearbyIncidentCount = 0;
   int _nearbyDangerZoneCount = 0;
+  int _predictedHotspotCount = 0;
   Timer? _pollTimer;
   Timer? _analysisTimer;
+  Timer? _predictionPollTimer;
+
+  // WebSocket for real-time prediction updates
+  WebSocketChannel? _predictionWsChannel;
+  StreamSubscription<dynamic>? _predictionWsSubscription;
+  Timer? _predictionWsReconnectTimer;
+  bool _isPredictionWsConnected = false;
 
   // Notification & Vibration
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -110,13 +122,12 @@ class ThreatAwarenessService extends ChangeNotifier {
   bool _notificationsInitialized = false;
 
   /// Callback invoked when a critical/high alert is added.
-  /// The dashboard screen sets this to show a popup dialog.
   void Function(ThreatAlert alert)? onCriticalAlert;
 
   // Configuration
-  static const int _pollIntervalSeconds = 60; // Poll incidents every 60s
-  static const int _analysisIntervalSeconds = 300; // Analyze messages every 5min
-  static const double _threatRadiusKm = 20.0; // Radius for nearby threats
+  static const int _pollIntervalSeconds = 60;
+  static const int _analysisIntervalSeconds = 300;
+  static const double _threatRadiusKm = 20.0;
   static const int _maxAlerts = 50;
   static const String _alertsStorageKey = 'threat_alerts';
 
@@ -129,11 +140,11 @@ class ThreatAwarenessService extends ChangeNotifier {
   double get currentThreatLevel => _currentThreatLevel;
   int get nearbyIncidentCount => _nearbyIncidentCount;
   int get nearbyDangerZoneCount => _nearbyDangerZoneCount;
+  int get predictedHotspotCount => _predictedHotspotCount;
+  bool get isPredictionWsConnected => _isPredictionWsConnected;
 
-  /// Get unread alert count.
   int get unreadCount => _alerts.where((a) => !a.isRead).length;
 
-  /// Get critical/high severity alerts.
   List<ThreatAlert> get criticalAlerts =>
       _alerts.where((a) => a.severity == 'critical' || a.severity == 'high').toList();
 
@@ -141,8 +152,6 @@ class ThreatAwarenessService extends ChangeNotifier {
   // Lifecycle
   // ---------------------------------------------------------------------------
 
-  /// Initialize the service — called by safeInit() in main.dart.
-  /// Loads cached alerts and starts proactive threat monitoring.
   Future<void> initialize() async {
     debugPrint('ThreatAwarenessService: Initializing...');
     await _initNotifications();
@@ -150,7 +159,6 @@ class ThreatAwarenessService extends ChangeNotifier {
     debugPrint('ThreatAwarenessService: Initialization complete');
   }
 
-  /// Initialize local notifications plugin.
   Future<void> _initNotifications() async {
     if (_notificationsInitialized) return;
     try {
@@ -171,47 +179,49 @@ class ThreatAwarenessService extends ChangeNotifier {
     }
   }
 
-  /// Start proactive threat monitoring.
   Future<void> startMonitoring() async {
     if (_isMonitoring) return;
     _isMonitoring = true;
     notifyListeners();
 
-    // Load cached alerts first
     await _loadCachedAlerts();
-
-    // Immediate first poll
     await pollThreats();
 
-    // Start periodic polling
     _pollTimer = Timer.periodic(
       Duration(seconds: _pollIntervalSeconds),
       (_) => pollThreats(),
     );
 
-    // Start periodic message analysis
     _analysisTimer = Timer.periodic(
       Duration(seconds: _analysisIntervalSeconds),
       (_) => analyzeRecentMessages(),
     );
 
-    // Start ambient audio monitoring
     await _ambientAudioMonitor.startMonitoring();
+
+    // Connect to prediction WebSocket for real-time ML hotspot updates
+    _connectPredictionWebSocket();
+
+    // Start periodic prediction polling (fallback when WebSocket is unavailable)
+    _startPredictionPolling();
 
     debugPrint('ThreatAwarenessService: Monitoring started');
   }
 
-  /// Stop proactive threat monitoring.
   Future<void> stopMonitoring() async {
     _isMonitoring = false;
     _pollTimer?.cancel();
     _pollTimer = null;
     _analysisTimer?.cancel();
     _analysisTimer = null;
+    _predictionPollTimer?.cancel();
+    _predictionPollTimer = null;
+    _disconnectPredictionWebSocket();
     await _ambientAudioMonitor.stopMonitoring();
     notifyListeners();
     debugPrint('ThreatAwarenessService: Monitoring stopped');
   }
+
   @override
   void dispose() {
     stopMonitoring();
@@ -222,151 +232,128 @@ class ThreatAwarenessService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Threat Polling
   // ---------------------------------------------------------------------------
-/// Poll all threat sources and update state.
-/// Tries internet first; falls back to cached data from SQLite when offline.
-Future<void> pollThreats() async {
-  if (_isLoading) return;
-  _isLoading = true;
-  notifyListeners();
 
-  try {
-    final mapService = MapService();
-    final position = mapService.currentPosition;
-
-    if (position == null) {
-      debugPrint('ThreatAwarenessService: No position available, skipping poll');
-      _isLoading = false;
-      return;
-    }
-
-    // Fetch nearby incidents
-    final incidents = await _incidentService.getNearbyIncidents(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      radiusKm: _threatRadiusKm,
-    );
-
-    // Fetch nearby danger zones
-    final zonesResponse = await _api.getZonesNearby(
-      position.latitude,
-      position.longitude,
-      radiusDegrees: _threatRadiusKm / 111.0,
-    );
-    final zones = zonesResponse['zones'] as List? ?? [];
-
-    // Fetch active alerts
-    final alertsResponse = await _api.getActiveAlerts();
-    final activeAlerts = alertsResponse['alerts'] as List? ?? [];
-
-    // Online success — update counts, process, cache
-    _isOffline = false;
-    _nearbyIncidentCount = incidents.length;
-    _nearbyDangerZoneCount = zones.length;
-
-    // Calculate overall threat level (0.0 - 1.0)
-    _calculateThreatLevel(incidents, zones, activeAlerts);
-
-    // Generate alerts for new threats
-    _processIncidents(incidents);
-    _processDangerZones(zones);
-    _processActiveAlerts(activeAlerts);
-
-    // Trim to max
-    if (_alerts.length > _maxAlerts) {
-      _alerts = _alerts.sublist(0, _maxAlerts);
-    }
-
-    // Cache alerts to SharedPreferences
-    await _cacheAlerts();
-
-    // Cache incidents, zones, and alerts to SQLite for offline fallback
-    await _cachePollDataToSqlite(incidents, zones, activeAlerts);
-
-    _lastError = null;
-    _isLoading = false;
+  Future<void> pollThreats() async {
+    if (_isLoading) return;
+    _isLoading = true;
     notifyListeners();
-  } catch (e) {
-    // OFFLINE FALLBACK: Load cached data from SQLite when server is unreachable
-    debugPrint('ThreatAwarenessService: Poll failed (offline fallback): $e');
-    _isOffline = true;
-    _lastError = 'Offline mode — showing cached threat data';
 
     try {
-      // Load cached incidents from SQLite
-      final cachedIncidents = await _storage.query('incidents',
-          orderBy: 'created_at DESC', limit: 50);
-      final incidents = cachedIncidents.map((row) => {
-        'id': row['id'],
-        'incidentType': row['type'],
-        'severity': row['severity'],
-        'description': row['description'],
-        'latitude': row['latitude'],
-        'longitude': row['longitude'],
-        'status': row['status'],
-      }).toList();
+      final mapService = MapService();
+      final position = mapService.currentPosition;
 
-      // Load cached zones from SQLite
-      final cachedZones = await _storage.query('zones',
-          where: 'status = ?', whereArgs: ['active'],
-          orderBy: 'created_at DESC', limit: 50);
-      final zones = cachedZones.map((row) => {
-        'id': row['id'],
-        'name': row['name'],
-        'type': row['type'],
-        'severity': row['severity'],
-        'latitude': row['latitude'],
-        'longitude': row['longitude'],
-        'status': row['status'],
-      }).toList();
+      if (position == null) {
+        debugPrint('ThreatAwarenessService: No position available, skipping poll');
+        _isLoading = false;
+        return;
+      }
 
-      // Load cached SOS alerts from SQLite
-      final cachedAlerts = await _storage.query('sos_alerts',
-          where: 'status = ?', whereArgs: ['active'],
-          orderBy: 'created_at DESC', limit: 50);
-      final activeAlerts = cachedAlerts.map((row) => {
-        'id': row['id'],
-        'type': row['alert_type'],
-        'message': row['description'],
-        'latitude': row['latitude'],
-        'longitude': row['longitude'],
-        'status': row['status'],
-      }).toList();
+      final incidents = await _incidentService.getNearbyIncidents(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        radiusKm: _threatRadiusKm,
+      );
 
-      // Update counts from cached data
+      final zonesResponse = await _api.getZonesNearby(
+        position.latitude,
+        position.longitude,
+        radiusDegrees: _threatRadiusKm / 111.0,
+      );
+      final zones = zonesResponse['zones'] as List? ?? [];
+
+      final alertsResponse = await _api.getActiveAlerts();
+      final activeAlerts = alertsResponse['alerts'] as List? ?? [];
+
+      _isOffline = false;
       _nearbyIncidentCount = incidents.length;
       _nearbyDangerZoneCount = zones.length;
 
-      // Calculate threat level from cached data
       _calculateThreatLevel(incidents, zones, activeAlerts);
 
-      // Process cached data into alerts (dedup logic prevents duplicates)
       _processIncidents(incidents);
       _processDangerZones(zones);
       _processActiveAlerts(activeAlerts);
 
-      // Trim to max
       if (_alerts.length > _maxAlerts) {
         _alerts = _alerts.sublist(0, _maxAlerts);
       }
-    } catch (cacheError) {
-      debugPrint('ThreatAwarenessService: Offline fallback also failed: $cacheError');
-    }
 
-    _isLoading = false;
-    notifyListeners();
-  }
-}
+      await _cacheAlerts();
+      await _cachePollDataToSqlite(incidents, zones, activeAlerts);
+
+      _lastError = null;
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Poll failed (offline fallback): $e');
+      _isOffline = true;
+      _lastError = 'Offline mode — showing cached threat data';
+
+      try {
+        final cachedIncidents = await _storage.query('incidents',
+            orderBy: 'created_at DESC', limit: 50);
+        final incidents = cachedIncidents.map((row) => {
+          'id': row['id'],
+          'incidentType': row['type'],
+          'severity': row['severity'],
+          'description': row['description'],
+          'latitude': row['latitude'],
+          'longitude': row['longitude'],
+          'status': row['status'],
+        }).toList();
+
+        final cachedZones = await _storage.query('zones',
+            where: 'status = ?', whereArgs: ['active'],
+            orderBy: 'created_at DESC', limit: 50);
+        final zones = cachedZones.map((row) => {
+          'id': row['id'],
+          'name': row['name'],
+          'type': row['type'],
+          'severity': row['severity'],
+          'latitude': row['latitude'],
+          'longitude': row['longitude'],
+          'status': row['status'],
+        }).toList();
+
+        final cachedAlerts = await _storage.query('sos_alerts',
+            where: 'status = ?', whereArgs: ['active'],
+            orderBy: 'created_at DESC', limit: 50);
+        final activeAlerts = cachedAlerts.map((row) => {
+          'id': row['id'],
+          'type': row['alert_type'],
+          'message': row['description'],
+          'latitude': row['latitude'],
+          'longitude': row['longitude'],
+          'status': row['status'],
+        }).toList();
+
+        _nearbyIncidentCount = incidents.length;
+        _nearbyDangerZoneCount = zones.length;
+
+        _calculateThreatLevel(incidents, zones, activeAlerts);
+
+        _processIncidents(incidents);
+        _processDangerZones(zones);
+        _processActiveAlerts(activeAlerts);
+
+        if (_alerts.length > _maxAlerts) {
+          _alerts = _alerts.sublist(0, _maxAlerts);
+        }
+      } catch (cacheError) {
+        debugPrint('ThreatAwarenessService: Offline fallback also failed: $cacheError');
+      }
+
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Message Analysis
   // ---------------------------------------------------------------------------
 
-  /// Analyze recent messages from the inbox for threat content.
-  /// Tries backend AI first; falls back to local keyword analysis when offline.
   Future<void> analyzeRecentMessages() async {
     try {
-      // Get recent messages from offline storage
       final recentMessages = await _storage.query('messages',
           orderBy: 'created_at DESC',
           limit: 20);
@@ -375,14 +362,12 @@ Future<void> pollThreats() async {
         final text = msg['content'] as String?;
         if (text == null || text.length < 10) continue;
 
-        // Skip already analyzed messages
         final msgId = msg['id'] as String?;
         if (msgId != null && _alerts.any((a) =>
             a.sourceData?['messageId'] == msgId)) {
           continue;
         }
 
-        // Try backend AI first
         final result = await _distressDetector.analyzeMessage(text);
 
         if (result.priority == 'high' || result.priority == 'critical') {
@@ -405,7 +390,6 @@ Future<void> pollThreats() async {
             },
           ));
         } else if (result.method == 'error') {
-          // OFFLINE FALLBACK: Backend AI unreachable — use local keyword analysis
           final localResult = _localKeywordAnalysis(text);
           if (localResult != null) {
             _addAlert(ThreatAlert(
@@ -433,21 +417,15 @@ Future<void> pollThreats() async {
     }
   }
 
-  /// Local keyword-based threat analysis fallback for offline mode.
-  /// Returns null if no threat keywords are found.
   Map<String, dynamic>? _localKeywordAnalysis(String text) {
     final lower = text.toLowerCase();
 
-    // Threat keyword categories with severity levels
     final threatKeywords = <String, Map<String, dynamic>>{
-      // Kidnapping / Abduction
       'kidnap': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.7},
       'kidnapped': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.8},
       'abduction': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.7},
       'abducted': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.8},
       'ransom': {'severity': 'critical', 'label': 'kidnapping', 'confidence': 0.6},
-
-      // Terrorism / Bombing
       'terrorist': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
       'terrorism': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.8},
       'bomb': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
@@ -455,43 +433,30 @@ Future<void> pollThreats() async {
       'explosion': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
       'suicide attack': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.8},
       'ied': {'severity': 'critical', 'label': 'terrorism', 'confidence': 0.7},
-
-      // Banditry / Armed robbery
       'bandit': {'severity': 'high', 'label': 'banditry', 'confidence': 0.7},
       'banditry': {'severity': 'high', 'label': 'banditry', 'confidence': 0.8},
       'armed robbery': {'severity': 'high', 'label': 'armed_robbery', 'confidence': 0.7},
       'gunmen': {'severity': 'high', 'label': 'banditry', 'confidence': 0.6},
       'gunshot': {'severity': 'high', 'label': 'banditry', 'confidence': 0.7},
-
-      // Herdsmen attack
       'herdsmen': {'severity': 'high', 'label': 'herdsmen_attack', 'confidence': 0.6},
       'fulani herdsmen': {'severity': 'high', 'label': 'herdsmen_attack', 'confidence': 0.7},
-
-      // Cult / Ritual violence
       'cult': {'severity': 'high', 'label': 'cult_violence', 'confidence': 0.6},
       'ritual': {'severity': 'high', 'label': 'ritual_killings', 'confidence': 0.6},
       'ritual killing': {'severity': 'critical', 'label': 'ritual_killings', 'confidence': 0.7},
-
-      // General danger / distress
       'help': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
       'emergency': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
       'danger': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
       'attack': {'severity': 'high', 'label': 'distress', 'confidence': 0.5},
       'kill': {'severity': 'high', 'label': 'violence', 'confidence': 0.5},
       'murder': {'severity': 'critical', 'label': 'violence', 'confidence': 0.6},
-
-      // Political / Communal violence
       'political violence': {'severity': 'high', 'label': 'political_violence', 'confidence': 0.6},
       'communal clash': {'severity': 'high', 'label': 'communal_clash', 'confidence': 0.7},
       'ethnic clash': {'severity': 'high', 'label': 'communal_clash', 'confidence': 0.7},
-
-      // Suspicious activity
       'suspicious': {'severity': 'medium', 'label': 'suspicious_activity', 'confidence': 0.5},
       'surveillance': {'severity': 'medium', 'label': 'suspicious_activity', 'confidence': 0.5},
       'following me': {'severity': 'high', 'label': 'suspicious_activity', 'confidence': 0.6},
     };
 
-    // Check for keyword matches
     final matched = <Map<String, dynamic>>[];
     for (final entry in threatKeywords.entries) {
       if (lower.contains(entry.key)) {
@@ -501,7 +466,6 @@ Future<void> pollThreats() async {
 
     if (matched.isEmpty) return null;
 
-    // Use the highest severity match
     matched.sort((a, b) {
       final severityOrder = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1};
       final aOrder = severityOrder[a['severity']] ?? 0;
@@ -514,7 +478,6 @@ Future<void> pollThreats() async {
     final label = best['label'] as String;
     final confidence = best['confidence'] as double;
 
-    // Only alert for high/critical in local mode
     if (severity != 'high' && severity != 'critical') return null;
 
     final typeLabel = _getIncidentTypeLabel(label);
@@ -537,10 +500,8 @@ Future<void> pollThreats() async {
   // Manual Threat Check
   // ---------------------------------------------------------------------------
 
-  /// Get the ambient audio monitor instance.
   AmbientAudioMonitor get ambientAudioMonitor => _ambientAudioMonitor;
 
-  /// Manually analyze a piece of text for threat content.
   Future<ThreatAlert?> analyzeText(String text) async {
     try {
       final result = await _distressDetector.analyzeMessage(text);
@@ -574,7 +535,6 @@ Future<void> pollThreats() async {
   // Alert Management
   // ---------------------------------------------------------------------------
 
-  /// Mark an alert as read.
   void markAsRead(String alertId) {
     final index = _alerts.indexWhere((a) => a.id == alertId);
     if (index >= 0) {
@@ -597,7 +557,6 @@ Future<void> pollThreats() async {
     }
   }
 
-  /// Mark all alerts as read.
   void markAllAsRead() {
     _alerts = _alerts.map((a) => ThreatAlert(
       id: a.id,
@@ -616,12 +575,12 @@ Future<void> pollThreats() async {
     _cacheAlerts();
   }
 
-  /// Clear all alerts.
   Future<void> clearAlerts() async {
     _alerts.clear();
     _currentThreatLevel = 0.0;
     _nearbyIncidentCount = 0;
     _nearbyDangerZoneCount = 0;
+    _predictedHotspotCount = 0;
     await _storage.removeSetting(_alertsStorageKey);
     notifyListeners();
   }
@@ -630,13 +589,11 @@ Future<void> pollThreats() async {
   // Internal Helpers
   // ---------------------------------------------------------------------------
 
-  /// Public method to add an alert from external sources (e.g., AmbientAudioMonitor).
   void addAlert(ThreatAlert alert) {
     _addAlert(alert);
   }
 
   void _addAlert(ThreatAlert alert) {
-    // Avoid duplicates by checking if similar alert already exists
     final exists = _alerts.any((a) =>
         a.type == alert.type &&
         a.title == alert.title &&
@@ -646,21 +603,17 @@ Future<void> pollThreats() async {
       _alerts.insert(0, alert);
       notifyListeners();
 
-      // Trigger notification for critical/high severity alerts
       if (alert.severity == 'critical' || alert.severity == 'high') {
         _triggerUrgentNotification(alert);
       }
     }
   }
 
-  /// Trigger vibration, system notification, and popup callback for urgent alerts.
   void _triggerUrgentNotification(ThreatAlert alert) {
-    // 1. Haptic feedback (vibration)
     try {
       HapticFeedback.heavyImpact();
     } catch (_) {}
 
-    // 2. System notification (works even when app is in background)
     if (_notificationsInitialized) {
       try {
         final androidDetails = AndroidNotificationDetails(
@@ -676,7 +629,7 @@ Future<void> pollThreats() async {
           playSound: true,
           enableVibration: true,
           vibrationPattern: alert.severity == 'critical'
-              ? [0, 500, 200, 500, 200, 500] // S.O.S pattern
+              ? [0, 500, 200, 500, 200, 500]
               : [0, 300, 100, 300],
           showWhen: true,
           autoCancel: true,
@@ -712,7 +665,6 @@ Future<void> pollThreats() async {
       }
     }
 
-    // 3. Invoke popup callback (set by dashboard screen)
     try {
       onCriticalAlert?.call(alert);
     } catch (e) {
@@ -729,12 +681,10 @@ Future<void> pollThreats() async {
       final lat = (incident['latitude'] as num?)?.toDouble();
       final lng = (incident['longitude'] as num?)?.toDouble();
 
-      // Skip if already alerted
       if (id != null && _alerts.any((a) => a.sourceData?['incidentId'] == id)) {
         continue;
       }
 
-      // Only alert for high/critical severity
       if (severity == 'high' || severity == 'critical') {
         final typeLabel = _getIncidentTypeLabel(type);
         _addAlert(ThreatAlert(
@@ -826,26 +776,33 @@ Future<void> pollThreats() async {
   ) {
     double level = 0.0;
 
-    // Base level from incident count
     if (incidents.length > 10) level += 0.4;
     else if (incidents.length > 5) level += 0.3;
     else if (incidents.length > 2) level += 0.2;
     else if (incidents.length > 0) level += 0.1;
 
-    // Boost from danger zones
     if (zones.length > 5) level += 0.3;
     else if (zones.length > 2) level += 0.2;
     else if (zones.length > 0) level += 0.1;
 
-    // Boost from active alerts
     if (alerts.length > 3) level += 0.3;
     else if (alerts.length > 0) level += 0.15;
 
-    // Check for critical severity items
     final hasCritical = incidents.any((i) =>
         (i['severity'] as String? ?? '') == 'critical') ||
         zones.any((z) => (z is Map && z['severity'] == 'critical'));
     if (hasCritical) level += 0.2;
+
+    // Boost from ML-predicted hotspots
+    if (_predictedHotspotCount > 10) level += 0.35;
+    else if (_predictedHotspotCount > 5) level += 0.25;
+    else if (_predictedHotspotCount > 2) level += 0.15;
+    else if (_predictedHotspotCount > 0) level += 0.08;
+
+    // Check for critical-level predictions
+    final hasCriticalPrediction = _alerts.any((a) =>
+        a.type == 'prediction' && a.severity == 'critical');
+    if (hasCriticalPrediction) level += 0.15;
 
     _currentThreatLevel = level.clamp(0.0, 1.0);
   }
@@ -862,18 +819,17 @@ Future<void> pollThreats() async {
       case 'ritual_killings': return 'Ritual Killings';
       case 'political_violence': return 'Political Violence';
       case 'communal_clash': return 'Communal Clash';
+      case 'predicted_hotspot': return 'Predicted Hotspot';
       default: return type[0].toUpperCase() + type.substring(1);
     }
   }
 
-  /// Cache polled data (incidents, zones, alerts) to SQLite for offline fallback.
   Future<void> _cachePollDataToSqlite(
     List<Map<String, dynamic>> incidents,
     List<dynamic> zones,
     List<dynamic> alerts,
   ) async {
     try {
-      // Cache incidents
       for (final inc in incidents) {
         final id = inc['id'] as String?;
         if (id == null) continue;
@@ -891,7 +847,6 @@ Future<void> pollThreats() async {
         });
       }
 
-      // Cache zones
       for (final z in zones) {
         final zone = z as Map<String, dynamic>;
         final id = zone['id'] as String?;
@@ -911,7 +866,6 @@ Future<void> pollThreats() async {
         });
       }
 
-      // Cache SOS alerts
       for (final a in alerts) {
         final alert = a as Map<String, dynamic>;
         final id = alert['id'] as String?;
@@ -959,4 +913,341 @@ Future<void> pollThreats() async {
       debugPrint('ThreatAwarenessService: Failed to cache alerts: $e');
     }
   }
-}
+
+  // ---------------------------------------------------------------------------
+  // ML Prediction Integration
+  // ---------------------------------------------------------------------------
+
+  /// Connect to WebSocket for real-time ML prediction updates.
+  /// Subscribes to /topic/predictions/hotspots and /topic/predictions/updates.
+  Future<void> _connectPredictionWebSocket() async {
+    try {
+      _disconnectPredictionWebSocket();
+
+      final wsUrl = AppConstants.wsBaseUrl;
+      final wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _predictionWsChannel = wsChannel;
+
+      // Send STOMP CONNECT frame
+      _sendPredictionStompFrame('CONNECT', {
+        'accept-version': '1.2',
+        'host': 'sectop.resultscaleai.com',
+      });
+
+      // Wait briefly for CONNECT acknowledgment, then subscribe
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Subscribe to hotspot predictions topic
+      _sendPredictionStompFrame('SUBSCRIBE', {
+        'id': 'sub-predict-hotspots',
+        'destination': '/topic/predictions/hotspots',
+      });
+
+      // Subscribe to general prediction updates topic
+      _sendPredictionStompFrame('SUBSCRIBE', {
+        'id': 'sub-predict-updates',
+        'destination': '/topic/predictions/updates',
+      });
+
+      _isPredictionWsConnected = true;
+      debugPrint('ThreatAwarenessService: Prediction WebSocket connected');
+
+      // Listen for incoming messages
+      _predictionWsSubscription = wsChannel.stream.listen(
+        (dynamic data) {
+          _handlePredictionWsMessage(data as String);
+        },
+        onError: (dynamic error) {
+          debugPrint('ThreatAwarenessService: Prediction WS error: $error');
+          _isPredictionWsConnected = false;
+          _schedulePredictionWsReconnect();
+        },
+        onDone: () {
+          debugPrint('ThreatAwarenessService: Prediction WS closed');
+          _isPredictionWsConnected = false;
+          _schedulePredictionWsReconnect();
+        },
+      );
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Prediction WS connection failed: $e');
+      _isPredictionWsConnected = false;
+    }
+  }
+
+  /// Send a raw STOMP frame over the prediction WebSocket.
+  void _sendPredictionStompFrame(String command, Map<String, String> headers, {String? body}) {
+    if (_predictionWsChannel == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln(command);
+      for (final entry in headers.entries) {
+        buffer.writeln('${entry.key}:${entry.value}');
+      }
+      buffer.writeln();
+      if (body != null) {
+        buffer.writeln(body);
+      }
+      buffer.write('\u0000'); // STOMP null frame terminator
+      _predictionWsChannel!.sink.add(buffer.toString());
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Failed to send STOMP frame: $e');
+    }
+  }
+
+  /// Handle an incoming WebSocket message from the prediction topics.
+  void _handlePredictionWsMessage(String raw) {
+    try {
+      // Parse STOMP frame
+      if (raw.startsWith('MESSAGE')) {
+        final lines = raw.split('\n');
+        String? destination;
+        int headerEnd = 0;
+
+        for (int i = 1; i < lines.length; i++) {
+          final line = lines[i];
+          if (line.isEmpty) {
+            headerEnd = i + 1;
+            break;
+          }
+          if (line.startsWith('destination:')) {
+            destination = line.substring('destination:'.length);
+          }
+        }
+
+        if (destination == null) return;
+
+        // Extract body
+        final bodyLines = lines.sublist(headerEnd);
+        String body = bodyLines.join('\n').trim();
+        // Remove STOMP null terminator
+        body = body.replaceAll('\u0000', '').trim();
+
+        if (body.isEmpty) return;
+
+        final Map<String, dynamic> data = json.decode(body);
+
+        if (destination == '/topic/predictions/hotspots') {
+          _processHotspotPredictionMessage(data);
+        } else if (destination == '/topic/predictions/updates') {
+          _processPredictionUpdateMessage(data);
+        }
+      }
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Failed to parse prediction WS message: $e');
+    }
+  }
+
+  /// Process a hotspot prediction message received via WebSocket.
+  void _processHotspotPredictionMessage(Map<String, dynamic> data) {
+    try {
+      final hotspots = data['hotspots'] as List<dynamic>? ?? [];
+      final count = data['count'] as int? ?? hotspots.length;
+
+      _predictedHotspotCount = count;
+      debugPrint('ThreatAwarenessService: Received $count hotspot predictions via WebSocket');
+
+      // Process each hotspot into a ThreatAlert
+      for (final h in hotspots) {
+        final hotspot = h as Map<String, dynamic>;
+        final cellLat = (hotspot['cell_lat'] as num?)?.toDouble();
+        final cellLng = (hotspot['cell_lng'] as num?)?.toDouble();
+        final riskScore = (hotspot['risk_score'] as num?)?.toDouble() ?? 0.0;
+        final state = hotspot['state'] as String? ?? 'Unknown';
+        final lga = hotspot['lga'] as String? ?? 'Unknown';
+        final alertLevel = hotspot['alert_level'] as String? ?? 'Normal';
+        final trend = hotspot['trend_direction'] as String? ?? 'stable';
+        final expectedCount = (hotspot['expected_count_24h'] as num?)?.toInt() ?? 0;
+
+        // Map alert level to severity
+        final severity = _mapAlertLevelToSeverity(alertLevel);
+
+        // Only alert for High+ severity predictions
+        if (severity == 'low' || severity == 'medium') continue;
+
+        // Build a unique ID from cell coordinates
+        final hotspotId = 'pred_${cellLat?.toStringAsFixed(2)}_${cellLng?.toStringAsFixed(2)}';
+
+        // Skip if already alerted for this hotspot
+        if (_alerts.any((a) => a.sourceData?['hotspotId'] == hotspotId)) continue;
+
+        final trendIcon = trend == 'rising' ? '\u2191' : (trend == 'falling' ? '\u2193' : '\u2192');
+
+        _addAlert(ThreatAlert(
+          id: hotspotId,
+          type: 'prediction',
+          title: 'ML Prediction: $alertLevel Risk in $state',
+          description: 'AI model predicts $alertLevel terrorist activity risk near $lga, $state '
+              '(score: ${(riskScore * 100).toStringAsFixed(0)}%) '
+              'with $expectedCount expected incidents in 24h $trendIcon',
+          latitude: cellLat,
+          longitude: cellLng,
+          severity: severity,
+          confidence: riskScore,
+          timestamp: DateTime.now(),
+          sourceData: {
+            'hotspotId': hotspotId,
+            'state': state,
+            'lga': lga,
+            'riskScore': riskScore,
+            'alertLevel': alertLevel,
+            'trendDirection': trend,
+            'expectedCount24h': expectedCount,
+            'source': 'websocket',
+          },
+        ));
+      }
+
+      // Recalculate threat level with new prediction data
+      notifyListeners();
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Failed to process hotspot prediction: $e');
+    }
+  }
+
+  /// Process a general prediction update notification.
+  void _processPredictionUpdateMessage(Map<String, dynamic> data) {
+    final type = data['type'] as String?;
+    debugPrint('ThreatAwarenessService: Prediction update received: $type');
+
+    if (type == 'HOTSPOT_UPDATE') {
+      // A hotspot update occurred — trigger a poll to get fresh data
+      _pollHotspotPredictions();
+    } else if (type == 'TRAINING_COMPLETE') {
+      // Model was retrained — evict local prediction state
+      debugPrint('ThreatAwarenessService: ML model retrained, refreshing predictions');
+      _pollHotspotPredictions();
+    }
+  }
+
+  /// Schedule WebSocket reconnection with delay.
+  void _schedulePredictionWsReconnect() {
+    _predictionWsReconnectTimer?.cancel();
+    _predictionWsReconnectTimer = Timer(const Duration(seconds: 10), () {
+      debugPrint('ThreatAwarenessService: Attempting prediction WS reconnect...');
+      _connectPredictionWebSocket();
+    });
+  }
+
+  /// Disconnect prediction WebSocket.
+  void _disconnectPredictionWebSocket() {
+    _predictionWsReconnectTimer?.cancel();
+    _predictionWsReconnectTimer = null;
+    _predictionWsSubscription?.cancel();
+    _predictionWsSubscription = null;
+    try {
+      if (_predictionWsChannel != null) {
+        _sendPredictionStompFrame('DISCONNECT', {});
+        _predictionWsChannel!.sink.close();
+      }
+    } catch (_) {}
+    _predictionWsChannel = null;
+    _isPredictionWsConnected = false;
+  }
+
+  /// Start periodic polling of ML hotspot predictions as fallback
+  /// when WebSocket is unavailable.
+  void _startPredictionPolling() {
+    _predictionPollTimer?.cancel();
+    // Poll predictions every 5 minutes (300 seconds)
+    _predictionPollTimer = Timer.periodic(
+      const Duration(seconds: 300),
+      (_) => _pollHotspotPredictions(),
+    );
+    // Do an initial poll immediately
+    _pollHotspotPredictions();
+  }
+
+  /// Poll ML hotspot predictions from the backend API.
+  /// Uses the user's current location to get relevant predictions.
+  Future<void> _pollHotspotPredictions() async {
+    try {
+      final mapService = MapService();
+      final position = mapService.currentPosition;
+      if (position == null) {
+        debugPrint('ThreatAwarenessService: No position for prediction poll');
+        return;
+      }
+
+      final result = await _api.detectHotspots(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        radiusKm: 100.0,
+      );
+
+      final hotspots = result['hotspots'] as List<dynamic>? ?? [];
+      _predictedHotspotCount = hotspots.length;
+
+      // Process each hotspot into a ThreatAlert
+      for (final h in hotspots) {
+        final hotspot = h as Map<String, dynamic>;
+        final cellLat = (hotspot['cell_lat'] as num?)?.toDouble();
+        final cellLng = (hotspot['cell_lng'] as num?)?.toDouble();
+        final riskScore = (hotspot['risk_score'] as num?)?.toDouble() ?? 0.0;
+        final state = hotspot['state'] as String? ?? 'Unknown';
+        final lga = hotspot['lga'] as String? ?? 'Unknown';
+        final alertLevel = hotspot['alert_level'] as String? ?? 'Normal';
+        final trend = hotspot['trend_direction'] as String? ?? 'stable';
+        final expectedCount = (hotspot['expected_count_24h'] as num?)?.toInt() ?? 0;
+
+        final severity = _mapAlertLevelToSeverity(alertLevel);
+        if (severity == 'low' || severity == 'medium') continue;
+
+        final hotspotId = 'pred_${cellLat?.toStringAsFixed(2)}_${cellLng?.toStringAsFixed(2)}';
+        if (_alerts.any((a) => a.sourceData?['hotspotId'] == hotspotId)) continue;
+
+        final trendIcon = trend == 'rising' ? '\u2191' : (trend == 'falling' ? '\u2193' : '\u2192');
+
+        _addAlert(ThreatAlert(
+          id: hotspotId,
+          type: 'prediction',
+          title: 'ML Prediction: $alertLevel Risk in $state',
+          description: 'AI model predicts $alertLevel terrorist activity risk near $lga, $state '
+              '(score: ${(riskScore * 100).toStringAsFixed(0)}%) '
+              'with $expectedCount expected incidents in 24h $trendIcon',
+          latitude: cellLat,
+          longitude: cellLng,
+          severity: severity,
+          confidence: riskScore,
+          timestamp: DateTime.now(),
+          sourceData: {
+            'hotspotId': hotspotId,
+            'state': state,
+            'lga': lga,
+            'riskScore': riskScore,
+            'alertLevel': alertLevel,
+            'trendDirection': trend,
+            'expectedCount24h': expectedCount,
+            'source': 'polling',
+          },
+        ));
+      }
+
+      // Recalculate threat level
+      _calculateThreatLevel(
+        [],
+        [],
+        [],
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint('ThreatAwarenessService: Hotspot prediction poll failed: $e');
+    }
+  }
+
+  /// Map ML alert level to ThreatAlert severity string.
+  String _mapAlertLevelToSeverity(String alertLevel) {
+    switch (alertLevel.toLowerCase()) {
+      case 'critical':
+        return 'critical';
+      case 'severe':
+        return 'critical';
+      case 'high':
+        return 'high';
+      case 'elevated':
+        return 'medium';
+      case 'normal':
+        return 'low';
+      default:
+        return 'medium';
+    }
+  }
