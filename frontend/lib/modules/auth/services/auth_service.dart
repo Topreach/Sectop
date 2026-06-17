@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -277,11 +278,11 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     // Attempt server sync in background
-    unawaited(_syncProfileToServer(updatedProfile));
+    unawaited(_syncProfileToServer(updatedProfile, map));
   }
 
   /// Sync profile update to server. Queues for retry if offline.
-  Future<void> _syncProfileToServer(UserProfile updatedProfile) async {
+  Future<void> _syncProfileToServer(UserProfile updatedProfile, Map<String, dynamic> map) async {
     try {
       final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
       if (token == null || token.isEmpty) return; // Offline/emergency user
