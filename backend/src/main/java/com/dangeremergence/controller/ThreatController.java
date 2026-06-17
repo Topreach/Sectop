@@ -372,8 +372,8 @@ public class ThreatController {
             alert.put("id", "alert_" + sosAlert.getId());
             alert.put("type", "sos_alert");
             alert.put("title", "SOS Alert in Your Area");
-            alert.put("description", sosAlert.getMessage() != null
-                    ? sosAlert.getMessage()
+            alert.put("description", sosAlert.getDescription() != null
+                    ? sosAlert.getDescription()
                     : "An emergency alert has been issued nearby");
             alert.put("latitude", sosAlert.getLatitude());
             alert.put("longitude", sosAlert.getLongitude());
@@ -384,7 +384,7 @@ public class ThreatController {
                     : LocalDateTime.now().toString());
             alert.put("sourceData", Map.of(
                 "alertId", sosAlert.getId(),
-                "alertType", sosAlert.getType() != null ? sosAlert.getType() : "sos"
+                "alertType", sosAlert.getAlertType() != null ? sosAlert.getAlertType() : "sos"
             ));
             alerts.add(alert);
         }
