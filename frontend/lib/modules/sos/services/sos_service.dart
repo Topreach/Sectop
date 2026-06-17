@@ -226,6 +226,7 @@ class SOSService extends ChangeNotifier {
     double? longitude,
     int priority = AppConstants.priorityCritical,
     bool isSilent = false,
+    bool isCovert = false,
   }) async {
     _isSending = true;
     if (!isSilent) notifyListeners();
@@ -249,6 +250,7 @@ class SOSService extends ChangeNotifier {
         status: AlertStatus.active,
         createdAt: DateTime.now().millisecondsSinceEpoch,
         isSilent: isSilent,
+        isCovert: isCovert,
       );
 
       _currentAlert = alert;
@@ -313,6 +315,7 @@ class SOSService extends ChangeNotifier {
         'accuracy': alert.accuracy,
         'priority': alert.priority,
         'is_silent': alert.isSilent,
+        'is_covert': alert.isCovert,
       };
       final body = json.encode(alertData);
       _sendStompFrame('SEND', {
@@ -569,6 +572,7 @@ class SOSAlert {
   final int createdAt;
   final int? resolvedAt;
   final bool isSilent;
+  final bool isCovert;
 
   SOSAlert({
     required this.id,
@@ -584,6 +588,7 @@ class SOSAlert {
     required this.createdAt,
     this.resolvedAt,
     this.isSilent = false,
+    this.isCovert = false,
   });
 
   factory SOSAlert.fromMap(Map<String, dynamic> map) {
@@ -604,6 +609,7 @@ class SOSAlert {
       createdAt: map['created_at'] as int,
       resolvedAt: map['resolved_at'] as int?,
       isSilent: map['is_silent'] == 1 || map['is_silent'] == true,
+      isCovert: map['is_covert'] == 1 || map['is_covert'] == true,
     );
   }
 
@@ -621,6 +627,7 @@ class SOSAlert {
     'created_at': createdAt,
     'resolved_at': resolvedAt,
     'is_silent': isSilent ? 1 : 0,
+    'is_covert': isCovert ? 1 : 0,
   };
 
   SOSAlert copyWith({
@@ -637,6 +644,7 @@ class SOSAlert {
     int? createdAt,
     int? resolvedAt,
     bool? isSilent,
+    bool? isCovert,
   }) {
     return SOSAlert(
       id: id ?? this.id,
@@ -652,6 +660,7 @@ class SOSAlert {
       createdAt: createdAt ?? this.createdAt,
       resolvedAt: resolvedAt ?? this.resolvedAt,
       isSilent: isSilent ?? this.isSilent,
+      isCovert: isCovert ?? this.isCovert,
     );
   }
 }

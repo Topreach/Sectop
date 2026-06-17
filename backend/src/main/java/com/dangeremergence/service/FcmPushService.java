@@ -152,6 +152,86 @@ public class FcmPushService {
     }
 
     /**
+     * Send a discreet push notification for a covert SOS alert to a trusted recipient.
+     *
+     * Unlike standard SOS notifications, covert notifications:
+     * - Use a neutral title (no "🚨 SOS" emoji)
+     * - Have no sound/vibration
+     * - Use a low-priority channel
+     * - Only include essential data payload (no public broadcast indicators)
+     *
+     * This is used by CovertAlertService to notify emergency contacts and
+     * verified responders without alerting the kidnapper who may also have the app.
+     */
+    @Async
+    public void sendCovertNotification(User recipient, SOSAlert alert) {
+        if (fcmServerKey == null || fcmServerKey.isEmpty()) {
+            log.debug("FCM not configured - skipping covert notification");
+            return;
+        }
+
+        try {
+            String fcmToken = recipient.getFcmToken();
+            if (fcmToken == null || fcmToken.isEmpty()) {
+                log.debug("No FCM token for user {} - skipping covert notification", recipient.getId());
+                return;
+            }
+
+            String json = String.format("""
+                {
+                  "to": "%s",
+                  "priority": "normal",
+                  "notification": {
+                    "title": "Alert from Emergency Contact",
+                    "body": "A contact needs your assistance. Open the app for details.",
+                    "sound": "default",
+                    "priority": "low",
+                    "channelId": "covert_alerts"
+                  },
+                  "data": {
+                    "type": "covert_sos",
+                    "alertId": "%s",
+                    "alertType": "%s",
+                    "latitude": "%s",
+                    "longitude": "%s",
+                    "priority": "%d",
+                    "timestamp": "%d",
+                    "covert": "true"
+                  }
+                }
+                """,
+                escapeJson(fcmToken),
+                escapeJson(alert.getId()),
+                escapeJson(alert.getAlertType()),
+                alert.getLatitude(),
+                alert.getLongitude(),
+                alert.getPriority(),
+                System.currentTimeMillis()
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(fcmApiUrl))
+                    .header("Authorization", "key=" + fcmServerKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> {
+                        if (response.statusCode() == 200) {
+                            log.debug("Covert FCM notification sent to user {}", recipient.getId());
+                        } else {
+                            log.warn("Covert FCM push returned status: {} for user {}",
+                                    response.statusCode(), recipient.getId());
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("Covert FCM send failed for user {}: {}", recipient.getId(), e.getMessage());
+        }
+    }
+
+    /**
      * Send push notification for a new danger zone to nearby users.
      */
     @Async

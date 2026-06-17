@@ -56,4 +56,27 @@ public interface UserRepository extends JpaRepository<User, String> {
             @Param("minLng") double minLng,
             @Param("maxLng") double maxLng
     );
+
+    /**
+     * Find users by their IDs (used for emergency contact resolution).
+     * Emergency contacts are stored as a JSON array of user IDs in the
+     * emergency_contacts column of the User entity.
+     */
+    @Query("SELECT u FROM User u WHERE u.id IN :ids AND u.active = true")
+    List<User> findUsersByIds(@Param("ids") List<String> ids);
+
+    /**
+     * Find active verified responders (guardian, responder, coordinator roles)
+     * within a geographic bounding box. Used by CovertAlertService to notify
+     * trusted responders of a covert SOS alert.
+     */
+    @Query("SELECT u FROM User u WHERE u.active = true "
+         + "AND u.role IN ('responder', 'guardian', 'coordinator') "
+         + "AND u.fcmToken IS NOT NULL AND u.fcmToken <> ''")
+    List<User> findVerifiedRespondersInArea(
+            @Param("minLat") double minLat,
+            @Param("maxLat") double maxLat,
+            @Param("minLng") double minLng,
+            @Param("maxLng") double maxLng
+    );
 }

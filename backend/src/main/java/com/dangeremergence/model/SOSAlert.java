@@ -52,6 +52,9 @@ public class SOSAlert {
     @Column(name = "is_silent")
     private boolean silent;
 
+    @Column(name = "is_covert")
+    private boolean covert;
+
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private AlertStatus status;

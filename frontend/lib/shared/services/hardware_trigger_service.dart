@@ -3,11 +3,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../modules/sos/services/sos_service.dart';
+import 'covert_mode_manager.dart';
 
 /// Service to handle hardware-based SOS triggers (Stealth Mode).
 ///
 /// In a kidnapping scenario, the user might not be able to look at the screen.
 /// This service listens for specific hardware events to trigger a silent SOS.
+///
+/// Supports two modes:
+/// - **Stealth Mode**: SOS is silent (no UI shown) but still broadcast publicly.
+/// - **Covert Mode**: SOS is sent ONLY to emergency contacts and verified
+///   responders via backend recipient filtering. No public broadcast.
+///   Covert mode implies stealth (silent) behavior.
 class HardwareTriggerService {
   static final HardwareTriggerService _instance = HardwareTriggerService._internal();
   factory HardwareTriggerService() => _instance;
@@ -61,19 +68,29 @@ class HardwareTriggerService {
 
   /// Triggered when the "Panic" hardware sequence is detected.
   /// (e.g., Volume Up + Volume Down pressed together, or 5 quick presses)
+  ///
+  /// If Covert Mode is active, the SOS is sent as a covert alert (recipient
+  /// filtering on the backend — no public broadcast). Covert mode implies
+  /// silent behavior regardless of the stealth mode setting.
   Future<void> triggerPanicSOS() async {
     debugPrint('HardwareTriggerService: Panic sequence detected!');
 
     // Provide haptic feedback so the user knows the trigger worked without looking.
     await HapticFeedback.vibrate();
 
+    // Check if Covert Mode is active — if so, send as covert (implies silent)
+    final covertMode = CovertModeManager();
+    final isCovert = covertMode.isCovertModeEnabled;
+
     // Trigger SOS via the SOSService.
     // If stealth mode is ON, the SOSService should handle it silently.
+    // If covert mode is ON, the alert is only sent to trusted recipients.
     final sosService = SOSService();
     await sosService.sendSOS(
       alertType: 'silent_panic',
       description: 'Triggered via hardware buttons',
-      isSilent: _isStealthModeEnabled,
+      isSilent: _isStealthModeEnabled || isCovert,
+      isCovert: isCovert,
     );
   }
 

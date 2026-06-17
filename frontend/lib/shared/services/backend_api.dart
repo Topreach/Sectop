@@ -841,6 +841,51 @@ class BackendApi {
   Future<void> deleteEvidenceForParent(String parentId) async {
     await delete('/evidence/parent/$parentId');
   }
+  // ---------------------------------------------------------------------------
+  // Threat Awareness (consolidated threat endpoints)
+  // ---------------------------------------------------------------------------
+
+  /// Analyze text for threat keywords via backend.
+  /// Replaces frontend _localKeywordAnalysis().
+  Future<Map<String, dynamic>> analyzeThreatText(String text) async {
+    return post('/threat/analyze-text', body: {'text': text});
+  }
+
+  /// Get computed threat level for a location.
+  /// Replaces frontend _calculateThreatLevel().
+  Future<Map<String, dynamic>> getThreatLevel({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 20,
+  }) async {
+    return get('/threat/level?latitude=$latitude&longitude=$longitude&radiusKm=$radiusKm');
+  }
+
+  /// Get pre-formatted threat alerts for a location.
+  /// Replaces frontend _processIncidents/Zones/Alerts().
+  Future<Map<String, dynamic>> getThreatAlerts({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 20,
+  }) async {
+    return get('/threat/alerts?latitude=$latitude&longitude=$longitude&radiusKm=$radiusKm');
+  }
+
+  /// Submit ambient audio analysis result to create server-side alert.
+  /// Replaces frontend _handleThreatDetection() alert creation.
+  Future<Map<String, dynamic>> submitAudioResult({
+    required bool hasDistress,
+    required String threatLevel,
+    required double confidence,
+    String method = 'ambient_audio_monitor',
+  }) async {
+    return post('/threat/audio-result', body: {
+      'hasDistress': hasDistress,
+      'threatLevel': threatLevel,
+      'confidence': confidence,
+      'method': method,
+    });
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.

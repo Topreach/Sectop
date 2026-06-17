@@ -124,8 +124,10 @@ class MainActivity : FlutterActivity() {
         when (call.method) {
             "startTracking" -> {
                 val sosMode = call.argument<Boolean>("sosMode") ?: false
+                val covertMode = call.argument<Boolean>("covertMode") ?: false
                 val intent = Intent(this, LocationService::class.java).apply {
                     putExtra("sos_mode", sosMode)
+                    putExtra("covert_mode", covertMode)
                     action = "START_TRACKING"
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

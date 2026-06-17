@@ -53,11 +53,14 @@ class LocationService : Service() {
         // Extras
         const val EXTRA_UPDATE_INTERVAL = "update_interval_ms"
         const val EXTRA_IS_SOS_MODE = "is_sos_mode"
+        const val EXTRA_IS_COVERT_MODE = "is_covert_mode"
 
         // Current state
         var isRunning = false
             private set
         var isSosMode = false
+            private set
+        var isCovertMode = false
             private set
         var currentLocation: Location? = null
             private set
@@ -106,7 +109,8 @@ class LocationService : Service() {
         when (intent?.action) {
             ACTION_START_SOS_TRACKING -> {
                 val isSos = intent.getBooleanExtra(EXTRA_IS_SOS_MODE, false)
-                startTracking(isSos)
+                val isCovert = intent.getBooleanExtra(EXTRA_IS_COVERT_MODE, false)
+                startTracking(isSos, isCovert)
             }
             ACTION_STOP_SOS_TRACKING -> {
                 stopTracking()
@@ -138,11 +142,12 @@ class LocationService : Service() {
     /**
      * Start location tracking in foreground.
      */
-    private fun startTracking(sosMode: Boolean) {
+    private fun startTracking(sosMode: Boolean, covertMode: Boolean = false) {
         if (isRunning) return
 
         isRunning = true
         isSosMode = sosMode
+        isCovertMode = covertMode
         currentIntervalMs = if (sosMode) SOS_UPDATE_INTERVAL_MS else UPDATE_INTERVAL_MS
 
         // Acquire wake lock for consistent location updates
@@ -153,7 +158,7 @@ class LocationService : Service() {
         wakeLock?.acquire(10 * 60 * 1000L) // 10 minute timeout
 
         // Build foreground notification
-        val notification = buildNotification(sosMode)
+        val notification = buildNotification(sosMode, covertMode)
         startForeground(NOTIFICATION_ID, notification)
 
         // Register location listeners
@@ -170,6 +175,7 @@ class LocationService : Service() {
 
         isRunning = false
         isSosMode = false
+        isCovertMode = false
 
         // Remove location listeners
         try {
@@ -352,12 +358,16 @@ class LocationService : Service() {
         }
     }
 
-    private fun buildNotification(sosMode: Boolean): Notification {
-        val title = if (sosMode) "🚨 SOS Active — Tracking Location" else "📍 Location Tracking"
-        val description = if (sosMode) {
-            "Emergency services can see your location. Updates every second."
-        } else {
-            "Background location tracking for mesh network and zone alerts."
+    private fun buildNotification(sosMode: Boolean, covertMode: Boolean = false): Notification {
+        val title = when {
+            covertMode -> "📍 Location Service Active"
+            sosMode -> "🚨 SOS Active — Tracking Location"
+            else -> "📍 Location Tracking"
+        }
+        val description = when {
+            covertMode -> "Background location tracking active."
+            sosMode -> "Emergency services can see your location. Updates every second."
+            else -> "Background location tracking for mesh network and zone alerts."
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)

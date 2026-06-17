@@ -56,7 +56,26 @@ class PrivacyPolicyScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           _section(
-            '4. Data Retention',
+            '4. Covert SOS Mode',
+            'Covert SOS Mode is a privacy feature that allows you to send emergency alerts '
+            'discreetly. When enabled:\n\n'
+            '• SOS alerts are sent ONLY to your designated emergency contacts and verified '
+            'responders — they are NOT broadcast publicly to nearby users.\n'
+            '• The location tracking notification uses a discreet title ("Location Service '
+            'Active") instead of "SOS Active — Tracking Location".\n'
+            '• Notification sounds and vibrations are suppressed on your device.\n'
+            '• A configurable "safe word" can be typed anywhere in the app to immediately '
+            'lock the screen.\n\n'
+            'This feature requires your explicit consent before activation. You can enable '
+            'or disable it at any time in Settings. Covert SOS Mode is designed for '
+            'situations where you need to alert your trusted contacts without drawing '
+            'attention. It is NOT a hidden or disguised feature — it is clearly documented '
+            'in this policy and requires your informed consent.',
+          ),
+          const SizedBox(height: 16),
+
+          _section(
+            '5. Data Retention',
             '• Account Data: Retained until you request account deletion.\n'
             '• Location Data: Real-time location is not stored permanently. Aggregated location patterns may be retained for danger zone analysis.\n'
             '• Incident Reports: Retained for safety analysis and legal compliance.\n'
@@ -65,7 +84,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           _section(
-            '5. Your Rights',
+            '6. Your Rights',
             'You have the right to:\n\n'
             '• Access your personal data.\n'
             '• Request correction of inaccurate data.\n'
@@ -77,7 +96,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           _section(
-            '6. Data Security',
+            '7. Data Security',
             'We implement industry-standard security measures:\n\n'
             '• End-to-end encryption for mesh network communications.\n'
             '• TLS 1.2+ for all server communications.\n'
@@ -88,19 +107,19 @@ class PrivacyPolicyScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           _section(
-            '7. Children\'s Privacy',
+            '8. Children\'s Privacy',
             'Our service is not intended for children under 13. We do not knowingly collect data from children under 13. If you believe a child has provided us with personal data, please contact us immediately.',
           ),
           const SizedBox(height: 16),
 
           _section(
-            '8. Changes to This Policy',
+            '9. Changes to This Policy',
             'We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last updated" date.',
           ),
           const SizedBox(height: 16),
 
           _section(
-            '9. Contact Us',
+            '10. Contact Us',
             'If you have questions about this Privacy Policy, please contact us:\n\n'
             '• Email: ${AppConstants.supportEmail}\n'
             '• App: Use the "Contact Support" option in Help & Support',

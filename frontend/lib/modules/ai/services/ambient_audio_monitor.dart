@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import '../../../shared/services/backend_api.dart';
 import 'distress_detector.dart';
 import 'threat_awareness_service.dart';
 
@@ -21,6 +22,10 @@ import 'threat_awareness_service.dart';
 /// - Automatic threat alert generation on detection
 /// - Battery-aware: skips recording when battery is low
 /// - Graceful degradation when audio permission is denied
+///
+/// All business logic (alert creation, severity mapping, persistence) has
+/// been moved to the backend. This class only handles audio capture
+/// (hardware concern) and delegates analysis + alert creation to the API.
 class AmbientAudioMonitor extends ChangeNotifier {
   static final AmbientAudioMonitor _instance =
       AmbientAudioMonitor._internal();
@@ -29,6 +34,7 @@ class AmbientAudioMonitor extends ChangeNotifier {
 
   final AudioRecorder _recorder = AudioRecorder();
   final DistressDetector _detector = DistressDetector();
+  final BackendApi _api = BackendApi();
 
   // ---------------------------------------------------------------------------
   // State
@@ -205,44 +211,49 @@ class AmbientAudioMonitor extends ChangeNotifier {
   }
 
   /// Handle a threat detected in ambient audio.
-  void _handleThreatDetection(AudioAnalysisResult result) {
+  ///
+  /// Delegates alert creation to the backend via [BackendApi.submitAudioResult].
+  /// The backend returns a pre-formatted alert that is then added to the
+  /// [ThreatAwarenessService] for local notification display.
+  Future<void> _handleThreatDetection(AudioAnalysisResult result) async {
     try {
-      final threatService = ThreatAwarenessService();
-
-      // Build description from analysis results
-      final description = result.hasDistress
-          ? 'Distress audio detected (${result.threatLevel} threat level)'
-          : 'Suspicious audio detected in your environment';
-
-      final severity = result.threatLevel == 'critical'
-          ? 'critical'
-          : result.threatLevel == 'high'
-              ? 'high'
-              : 'medium';
-
-      final alert = ThreatAlert(
-        id: 'ambient_${DateTime.now().millisecondsSinceEpoch}',
-        type: 'ambient_audio',
-        title: '⚠️ Suspicious Audio Detected',
-        description: description,
-        severity: severity,
+      final response = await _api.submitAudioResult(
+        hasDistress: result.hasDistress,
+        threatLevel: result.threatLevel,
         confidence: result.confidence,
-        timestamp: DateTime.now(),
-        sourceData: {
-          'hasDistress': result.hasDistress.toString(),
-          'threatLevel': result.threatLevel,
-          'confidence': result.confidence.toString(),
-          'method': 'ambient_audio_monitor',
-        },
+        method: 'ambient_audio_monitor',
       );
 
-      // Actually add the alert to the threat awareness service
-      threatService.addAlert(alert);
+      if (response['created'] == true && response['alert'] != null) {
+        final alertJson = response['alert'] as Map<String, dynamic>;
+        final alert = ThreatAlert(
+          id: alertJson['id'] as String? ??
+              'ambient_${DateTime.now().millisecondsSinceEpoch}',
+          type: alertJson['type'] as String? ?? 'ambient_audio',
+          title: alertJson['title'] as String? ?? '⚠️ Suspicious Audio Detected',
+          description: alertJson['description'] as String? ?? '',
+          severity: alertJson['severity'] as String? ?? 'medium',
+          confidence: (alertJson['confidence'] as num?)?.toDouble() ??
+              result.confidence,
+          timestamp: DateTime.now(),
+          sourceData: alertJson['sourceData'] as Map<String, dynamic>? ?? {
+            'hasDistress': result.hasDistress.toString(),
+            'threatLevel': result.threatLevel,
+            'confidence': result.confidence.toString(),
+            'method': 'ambient_audio_monitor',
+          },
+        );
 
-      debugPrint('AmbientAudioMonitor: Threat detected - '
-          'hasDistress=${result.hasDistress}, '
-          'threatLevel=${result.threatLevel}, '
-          'confidence=${result.confidence})');
+        final threatService = ThreatAwarenessService();
+        threatService.addAlert(alert);
+
+        debugPrint('AmbientAudioMonitor: Threat alert created via backend - '
+            'id=${alert.id}, severity=${alert.severity}, '
+            'confidence=${alert.confidence}');
+      } else {
+        debugPrint('AmbientAudioMonitor: No distress detected — '
+            'no alert created (${response['message']})');
+      }
     } catch (e) {
       debugPrint('AmbientAudioMonitor: Failed to handle threat detection: $e');
     }

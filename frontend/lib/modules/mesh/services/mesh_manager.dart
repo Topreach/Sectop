@@ -5,24 +5,22 @@ import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/constants.dart';
-import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/backend_api.dart';
 
 /// Thin mesh manager — keeps local Bluetooth peer discovery for last-hop
 /// device-to-device communication. All routing computation (B.A.T.M.A.N.,
-/// AODV) and multi-hop relay logic have been moved to the backend.
+/// AODV), multi-hop relay logic, and peer caching have been moved to the
+/// backend. Peers are fetched from the backend API on initialization.
 class MeshManager extends ChangeNotifier {
   static final MeshManager _instance = MeshManager._internal();
   factory MeshManager() => _instance;
   MeshManager._internal();
 
-  final OfflineStorageService _storage = OfflineStorageService();
   final BackendApi _api = BackendApi();
   final Uuid _uuid = const Uuid();
 
   String _deviceId = '';
   List<MeshPeer> _knownPeers = [];
-  List<MeshPeer> _discoveredPeers = [];
   List<MeshMessage> _messages = [];
   bool _isInitialized = false;
   bool _isScanning = false;
@@ -36,7 +34,7 @@ class MeshManager extends ChangeNotifier {
   List<MeshPeer> get knownPeers => _knownPeers;
 
   /// Discovered peers (alias for knownPeers for UI compatibility).
-  List<MeshPeer> get discoveredPeers => _discoveredPeers;
+  List<MeshPeer> get discoveredPeers => _knownPeers;
 
   /// Mesh messages received.
   List<MeshMessage> get messages => _messages;
@@ -87,19 +85,13 @@ class MeshManager extends ChangeNotifier {
   }
 
   /// Initialize the mesh manager.
+  ///
+  /// Generates a local device ID and starts periodic stats reporting.
+  /// Peer data is fetched from the backend API rather than local SQLite cache.
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     _deviceId = 'device_${_uuid.v4().substring(0, 8)}';
-
-    // Load cached peers from local storage
-    try {
-      final cachedPeers = await _storage.query('mesh_peers',
-          orderBy: 'last_seen DESC');
-      _knownPeers = cachedPeers.map((p) => MeshPeer.fromMap(p)).toList();
-    } catch (e) {
-      debugPrint('MeshManager: Failed to load cached peers: $e');
-    }
 
     _isInitialized = true;
     debugPrint('MeshManager: Initialized (deviceId=$_deviceId, thin client mode)');

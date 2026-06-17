@@ -1,5 +1,5 @@
 name: danger_emergence_system
-description: An offline-first emergency communication and response application.
+description: An offline-first emergency communication and response application with Covert SOS Mode for discreet emergency alerts to trusted contacts only.
 publish_to: 'none'
 version: 1.0.0+1
 

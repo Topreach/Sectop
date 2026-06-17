@@ -29,11 +29,12 @@ public class SOSAlertService {
     private final FcmPushService fcmPushService;
     private final SmsGatewayService smsGatewayService;
     private final NigeriaLocationService nigeriaLocationService;
+    private final CovertAlertService covertAlertService;
 
     @Transactional
     public SOSAlert createAlert(String userId, String alertType, String description,
                                  Double latitude, Double longitude, Double accuracy,
-                                 int priority, boolean isSilent) {
+                                 int priority, boolean isSilent, boolean isCovert) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
@@ -54,6 +55,7 @@ public class SOSAlertService {
                 .lga(lga)
                 .priority(priority)
                 .silent(isSilent)
+                .covert(isCovert)
                 .status(SOSAlert.AlertStatus.active)
                 .meshRelayed(false)
                 .createdAt(LocalDateTime.now())
@@ -61,66 +63,73 @@ public class SOSAlertService {
                 .build();
 
         SOSAlert saved = alertRepository.save(alert);
-        log.info("SOS alert created: {} in {}, {} (silent={})", saved.getId(), lga, state, isSilent);
+        log.info("SOS alert created: {} in {}, {} (silent={}, covert={})", saved.getId(), lga, state, isSilent, isCovert);
 
         // Trigger async processing
         processNewAlert(saved);
+return saved;
+}
 
-        return saved;
+@Async
+protected void processNewAlert(SOSAlert alert) {
+    // COVERT MODE: If the alert is covert, skip all public broadcasts
+    // and only notify trusted recipients via CovertAlertService.
+    if (alert.isCovert()) {
+        log.info("Covert alert {} — skipping public broadcast, routing to trusted recipients only", alert.getId());
+        covertAlertService.processCovertAlert(alert);
+        return;
     }
 
-    @Async
-    protected void processNewAlert(SOSAlert alert) {
-        // 1. Notify nearby responders via MQTT (fastest) - Localized Topic
-        String stateSlug = alert.getState().toLowerCase().replace(" ", "_");
-        String lgaSlug = alert.getLga().toLowerCase().replace(" ", "_");
-        
-        String geoTopic = String.format("alerts/%s/%s", stateSlug, lgaSlug);
-        mqttService.publish(geoTopic, alert);
+    // 1. Notify nearby responders via MQTT (fastest) - Localized Topic
+    String stateSlug = alert.getState().toLowerCase().replace(" ", "_");
+    String lgaSlug = alert.getLga().toLowerCase().replace(" ", "_");
+    
+    String geoTopic = String.format("alerts/%s/%s", stateSlug, lgaSlug);
+    mqttService.publish(geoTopic, alert);
 
-        // Notify Community Guardians
-        String guardianTopic = String.format("guardians/%s/%s", stateSlug, lgaSlug);
-        mqttService.publish(guardianTopic, alert);
-        
-        mqttService.publishAlert(alert);
-        
-        // 2. Trigger Drone Relay if in high-risk area
-        droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(),
-            alert.getLatitude(), alert.getLongitude(), alert.getPriority());
+    // Notify Community Guardians
+    String guardianTopic = String.format("guardians/%s/%s", stateSlug, lgaSlug);
+    mqttService.publish(guardianTopic, alert);
+    
+    mqttService.publishAlert(alert);
+    
+    // 2. Trigger Drone Relay if in high-risk area
+    droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(),
+        alert.getLatitude(), alert.getLongitude(), alert.getPriority());
 
-        // 3. Push via WebSocket/STOMP for real-time delivery to connected clients
-        try {
-            // Push to global alert topic (all connected clients)
-            messagingTemplate.convertAndSend("/topic/alerts/new", alert);
+    // 3. Push via WebSocket/STOMP for real-time delivery to connected clients
+    try {
+        // Push to global alert topic (all connected clients)
+        messagingTemplate.convertAndSend("/topic/alerts/new", alert);
 
-            // Push to geo-specific topic for state/LGA filtering
-            String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
-            messagingTemplate.convertAndSend(geoDest, alert);
+        // Push to geo-specific topic for state/LGA filtering
+        String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
+        messagingTemplate.convertAndSend(geoDest, alert);
 
-            // Push to user-specific queue for the alert creator
-            String userId = alert.getUser().getId();
-            messagingTemplate.convertAndSendToUser(userId, "/queue/alerts", alert);
+        // Push to user-specific queue for the alert creator
+        String userId = alert.getUser().getId();
+        messagingTemplate.convertAndSendToUser(userId, "/queue/alerts", alert);
 
-            log.info("WebSocket push sent for alert: {} to user: {}", alert.getId(), userId);
-        } catch (Exception e) {
-            log.warn("WebSocket push failed for alert {}: {}", alert.getId(), e.getMessage());
-        }
-
-        // 4. Publish to Redis pub/sub for cross-server broadcast (all instances)
-        alertPubSubService.publishAlert(alert);
-        alertPubSubService.publishGeoAlert(alert, stateSlug, lgaSlug);
-
-        // 5. Send FCM push notifications to nearby users (offline delivery)
-        fcmPushService.notifyAlertToNearbyUsers(alert, 10.0);
-
-        // 6. Send SMS to the alert creator's phone as last-resort confirmation
-        User alertUser = alert.getUser();
-        if (alertUser.getPhone() != null && !alertUser.getPhone().isEmpty()) {
-            smsGatewayService.sendAlertSms(alert, alertUser.getPhone());
-        }
-
-        log.info("Processed new alert: {} for LGA: {}", alert.getId(), alert.getLga());
+        log.info("WebSocket push sent for alert: {} to user: {}", alert.getId(), userId);
+    } catch (Exception e) {
+        log.warn("WebSocket push failed for alert {}: {}", alert.getId(), e.getMessage());
     }
+
+    // 4. Publish to Redis pub/sub for cross-server broadcast (all instances)
+    alertPubSubService.publishAlert(alert);
+    alertPubSubService.publishGeoAlert(alert, stateSlug, lgaSlug);
+
+    // 5. Send FCM push notifications to nearby users (offline delivery)
+    fcmPushService.notifyAlertToNearbyUsers(alert, 10.0);
+
+    // 6. Send SMS to the alert creator's phone as last-resort confirmation
+    User alertUser = alert.getUser();
+    if (alertUser.getPhone() != null && !alertUser.getPhone().isEmpty()) {
+        smsGatewayService.sendAlertSms(alert, alertUser.getPhone());
+    }
+
+    log.info("Processed new alert: {} for LGA: {}", alert.getId(), alert.getLga());
+}
 
     /**
      * Push an alert to WebSocket/STOMP clients on this server instance.

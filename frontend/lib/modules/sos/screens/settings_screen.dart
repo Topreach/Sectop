@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants.dart';
 import '../../../core/routes.dart';
 import '../../../core/themes.dart';
+import '../../../shared/services/covert_mode_manager.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -20,6 +21,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoDownloadMaps = true;
   double _cacheSize = 0;
 
+  // Covert Mode state
+  bool _covertModeEnabled = false;
+  bool _covertConsentGiven = false;
+  bool _covertSuppressNotifications = true;
+  String _covertSafeWord = '';
+  final TextEditingController _safeWordController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -28,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final covertMode = CovertModeManager();
     setState(() {
       _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
       final themeIndex = prefs.getInt('theme_mode') ?? 0;
@@ -35,6 +44,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _dataSaverMode = prefs.getBool('data_saver_mode') ?? false;
       _autoDownloadMaps = prefs.getBool('auto_download_maps') ?? true;
       _cacheSize = prefs.getDouble('cache_size') ?? 0;
+
+      // Covert Mode state
+      _covertModeEnabled = covertMode.isCovertModeEnabled;
+      _covertConsentGiven = covertMode.consentGiven;
+      _covertSuppressNotifications = covertMode.suppressNotifications;
+      _covertSafeWord = covertMode.safeWord;
+      _safeWordController.text = _covertSafeWord;
     });
   }
 
@@ -107,6 +123,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Cache cleared successfully')),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Covert Mode Methods
+  // ---------------------------------------------------------------------------
+
+  /// Show the consent dialog for Covert Mode.
+  /// The user must explicitly agree before Covert Mode can be enabled.
+  Future<bool> _showCovertConsentDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Covert SOS Mode'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Covert SOS Mode is a privacy feature that changes how '
+                'emergency alerts are sent.',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'When enabled:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text('• SOS alerts are sent ONLY to your emergency contacts '
+                  'and verified responders'),
+              Text('• Alerts are NOT broadcast publicly to nearby users'),
+              Text('• Notification sounds and vibrations are suppressed '
+                  'on your device'),
+              Text('• The location tracking notification uses a discreet title'),
+              SizedBox(height: 16),
+              Text(
+                'This feature is designed for situations where you need '
+                'to discreetly alert your trusted contacts without '
+                'drawing attention.',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'You can enable or disable this feature at any time in Settings.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.primaryColor),
+            child: const Text('I Understand, Enable'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  /// Toggle Covert Mode on/off.
+  /// If consent hasn't been given yet, show the consent dialog first.
+  Future<void> _toggleCovertMode(bool enabled) async {
+    final covertMode = CovertModeManager();
+
+    if (enabled && !_covertConsentGiven) {
+      // Show consent dialog first
+      final consentGiven = await _showCovertConsentDialog();
+      if (!consentGiven) {
+        // User declined — keep Covert Mode off
+        setState(() => _covertModeEnabled = false);
+        return;
+      }
+      await covertMode.giveConsent();
+      _covertConsentGiven = true;
+    }
+
+    if (enabled) {
+      await covertMode.enable();
+    } else {
+      await covertMode.disable();
+    }
+    setState(() => _covertModeEnabled = covertMode.isCovertModeEnabled);
+  }
+
+  /// Toggle notification suppression in Covert Mode.
+  Future<void> _toggleCovertSuppressNotifications(bool value) async {
+    final covertMode = CovertModeManager();
+    await covertMode.setSuppressNotifications(value);
+    setState(() => _covertSuppressNotifications = value);
+  }
+
+  /// Save the safe word for app lock.
+  Future<void> _saveSafeWord() async {
+    final word = _safeWordController.text.trim();
+    final covertMode = CovertModeManager();
+    if (word.isEmpty) {
+      await covertMode.clearSafeWord();
+    } else {
+      await covertMode.setSafeWord(word);
+    }
+    setState(() => _covertSafeWord = covertMode.safeWord);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            word.isEmpty
+                ? 'Safe word cleared'
+                : 'Safe word set',
+          ),
+        ),
       );
     }
   }
@@ -235,6 +373,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: _saveAutoDownloadMaps,
                   activeColor: AppTheme.primaryColor,
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Covert Mode
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.incognito, color: AppTheme.primaryColor, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Covert SOS Mode',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                SwitchListTile(
+                  title: Text('Enable Covert Mode'),
+                  subtitle: Text(
+                    'SOS alerts sent only to emergency contacts and verified responders',
+                  ),
+                  value: _covertModeEnabled,
+                  onChanged: _toggleCovertMode,
+                  activeColor: AppTheme.primaryColor,
+                ),
+                if (_covertModeEnabled) ...[
+                  SwitchListTile(
+                    title: Text('Suppress Notifications'),
+                    subtitle: Text('Hide alert notifications on this device'),
+                    value: _covertSuppressNotifications,
+                    onChanged: _toggleCovertSuppressNotifications,
+                    activeColor: AppTheme.primaryColor,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Safe Word',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Type this word anywhere in the app to immediately lock the screen',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _safeWordController,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter safe word',
+                                  border: const OutlineInputBorder(),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  suffixIcon: _covertSafeWord.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () {
+                                            _safeWordController.clear();
+                                            _saveSafeWord();
+                                          },
+                                        )
+                                      : null,
+                                ),
+                                obscureText: true,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _saveSafeWord,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryColor,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: Text(
+                                _covertSafeWord.isEmpty ? 'Set' : 'Update',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
