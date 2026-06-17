@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -490,8 +491,8 @@ class ThreatAwarenessService extends ChangeNotifier {
           playSound: true,
           enableVibration: true,
           vibrationPattern: alert.severity == 'critical'
-              ? [0, 500, 200, 500, 200, 500]
-              : [0, 300, 100, 300],
+              ? Int64List.fromList([0, 500, 200, 500, 200, 500])
+              : Int64List.fromList([0, 300, 100, 300]),
           showWhen: true,
           autoCancel: true,
           color: alert.severity == 'critical'

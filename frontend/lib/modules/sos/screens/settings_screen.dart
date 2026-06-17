@@ -387,7 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Row(
                     children: [
-                      const Icon(Icons.incognito, color: AppTheme.primaryColor, size: 20),
+                      const Icon(Icons.visibility_off, color: AppTheme.primaryColor, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Covert SOS Mode',

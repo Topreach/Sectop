@@ -163,7 +163,7 @@ class _WalkieTalkieMonitorScreenState
         hasDistress: hasDistress,
         confidence: confidence,
         method: method,
-        threatLevel: threatLevel,
+        threatLevel: threatLevel ?? 'low',
       );
       _showThreatAlert(audioResult);
       _broadcastThreatToMesh(audioResult);

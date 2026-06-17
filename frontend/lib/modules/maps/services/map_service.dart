@@ -273,7 +273,7 @@ class MapService extends ChangeNotifier {
     // Try server first for danger-aware route planning
     try {
       final api = BackendApi();
-      final result = await api.post('/route/plan', {
+      final result = await api.post('/route/plan', body: {
         'fromLat': fromLat,
         'fromLon': fromLon,
       });

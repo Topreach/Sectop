@@ -624,7 +624,7 @@ class _MapViewState extends State<_MapView> {
         );
         final zones = result['zones'] is List
             ? List<Map<String, dynamic>>.from(result['zones'])
-            : [];
+            : <Map<String, dynamic>>[];
         // Cache zones locally for offline use
         try {
           final storage = OfflineStorageService();

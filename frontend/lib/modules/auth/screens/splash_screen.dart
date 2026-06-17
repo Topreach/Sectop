@@ -87,7 +87,7 @@ class _SplashScreenState extends State<SplashScreen>
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.incognito, color: AppTheme.primaryColor, size: 24),
+            const Icon(Icons.visibility_off, color: AppTheme.primaryColor, size: 24),
             const SizedBox(width: 8),
             const Expanded(
               child: Text('Privacy Feature Available', style: TextStyle(fontSize: 18)),
