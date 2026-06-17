@@ -53,13 +53,12 @@ public class StompAlertController {
                 log.warn("STOMP alert missing required fields: userId={}, alertType={}", userId, alertType);
                 return;
             }
-// Delegate to SOSAlertService (creates alert, pushes via WebSocket, MQTT, FCM, etc.)
-sosAlertService.createAlert(
-        userId, alertType, description,
-        latitude, longitude, accuracy,
-        priority, isSilent != null && isSilent,
-        false // isCovert — STOMP alerts are not covert by default
-);
+            // Delegate to SOSAlertService (creates alert, pushes via WebSocket, MQTT, FCM, etc.)
+            sosAlertService.createAlert(
+                    userId, alertType, description,
+                    latitude, longitude, accuracy,
+                    priority, isSilent != null && isSilent,
+                    false // isCovert — STOMP alerts are not covert by default
             );
 
             log.debug("STOMP SOS alert processed: userId={}, type={}", userId, alertType);
