@@ -26,7 +26,8 @@ class _InboxScreenState extends State<InboxScreen>
   List<Map<String, dynamic>> _alerts = [];
   bool _isLoadingMessages = true;
   bool _isLoadingAlerts = true;
-  bool _isOffline = false;
+  bool _isMessagesOffline = false;
+  bool _isAlertsOffline = false;
 
   // WebSocket for real-time message delivery
   WebSocketChannel? _wsChannel;
@@ -95,7 +96,7 @@ class _InboxScreenState extends State<InboxScreen>
         setState(() {
           _messages = serverMessages;
           _isLoadingMessages = false;
-          _isOffline = false;
+          _isMessagesOffline = false;
         });
         return;
       } catch (_) {
@@ -107,13 +108,13 @@ class _InboxScreenState extends State<InboxScreen>
       setState(() {
         _messages = localMessages;
         _isLoadingMessages = false;
-        _isOffline = localMessages.isEmpty;
+        _isMessagesOffline = localMessages.isEmpty;
       });
     } catch (e) {
       debugPrint('InboxScreen: Failed to load messages: $e');
       setState(() {
         _isLoadingMessages = false;
-        _isOffline = true;
+        _isMessagesOffline = true;
       });
     }
   }
@@ -153,7 +154,7 @@ class _InboxScreenState extends State<InboxScreen>
         setState(() {
           _alerts = serverAlerts;
           _isLoadingAlerts = false;
-          _isOffline = false;
+          _isAlertsOffline = false;
         });
         return;
       } catch (_) {
@@ -165,13 +166,13 @@ class _InboxScreenState extends State<InboxScreen>
       setState(() {
         _alerts = localAlerts;
         _isLoadingAlerts = false;
-        _isOffline = localAlerts.isEmpty;
+        _isAlertsOffline = localAlerts.isEmpty;
       });
     } catch (e) {
       debugPrint('InboxScreen: Failed to load alerts: $e');
       setState(() {
         _isLoadingAlerts = false;
-        _isOffline = true;
+        _isAlertsOffline = true;
       });
     }
   }
@@ -506,7 +507,7 @@ class _InboxScreenState extends State<InboxScreen>
                 _MessagesTab(
                   messages: _messages,
                   isLoading: _isLoadingMessages,
-                  isOffline: _isOffline,
+                  isOffline: _isMessagesOffline,
                   onRefresh: _loadMessages,
                   onMarkRead: _markAsRead,
                   onDelete: _deleteMessage,
@@ -515,7 +516,7 @@ class _InboxScreenState extends State<InboxScreen>
                 _AlertsTab(
                   alerts: _alerts,
                   isLoading: _isLoadingAlerts,
-                  isOffline: _isOffline,
+                  isOffline: _isAlertsOffline,
                   onRefresh: _loadAlerts,
                   formatTimestamp: _formatTimestamp,
                 ),

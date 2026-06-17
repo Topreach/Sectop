@@ -18,7 +18,8 @@ class BackendApi {
   /// The duck-type check `dynInstance.initialize is Function` requires
   /// this getter to exist; otherwise a NoSuchMethodError is thrown.
   Future<void> initialize() async {
-    // BackendApi is stateless — nothing to initialize.
+    // Reset circuit breaker on initialization to clear any stale open state
+    forceResetCircuitBreaker();
   }
 
   final OfflineStorageService _storage = OfflineStorageService();
@@ -103,10 +104,26 @@ class BackendApi {
     }
   }
 
+  /// Force-reset the circuit breaker to closed state.
+  /// Call this before any user-initiated request to ensure the circuit
+  /// doesn't remain stuck open from a previous failure burst.
+  void forceResetCircuitBreaker() {
+    if (_circuitState != CircuitState.closed) {
+      _circuitState = CircuitState.closed;
+      _consecutiveFailures = 0;
+      _lastFailureTime = null;
+      debugPrint('BackendApi: Circuit breaker force-reset to closed');
+    }
+  }
+
   Future<T> _executeWithCircuitBreaker<T>(Future<T> Function() request) async {
+    // Auto-recover: if the reset timeout has elapsed, close the circuit
     if (_circuitState == CircuitState.open) {
-      if (DateTime.now().difference(_lastFailureTime!) > _resetTimeout) {
+      if (_lastFailureTime != null &&
+          DateTime.now().difference(_lastFailureTime!) > _resetTimeout) {
         _circuitState = CircuitState.halfOpen;
+        _consecutiveFailures = 0;
+        debugPrint('BackendApi: Circuit breaker half-open after timeout');
       } else {
         throw ApiException(503, 'Circuit breaker is open - backend unavailable');
       }
@@ -133,6 +150,7 @@ class BackendApi {
 
   /// Perform a GET request and parse the JSON response.
   Future<Map<String, dynamic>> get(String path) async {
+    forceResetCircuitBreaker();
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
       final response = await _client
@@ -147,6 +165,7 @@ class BackendApi {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    forceResetCircuitBreaker();
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
       final response = await _client
@@ -165,6 +184,7 @@ class BackendApi {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    forceResetCircuitBreaker();
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
       final response = await _client
@@ -180,6 +200,7 @@ class BackendApi {
 
   /// Perform a DELETE request.
   Future<void> delete(String path) async {
+    forceResetCircuitBreaker();
     return _executeWithCircuitBreaker(() async {
       final uri = Uri.parse('$_baseUrl$path');
       await _client
