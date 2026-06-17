@@ -50,7 +50,7 @@ public class Prediction {
     private String alertLevel;
 
     /** Predicted incident count for the next 24 hours. */
-    @Column(nullable = false)
+    @Column(name = "expected_count_24h", nullable = false)
     private double expectedCount24h;
 
     /** Trend direction: rising, falling, or stable. */
