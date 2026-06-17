@@ -130,14 +130,42 @@ class _InboxScreenState extends State<InboxScreen>
         });
         return;
       }
-      final api = context.read<BackendApi>();
-      final result = await api.getUserAlerts(userId);
+
+      final storage = OfflineStorageService();
+
+      // Primary: Load alerts from server (online-first)
+      try {
+        final api = context.read<BackendApi>();
+        final result = await api.getUserAlerts(userId);
+        final rawAlerts = result['alerts'];
+        final List<Map<String, dynamic>> serverAlerts;
+        if (rawAlerts is List) {
+          serverAlerts = rawAlerts.cast<Map<String, dynamic>>().toList();
+        } else {
+          serverAlerts = [];
+        }
+
+        // Cache server alerts locally for offline fallback
+        for (final alert in serverAlerts) {
+          await storage.saveAlertLocally(alert);
+        }
+
+        setState(() {
+          _alerts = serverAlerts;
+          _isLoadingAlerts = false;
+          _isOffline = false;
+        });
+        return;
+      } catch (_) {
+        debugPrint('InboxScreen: Server unavailable for alerts, trying local storage...');
+      }
+
+      // Fallback: Load from local storage when server is unreachable
+      final localAlerts = await storage.getLocalAlerts(userId);
       setState(() {
-        _alerts = result['alerts'] is List
-            ? List<Map<String, dynamic>>.from(result['alerts'])
-            : [];
+        _alerts = localAlerts;
         _isLoadingAlerts = false;
-        _isOffline = false;
+        _isOffline = localAlerts.isEmpty;
       });
     } catch (e) {
       debugPrint('InboxScreen: Failed to load alerts: $e');

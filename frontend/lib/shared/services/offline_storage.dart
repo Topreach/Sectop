@@ -279,7 +279,7 @@ class OfflineStorageService {
   /// Save a message to local storage.
   Future<void> saveMessage(Map<String, dynamic> message) async {
     await insert(AppConstants.tableMessages, message);
-    await _logSync(AppConstants.tableMessages, message['id'], AppConstants.opCreate, message);
+    await logSync(AppConstants.tableMessages, message['id'], AppConstants.opCreate, message);
   }
 
   /// Get pending (unsent) messages.
@@ -354,7 +354,7 @@ class OfflineStorageService {
   /// Save an SOS alert locally.
   Future<void> saveSOSAlert(Map<String, dynamic> alert) async {
     await insert(AppConstants.tableSOSAlerts, alert);
-    await _logSync(AppConstants.tableSOSAlerts, alert['id'], AppConstants.opCreate, alert);
+    await logSync(AppConstants.tableSOSAlerts, alert['id'], AppConstants.opCreate, alert);
   }
 
   /// Get active SOS alerts.
@@ -363,6 +363,23 @@ class OfflineStorageService {
         where: 'status = ?',
         whereArgs: [AppConstants.alertActive],
         orderBy: 'priority DESC, created_at DESC');
+  }
+
+  /// Save an SOS alert to local storage only (no sync log).
+  /// Use this for local-first alert storage — alerts stay on device.
+  Future<void> saveAlertLocally(Map<String, dynamic> alert) async {
+    await insert(AppConstants.tableSOSAlerts, alert);
+  }
+
+  /// Get all alerts for a user from local storage.
+  Future<List<Map<String, dynamic>>> getLocalAlerts(String userId,
+      {int limit = 100, int offset = 0}) async {
+    return await query(AppConstants.tableSOSAlerts,
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        orderBy: 'created_at DESC',
+        limit: limit,
+        offset: offset);
   }
 
   /// Resolve an SOS alert.
@@ -432,7 +449,12 @@ class OfflineStorageService {
 
   // ==================== Sync Operations ====================
 
-  Future<void> _logSync(String entityType, String entityId, String operation, Map<String, dynamic>? payload) async {
+  /// Log a sync operation for later processing by SyncManager.
+  /// [entityType] - the table name (e.g., 'users', 'messages')
+  /// [entityId] - the record ID
+  /// [operation] - 'create', 'update', or 'delete'
+  /// [payload] - the data to sync (will be JSON-encoded)
+  Future<void> logSync(String entityType, String entityId, String operation, Map<String, dynamic>? payload) async {
     await insert(AppConstants.tableSyncLog, {
       'entity_type': entityType,
       'entity_id': entityId,

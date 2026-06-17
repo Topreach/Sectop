@@ -349,9 +349,23 @@ class SOSService extends ChangeNotifier {
           'mesh_relayed': 0,
           'updated_at': DateTime.now().millisecondsSinceEpoch,
         }, where: 'id = ?', whereArgs: [alert.id]);
+      } else {
+        // Server returned error — queue for retry via sync manager
+        debugPrint('Cloud SOS send returned ${response.statusCode}, queuing for retry');
+        await _storage.update('sos_alerts', {
+          'sync_state': AppConstants.msgSyncOffline,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        }, where: 'id = ?', whereArgs: [alert.id]);
       }
     } catch (e) {
       debugPrint('Cloud SOS send failed: $e');
+      // Server unreachable — queue for retry via sync manager
+      try {
+        await _storage.update('sos_alerts', {
+          'sync_state': AppConstants.msgSyncOffline,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        }, where: 'id = ?', whereArgs: [alert.id]);
+      } catch (_) {}
     }
   }
 

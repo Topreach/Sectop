@@ -109,6 +109,7 @@ class AuthService extends ChangeNotifier {
         if (storedHash == inputHash) {
           _currentUser = UserProfile.fromMap(user);
           await _storage.saveSetting(AppConstants.keyUserId, user['id']);
+          _isLoading = false;
           notifyListeners();
           return AuthResult.success(user, offline: true);
         }
@@ -170,6 +171,7 @@ class AuthService extends ChangeNotifier {
     await _storage.insert('users', userMap);
     _currentUser = profile;
     await _storage.saveSetting(AppConstants.keyUserId, profile.id);
+    _isLoading = false;
     notifyListeners();
 
     return AuthResult.success(userMap, offline: true);
@@ -261,6 +263,8 @@ class AuthService extends ChangeNotifier {
   }
 
   /// Update user profile.
+  /// Saves locally immediately, then attempts server sync in background.
+  /// If server is unreachable, queues the update for later sync.
   Future<void> updateProfile(UserProfile updatedProfile) async {
     final map = updatedProfile.toMap();
     map['updated_at'] = DateTime.now().millisecondsSinceEpoch;
@@ -271,6 +275,46 @@ class AuthService extends ChangeNotifier {
 
     _currentUser = updatedProfile;
     notifyListeners();
+
+    // Attempt server sync in background
+    unawaited(_syncProfileToServer(updatedProfile));
+  }
+
+  /// Sync profile update to server. Queues for retry if offline.
+  Future<void> _syncProfileToServer(UserProfile updatedProfile) async {
+    try {
+      final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+      if (token == null || token.isEmpty) return; // Offline/emergency user
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+      final body = json.encode({
+        'name': updatedProfile.name,
+        'email': updatedProfile.email,
+        'phone': updatedProfile.phone,
+      });
+
+      final response = await http.put(
+        Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/auth/users/${updatedProfile.id}'),
+        headers: headers,
+        body: body,
+      ).timeout(Duration(seconds: AppConstants.apiTimeout));
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('AuthService: Profile synced to server');
+      } else {
+        debugPrint('AuthService: Profile sync returned ${response.statusCode}, queuing for retry');
+        await _storage.logSync('users', updatedProfile.id, AppConstants.opUpdate, map);
+      }
+    } catch (e) {
+      debugPrint('AuthService: Profile sync failed (offline), queuing for retry: $e');
+      try {
+        await _storage.logSync('users', updatedProfile.id, AppConstants.opUpdate, map);
+      } catch (_) {}
+    }
   }
 
   /// Get user by ID from local storage.

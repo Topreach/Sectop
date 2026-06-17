@@ -251,8 +251,45 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
           _isLoading = false;
         });
       }
+      // Cache the successful route result locally for offline fallback
+      try {
+        final storage = OfflineStorageService();
+        final cacheKey = 'cached_route_${_fromLat!.toStringAsFixed(4)}_${_fromLng!.toStringAsFixed(4)}_${_toLat!.toStringAsFixed(4)}_${_toLng!.toStringAsFixed(4)}';
+        await storage.saveSetting(cacheKey, json.encode({
+          'result': result,
+          'fromName': _fromName,
+          'toName': _toName,
+          'cachedAt': DateTime.now().millisecondsSinceEpoch,
+        }));
+      } catch (_) {}
     } catch (e) {
       if (mounted) {
+        // Try to load cached route when offline
+        try {
+          final storage = OfflineStorageService();
+          final cacheKey = 'cached_route_${_fromLat!.toStringAsFixed(4)}_${_fromLng!.toStringAsFixed(4)}_${_toLat!.toStringAsFixed(4)}_${_toLng!.toStringAsFixed(4)}';
+          final cached = await storage.getSetting(cacheKey);
+          if (cached != null && cached is String) {
+            final decoded = json.decode(cached) as Map<String, dynamic>;
+            if (decoded['result'] != null) {
+              setState(() {
+                _routeResult = decoded['result'] as Map<String, dynamic>;
+                _isLoading = false;
+                _error = null;
+              });
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Showing cached route — offline'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+              return;
+            }
+          }
+        } catch (_) {}
+        // No cached route available — show error
         setState(() {
           _isLoading = false;
           _error = 'Failed to plan route: $e';
