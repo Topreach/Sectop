@@ -202,12 +202,40 @@ class _TipOffScreenState extends State<TipOffScreen> {
     unawaited(_submitViaHttp(tipData));
   }
 
-  /// Fallback: submit tip via HTTP POST.
+  /// Fallback: submit tip via HTTP POST with offline queue.
   Future<void> _submitViaHttp(Map<String, dynamic> tipData) async {
     try {
       await BackendApi().submitTip(tipData);
     } catch (e) {
-      debugPrint('TipOffScreen: HTTP fallback failed: $e');
+      final errorStr = e.toString();
+
+      // Offline fallback — save locally when server is unreachable
+      if (errorStr.contains('SocketException') ||
+          errorStr.contains('Connection refused') ||
+          errorStr.contains('HandshakeException') ||
+          errorStr.contains('503') ||
+          errorStr.contains('Circuit breaker')) {
+        try {
+          final storage = OfflineStorageService();
+          await storage.insert('messages', {
+            'id': 'tip_${DateTime.now().millisecondsSinceEpoch}',
+            'sender_id': 'anonymous',
+            'content': '[TIP] ${tipData['tipType']}: ${tipData['description']}',
+            'message_type': 'tip_off',
+            'priority': 2,
+            'status': 'pending',
+            'sync_state': 'offline',
+            'latitude': tipData['latitude'] as double?,
+            'longitude': tipData['longitude'] as double?,
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+          });
+          debugPrint('TipOffScreen: Tip saved offline for later sync');
+        } catch (saveError) {
+          debugPrint('TipOffScreen: Failed to save tip offline: $saveError');
+        }
+      } else {
+        debugPrint('TipOffScreen: HTTP fallback failed: $e');
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

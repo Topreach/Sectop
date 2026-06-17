@@ -345,7 +345,7 @@ class _WalkieTalkieMonitorScreenState
     }
   }
 
-  /// Fallback: analyze audio via HTTP POST.
+  /// Fallback: analyze audio via HTTP POST with offline queue.
   Future<void> _analyzeViaHttp(String base64Audio, File file) async {
     try {
       final result = await _detector.analyzeAudio(base64Audio);
@@ -378,7 +378,34 @@ class _WalkieTalkieMonitorScreenState
         _broadcastThreatToMesh(result);
       }
     } catch (e) {
-      debugPrint('WalkieTalkieMonitor: HTTP fallback failed: $e');
+      final errorStr = e.toString();
+
+      // Offline fallback — save audio analysis request locally when server is unreachable
+      if (errorStr.contains('SocketException') ||
+          errorStr.contains('Connection refused') ||
+          errorStr.contains('HandshakeException') ||
+          errorStr.contains('503') ||
+          errorStr.contains('Circuit breaker')) {
+        try {
+          final storage = OfflineStorageService();
+          await storage.insert('messages', {
+            'id': 'audio_scan_${DateTime.now().millisecondsSinceEpoch}',
+            'sender_id': '',
+            'content': '[AUDIO_SCAN] Walkie-talkie audio captured but could not be analyzed (offline)',
+            'message_type': 'audio_scan',
+            'priority': 1,
+            'status': 'pending',
+            'sync_state': 'offline',
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+          });
+          debugPrint('WalkieTalkieMonitor: Audio scan saved offline for later analysis');
+        } catch (saveError) {
+          debugPrint('WalkieTalkieMonitor: Failed to save audio scan offline: $saveError');
+        }
+      } else {
+        debugPrint('WalkieTalkieMonitor: HTTP fallback failed: $e');
+      }
+
       if (mounted) setState(() => _isAnalyzing = false);
     }
   }

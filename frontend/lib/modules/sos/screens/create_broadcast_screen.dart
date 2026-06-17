@@ -152,7 +152,7 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
       // STEP 2: Fire HTTP POST in the background (DO NOT AWAIT)
       // This ensures delivery even if WebSocket message is lost.
       // The backend deduplicates by broadcast ID, so this is safe.
-      unawaited(BackendApi().createBroadcast(broadcastData));
+      unawaited(_submitViaHttp(broadcastData, user.id));
 
       // Show success immediately — don't wait for HTTP round-trip
       if (mounted) {
@@ -179,6 +179,43 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  /// Fallback: submit broadcast via HTTP POST with offline queue.
+  Future<void> _submitViaHttp(Map<String, dynamic> broadcastData, String userId) async {
+    try {
+      await BackendApi().createBroadcast(broadcastData);
+    } catch (e) {
+      final errorStr = e.toString();
+
+      // Offline fallback — save locally when server is unreachable
+      if (errorStr.contains('SocketException') ||
+          errorStr.contains('Connection refused') ||
+          errorStr.contains('HandshakeException') ||
+          errorStr.contains('503') ||
+          errorStr.contains('Circuit breaker')) {
+        try {
+          final storage = OfflineStorageService();
+          await storage.insert('messages', {
+            'id': 'broadcast_${DateTime.now().millisecondsSinceEpoch}',
+            'sender_id': userId,
+            'content': '[BROADCAST] ${broadcastData['title']}: ${broadcastData['message']}',
+            'message_type': 'broadcast',
+            'priority': broadcastData['severity'] == 'critical' ? 3
+                : broadcastData['severity'] == 'urgent' ? 2
+                : broadcastData['severity'] == 'warning' ? 1 : 0,
+            'status': 'pending',
+            'sync_state': 'offline',
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+          });
+          debugPrint('CreateBroadcastScreen: Broadcast saved offline for later sync');
+        } catch (saveError) {
+          debugPrint('CreateBroadcastScreen: Failed to save broadcast offline: $saveError');
+        }
+      } else {
+        debugPrint('CreateBroadcastScreen: HTTP fallback failed: $e');
+      }
     }
   }
 
