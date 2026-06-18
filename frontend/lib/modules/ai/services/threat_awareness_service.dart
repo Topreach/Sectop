@@ -233,55 +233,87 @@ class ThreatAwarenessService extends ChangeNotifier {
         return;
       }
 
-      // Fetch pre-computed threat level from backend
-      final levelResponse = await _api.getThreatLevel(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        radiusKm: _threatRadiusKm,
-      );
+      bool alertsFailed = false;
 
-      _isOffline = false;
-      _currentThreatLevel = (levelResponse['threatLevel'] as num?)?.toDouble() ?? 0.0;
-      _nearbyIncidentCount = (levelResponse['incidentCount'] as num?)?.toInt() ?? 0;
-      _nearbyDangerZoneCount = (levelResponse['dangerZoneCount'] as num?)?.toInt() ?? 0;
-      _predictedHotspotCount = (levelResponse['predictedHotspotCount'] as num?)?.toInt() ?? 0;
-
-      // Fetch pre-formatted threat alerts from backend
-      final alertsResponse = await _api.getThreatAlerts(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        radiusKm: _threatRadiusKm,
-      );
-
-      final serverAlerts = alertsResponse['alerts'] as List<dynamic>? ?? [];
-      for (final a in serverAlerts) {
-        final alertJson = a as Map<String, dynamic>;
-        final alert = ThreatAlert(
-          id: alertJson['id'] as String,
-          type: alertJson['type'] as String,
-          title: alertJson['title'] as String,
-          description: alertJson['description'] as String,
-          latitude: alertJson['latitude'] as double?,
-          longitude: alertJson['longitude'] as double?,
-          severity: alertJson['severity'] as String,
-          confidence: (alertJson['confidence'] as num).toDouble(),
-          timestamp: DateTime.parse(alertJson['timestamp'] as String),
-          sourceData: alertJson['sourceData'] as Map<String, dynamic>?,
+      // Step 1: Fetch pre-computed threat level from backend
+      try {
+        final levelResponse = await _api.getThreatLevel(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          radiusKm: _threatRadiusKm,
         );
-        _addAlert(alert);
+
+        _currentThreatLevel = (levelResponse['threatLevel'] as num?)?.toDouble() ?? 0.0;
+        _nearbyIncidentCount = (levelResponse['incidentCount'] as num?)?.toInt() ?? 0;
+        _nearbyDangerZoneCount = (levelResponse['dangerZoneCount'] as num?)?.toInt() ?? 0;
+        _predictedHotspotCount = (levelResponse['predictedHotspotCount'] as num?)?.toInt() ?? 0;
+      } catch (levelError) {
+        debugPrint('ThreatAwarenessService: Threat level poll failed: $levelError');
+        // Keep previous threat level values — don't reset to 0
       }
 
-      if (_alerts.length > _maxAlerts) {
-        _alerts = _alerts.sublist(0, _maxAlerts);
+      // Step 2: Fetch pre-formatted threat alerts from backend (independent of step 1)
+      try {
+        final alertsResponse = await _api.getThreatAlerts(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          radiusKm: _threatRadiusKm,
+        );
+
+        final serverAlerts = alertsResponse['alerts'] as List<dynamic>? ?? [];
+        for (final a in serverAlerts) {
+          final alertJson = a as Map<String, dynamic>;
+          final alert = ThreatAlert(
+            id: alertJson['id'] as String,
+            type: alertJson['type'] as String,
+            title: alertJson['title'] as String,
+            description: alertJson['description'] as String,
+            latitude: alertJson['latitude'] as double?,
+            longitude: alertJson['longitude'] as double?,
+            severity: alertJson['severity'] as String,
+            confidence: (alertJson['confidence'] as num).toDouble(),
+            timestamp: DateTime.parse(alertJson['timestamp'] as String),
+            sourceData: alertJson['sourceData'] as Map<String, dynamic>?,
+          );
+          _addAlert(alert);
+        }
+
+        if (_alerts.length > _maxAlerts) {
+          _alerts = _alerts.sublist(0, _maxAlerts);
+        }
+
+        await _cacheAlerts();
+      } catch (alertsError) {
+        debugPrint('ThreatAwarenessService: Alerts poll failed: $alertsError');
+        alertsFailed = true;
+        // Try loading cached alerts
+        try {
+          final cached = await _storage.getSetting(_alertsStorageKey);
+          if (cached != null && cached.isNotEmpty) {
+            final List<dynamic> decoded = json.decode(cached);
+            _alerts = decoded
+                .map((e) => ThreatAlert.fromJson(e as Map<String, dynamic>))
+                .toList();
+          }
+        } catch (cacheError) {
+          debugPrint('ThreatAwarenessService: Offline alerts fallback failed: $cacheError');
+        }
       }
 
-      await _cacheAlerts();
+      // Determine overall offline status
+      // Only mark as fully offline if BOTH threat level AND alerts failed
+      if (alertsFailed && _currentThreatLevel == 0.0 && _nearbyIncidentCount == 0 && _nearbyDangerZoneCount == 0) {
+        _isOffline = true;
+        _lastError = 'Offline mode — showing cached threat data';
+      } else {
+        _isOffline = false;
+        _lastError = alertsFailed ? 'Alerts unavailable — threat level active' : null;
+      }
 
-      _lastError = null;
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      debugPrint('ThreatAwarenessService: Poll failed (offline fallback): $e');
+      debugPrint('ThreatAwarenessService: Poll failed unexpectedly: $e');
       _isOffline = true;
       _lastError = 'Offline mode — showing cached threat data';
 
