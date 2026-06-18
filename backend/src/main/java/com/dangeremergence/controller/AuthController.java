@@ -293,11 +293,13 @@ public class AuthController {
             if (request.getEmergencyContacts() != null) user.setEmergencyContacts(request.getEmergencyContacts());
             if (request.getMedicalInfo() != null) user.setMedicalInfo(request.getMedicalInfo());
             if (request.getPublicKey() != null) user.setPublicKey(request.getPublicKey());
+            if (request.getRole() != null) user.setRole(request.getRole());
 
             User updatedUser = userService.updateUser(user);
             Map<String, Object> response = new HashMap<>();
             response.put("userId", updatedUser.getId());
             response.put("name", updatedUser.getName());
+            response.put("role", updatedUser.getRole());
             response.put("message", "Profile updated successfully");
             return ResponseEntity.ok(response);
         }
@@ -364,6 +366,7 @@ public class AuthController {
         private String emergencyContacts;
         private String medicalInfo;
         private String publicKey;
+        private User.UserRole role;
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
@@ -375,6 +378,8 @@ public class AuthController {
         public void setMedicalInfo(String medicalInfo) { this.medicalInfo = medicalInfo; }
         public String getPublicKey() { return publicKey; }
         public void setPublicKey(String publicKey) { this.publicKey = publicKey; }
+        public User.UserRole getRole() { return role; }
+        public void setRole(User.UserRole role) { this.role = role; }
     }
 
     public static class ForgotPasswordRequest {

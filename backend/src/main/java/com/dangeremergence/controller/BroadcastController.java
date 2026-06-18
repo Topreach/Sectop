@@ -28,7 +28,7 @@ public class BroadcastController {
      * Only coordinators and admins can create broadcasts.
      */
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('coordinator', 'admin')")
+    @PreAuthorize("hasAuthority('coordinator')")
     public ResponseEntity<?> createBroadcast(@RequestBody Map<String, Object> request) {
         try {
             Broadcast broadcast = broadcastService.createBroadcast(
@@ -75,7 +75,7 @@ public class BroadcastController {
      * Expire a broadcast.
      */
     @PostMapping("/{id}/expire")
-    @PreAuthorize("hasAnyAuthority('coordinator', 'admin')")
+    @PreAuthorize("hasAuthority('coordinator')")
     public ResponseEntity<Void> expireBroadcast(@PathVariable String id) {
         broadcastService.expireBroadcast(id);
         return ResponseEntity.ok().build();
