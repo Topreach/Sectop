@@ -721,6 +721,12 @@ class BackendApi {
     return get('/tips/pending');
   }
 
+  /// Get recent actionable/forwarded tips for Inbox display.
+  /// Public endpoint — all users can see tips in their Updates tab.
+  Future<Map<String, dynamic>> getRecentTips() async {
+    return get('/tips/recent');
+  }
+
   /// Get tip-off by ID.
   Future<Map<String, dynamic>> getTipById(String id) async {
     return get('/tips/$id');

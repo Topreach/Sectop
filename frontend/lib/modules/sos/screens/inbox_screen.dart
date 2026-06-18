@@ -24,10 +24,13 @@ class _InboxScreenState extends State<InboxScreen>
   late TabController _tabController;
   List<Map<String, dynamic>> _messages = [];
   List<Map<String, dynamic>> _alerts = [];
+  List<Map<String, dynamic>> _tips = [];
   bool _isLoadingMessages = true;
   bool _isLoadingAlerts = true;
+  bool _isLoadingTips = true;
   bool _isMessagesOffline = false;
   bool _isAlertsOffline = false;
+  bool _isTipsOffline = false;
 
   // WebSocket for real-time message delivery
   WebSocketChannel? _wsChannel;
@@ -56,9 +59,9 @@ class _InboxScreenState extends State<InboxScreen>
     _tabController.dispose();
     super.dispose();
   }
-
-  Future<void> _loadData() async {
-    await Future.wait([_loadMessages(), _loadAlerts()]);
+Future<void> _loadData() async {
+  await Future.wait([_loadMessages(), _loadAlerts(), _loadTips()]);
+}
   }
 
   Future<void> _loadMessages() async {
@@ -180,11 +183,41 @@ class _InboxScreenState extends State<InboxScreen>
       });
     }
   }
+}
+/// Load recent actionable/forwarded tips for the Updates tab.
+/// Shows tips that have been reviewed as actionable or forwarded.
+Future<void> _loadTips() async {
+  setState(() => _isLoadingTips = true);
+  try {
+    final api = context.read<BackendApi>();
+    final result = await api.getRecentTips();
+    // _handleResponse wraps JSON arrays in {'data': [...]}
+    final rawTips = result['data'];
+    final List<Map<String, dynamic>> serverTips;
+    if (rawTips is List) {
+      serverTips = rawTips.cast<Map<String, dynamic>>().toList();
+    } else {
+      serverTips = [];
+    }
 
-  /// Connect to WebSocket for real-time message delivery.
-  /// Subscribes to the user's personal message queue and urgent topic.
-  Future<void> _connectMessageWebSocket() async {
-    try {
+    setState(() {
+      _tips = serverTips;
+      _isLoadingTips = false;
+      _isTipsOffline = false;
+    });
+  } catch (e) {
+    debugPrint('InboxScreen: Failed to load tips: $e');
+    setState(() {
+      _isLoadingTips = false;
+      _isTipsOffline = false;
+    });
+  }
+}
+}
+
+/// Connect to WebSocket for real-time message delivery.
+/// Subscribes to the user's personal message queue and urgent topic.
+Future<void> _connectMessageWebSocket() async {
       final storage = OfflineStorageService();
       final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
       if (token == null || token.isEmpty) return;
@@ -524,7 +557,13 @@ class _InboxScreenState extends State<InboxScreen>
                   onRefresh: _loadAlerts,
                   formatTimestamp: _formatTimestamp,
                 ),
-                _UpdatesTab(),
+                _UpdatesTab(
+                  tips: _tips,
+                  isLoading: _isLoadingTips,
+                  isOffline: _isTipsOffline,
+                  onRefresh: _loadTips,
+                  formatTimestamp: _formatTimestamp,
+                ),
               ],
             ),
           ),
@@ -1397,12 +1436,28 @@ class _AlertsTab extends StatelessWidget {
 }
 
 class _UpdatesTab extends StatelessWidget {
+  final List<Map<String, dynamic>> tips;
+  final bool isLoading;
+  final bool isOffline;
+  final Future<void> Function() onRefresh;
+  final String Function(dynamic) formatTimestamp;
+
+  const _UpdatesTab({
+    required this.tips,
+    required this.isLoading,
+    required this.isOffline,
+    required this.onRefresh,
+    required this.formatTimestamp,
+  });
+
   @override
   Widget build(BuildContext context) {
     final syncManager = context.watch<SyncManager>();
 
     return RefreshIndicator(
-      onRefresh: () => syncManager.triggerSync(),
+      onRefresh: () async {
+        await Future.wait([syncManager.triggerSync(), onRefresh()]);
+      },
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -1464,33 +1519,65 @@ class _UpdatesTab extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Column(
+          // Tip-Offs / Intelligence Updates section
+          if (isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (tips.isNotEmpty) ...[
+            Row(
               children: [
-                Icon(Icons.update_outlined, size: 48, color: Colors.grey),
-                SizedBox(height: 12),
+                Icon(Icons.tips_and_updates, size: 20, color: Colors.orange[700]),
+                const SizedBox(width: 8),
                 Text(
-                  'No updates available',
+                  'Intelligence Updates',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange[800],
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'System updates and notifications will appear here',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            ...tips.map((tip) => _TipCard(
+                  tip: tip,
+                  formatTimestamp: formatTimestamp,
+                )),
+            const SizedBox(height: 16),
+          ],
+          // Empty state when no tips and not loading
+          if (!isLoading && tips.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.update_outlined, size: 48, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text(
+                    'No updates available',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'System updates and notifications will appear here',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -1498,5 +1585,155 @@ class _UpdatesTab extends StatelessWidget {
 
   String _formatDateTime(DateTime dt) {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// A card widget that displays a single tip-off / intelligence update.
+class _TipCard extends StatelessWidget {
+  final Map<String, dynamic> tip;
+  final String Function(dynamic) formatTimestamp;
+
+  const _TipCard({
+    required this.tip,
+    required this.formatTimestamp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tipType = tip['tipType'] ?? 'other';
+    final description = tip['description'] as String? ?? 'No description';
+    final threatScore = tip['threatScore'] as int? ?? 0;
+    final status = tip['status'] as String? ?? 'pending';
+    final createdAt = tip['createdAt'];
+
+    // Determine icon and color based on tip type
+    IconData typeIcon;
+    Color typeColor;
+    switch (tipType.toString()) {
+      case 'planned_attack':
+        typeIcon = Icons.groups;
+        typeColor = Colors.red;
+        break;
+      case 'suspicious_person':
+        typeIcon = Icons.person_search;
+        typeColor = Colors.orange;
+        break;
+      case 'suspicious_vehicle':
+        typeIcon = Icons.directions_car;
+        typeColor = Colors.amber;
+        break;
+      case 'hidden_weapons':
+        typeIcon = Icons.gavel;
+        typeColor = Colors.deepOrange;
+        break;
+      case 'kidnapping_plot':
+        typeIcon = Icons.people_outline;
+        typeColor = Colors.red;
+        break;
+      case 'bombing_plot':
+        typeIcon = Icons.warning;
+        typeColor = Colors.deepPurple;
+        break;
+      default:
+        typeIcon = Icons.info_outline;
+        typeColor = Colors.blue;
+    }
+
+    // Threat score color
+    Color scoreColor;
+    if (threatScore >= 70) {
+      scoreColor = Colors.red;
+    } else if (threatScore >= 40) {
+      scoreColor = Colors.orange;
+    } else {
+      scoreColor = Colors.green;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(typeIcon, size: 20, color: typeColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tipType.toString().replaceAll('_', ' ').toUpperCase(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: typeColor,
+                    ),
+                  ),
+                ),
+                // Threat score badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: scoreColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Score: $threatScore',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: scoreColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: const TextStyle(fontSize: 14),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.circle, size: 8, color: _statusColor(status)),
+                const SizedBox(width: 4),
+                Text(
+                  status.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _statusColor(status),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                if (createdAt != null)
+                  Text(
+                    formatTimestamp(createdAt),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'actionable':
+        return Colors.red;
+      case 'forwarded':
+        return Colors.blue;
+      case 'under_review':
+        return Colors.orange;
+      case 'dismissed':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
   }
 }

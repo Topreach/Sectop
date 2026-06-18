@@ -97,13 +97,25 @@ public class TipOffService {
         return tipOffRepository.findByStatusesOrderByThreatScoreDesc(
                 List.of(TipStatus.pending, TipStatus.under_review));
     }
+/**
+ * Get recent actionable/forwarded tips for display in the Inbox.
+ * Returns tips that have been reviewed as actionable or forwarded,
+ * ordered by most recent first. This is a public endpoint so all
+ * users can see tips in their Inbox Updates tab.
+ */
+@Transactional(readOnly = true)
+public List<TipOff> getRecentTips() {
+    return tipOffRepository.findByStatusesOrderByThreatScoreDesc(
+            List.of(TipStatus.actionable, TipStatus.forwarded));
+}
 
-    /**
-     * Get tip-off by ID.
-     */
-    @Transactional(readOnly = true)
-    public Optional<TipOff> getTipById(String id) {
-        return tipOffRepository.findById(id);
+/**
+ * Get tip-off by ID.
+ */
+@Transactional(readOnly = true)
+public Optional<TipOff> getTipById(String id) {
+    return tipOffRepository.findById(id);
+}
     }
 
     /**

@@ -53,6 +53,15 @@ public class TipOffController {
     }
 
     /**
+     * Get recent actionable/forwarded tips for Inbox display.
+     * Public endpoint — all users can see tips in their Updates tab.
+     */
+    @GetMapping("/recent")
+    public ResponseEntity<List<TipOff>> getRecentTips() {
+        return ResponseEntity.ok(tipOffService.getRecentTips());
+    }
+
+    /**
      * Get tip-off by ID.
      */
     @GetMapping("/{id}")
