@@ -234,6 +234,7 @@ class ThreatAwarenessService extends ChangeNotifier {
       }
 
       bool alertsFailed = false;
+      bool threatLevelFailed = false;
 
       // Step 1: Fetch pre-computed threat level from backend
       try {
@@ -249,6 +250,7 @@ class ThreatAwarenessService extends ChangeNotifier {
         _predictedHotspotCount = (levelResponse['predictedHotspotCount'] as num?)?.toInt() ?? 0;
       } catch (levelError) {
         debugPrint('ThreatAwarenessService: Threat level poll failed: $levelError');
+        threatLevelFailed = true;
         // Keep previous threat level values — don't reset to 0
       }
 
@@ -302,12 +304,18 @@ class ThreatAwarenessService extends ChangeNotifier {
 
       // Determine overall offline status
       // Only mark as fully offline if BOTH threat level AND alerts failed
-      if (alertsFailed && _currentThreatLevel == 0.0 && _nearbyIncidentCount == 0 && _nearbyDangerZoneCount == 0) {
+      if (threatLevelFailed && alertsFailed) {
         _isOffline = true;
         _lastError = 'Offline mode — showing cached threat data';
+      } else if (alertsFailed) {
+        _isOffline = false;
+        _lastError = 'Alerts unavailable — threat level active';
+      } else if (threatLevelFailed) {
+        _isOffline = false;
+        _lastError = 'Threat level unavailable — alerts active';
       } else {
         _isOffline = false;
-        _lastError = alertsFailed ? 'Alerts unavailable — threat level active' : null;
+        _lastError = null;
       }
 
       _isLoading = false;

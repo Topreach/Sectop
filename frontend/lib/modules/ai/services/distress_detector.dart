@@ -42,18 +42,107 @@ class DistressDetector extends ChangeNotifier {
       );
     } catch (e) {
       _isAvailable = false;
-      debugPrint('DistressDetector: API call failed: $e');
+      debugPrint('DistressDetector: API call failed, using local fallback: $e');
       notifyListeners();
 
-      return DistressResult(
-        priority: 'low',
-        confidence: 0.0,
-        label: 'error',
-        inferenceTime: 0,
-        method: 'error',
-        reasons: ['api_error: $e'],
-      );
+      // Offline fallback: lightweight keyword analysis matching backend's ruleBasedAnalysis
+      return _localKeywordAnalysis(text);
     }
+  }
+
+  /// Local keyword-based fallback when backend is unreachable.
+  /// Mirrors the backend's ruleBasedAnalysis() in AIController.java.
+  Future<DistressResult> _localKeywordAnalysis(String text) async {
+    final lower = text.toLowerCase();
+    int score = 0;
+    final reasons = <String>[];
+
+    // Nigerian language keywords (Hausa, Yoruba, Igbo)
+    const regionalKeywords = {
+      // Hausa
+      'garkuwa': 4, 'bindiga': 3, 'bom': 4, "ta'addanci": 4, 'yaki': 3,
+      'fashi': 3, 'taimako': 2, 'harbi': 4, 'kashe': 4, 'makami': 3,
+      'maharbi': 4, 'wuta': 3, "yan fashi": 4, "yan ta'adda": 4,
+      'doki': 2, 'dare': 2, 'suna zuwa': 3, 'a gudu': 2, 'mahaukata': 3,
+      'fulani': 3, 'ballal': 2, 'fijo': 4, 'nyifta': 2, 'war': 3,
+      // Yoruba
+      'gbigbe': 4, 'ibon': 3, 'panumopa': 3, 'iranlowo': 2, 'ikọlu': 4,
+      'apaniyan': 4, 'ina': 3, 'sare': 2, 'ologun': 3, 'ipalara': 2,
+      // Igbo
+      'atogboro': 4, 'nkwatogbo': 4, 'egbe': 3, 'enyemaka': 2, 'ogu': 3,
+      'igbu': 4, 'oku': 3, 'oso': 2, 'nwakpọrọ': 4, 'ndi ọjọọ': 3,
+    };
+
+    for (final entry in regionalKeywords.entries) {
+      if (lower.contains(entry.key)) {
+        score += entry.value;
+        reasons.add('local_kw_${entry.key}');
+      }
+    }
+
+    // English critical keywords
+    const criticalKeywords = [
+      'help', 'emergency', 'sos', 'fire', 'flood', 'earthquake',
+      'collapse', 'trapped', 'injured', 'bleeding', 'heart attack', 'gun',
+      'hostage', 'bomb', 'tsunami', 'hurricane', 'tornado', 'kidnap', 'terrorist',
+    ];
+    for (final kw in criticalKeywords) {
+      if (lower.contains(kw)) {
+        score += 3;
+        reasons.add('local_kw_${kw.replaceAll(' ', '_')}');
+      }
+    }
+
+    // English high keywords
+    const highKeywords = [
+      'danger', 'urgent', 'accident', 'medical', 'unconscious',
+      'burn', 'fracture', 'stroke', 'overdose', 'drowning',
+    ];
+    for (final kw in highKeywords) {
+      if (lower.contains(kw)) {
+        score += 2;
+        reasons.add('local_kw_$kw');
+      }
+    }
+
+    // English medium keywords
+    const mediumKeywords = ['need', 'help me', 'please', 'stuck', 'lost', 'alone', 'scared', 'dark', 'cold', 'hungry'];
+    for (final kw in mediumKeywords) {
+      if (lower.contains(kw)) {
+        score += 1;
+        reasons.add('local_kw_${kw.replaceAll(' ', '_')}');
+      }
+    }
+
+    // Exclamation marks
+    final exclamationCount = '!'.allMatches(text).length;
+    if (exclamationCount > 0) {
+      score += exclamationCount > 3 ? 3 : exclamationCount;
+      reasons.add('local_exclamation_x$exclamationCount');
+    }
+
+    String priority;
+    if (score >= 6) {
+      priority = 'critical';
+    } else if (score >= 4) {
+      priority = 'high';
+    } else if (score >= 2) {
+      priority = 'medium';
+    } else {
+      priority = 'low';
+    }
+
+    final confidence = score / 10.0 > 1.0 ? 1.0 : score / 10.0;
+    final label = score >= 4 ? 'distress_detected' : 'normal';
+
+    return DistressResult(
+      priority: priority,
+      confidence: confidence,
+      label: label,
+      inferenceTime: 0,
+      method: 'local_fallback',
+      reasons: reasons,
+    );
   }
 
   /// Analyze audio — delegates to backend.

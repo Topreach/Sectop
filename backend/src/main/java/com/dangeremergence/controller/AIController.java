@@ -172,8 +172,36 @@ public class AIController {
             return ResponseEntity.badRequest().body(Map.of("error", "audio data is required"));
         }
 
+        byte[] audioData;
         try {
-            byte[] audioData = Base64.getDecoder().decode(base64Audio);
+            audioData = Base64.getDecoder().decode(base64Audio);
+        } catch (IllegalArgumentException e) {
+            log.warn("Audio analysis: Invalid Base64 audio data: {}", e.getMessage());
+            // Graceful fallback — return a non-distress result instead of 500
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("hasDistress", false);
+            fallback.put("threatLevel", "low");
+            fallback.put("confidence", 0.0);
+            fallback.put("rmsEnergy", 0.0);
+            fallback.put("method", "fallback_invalid_base64");
+            fallback.put("message", "Unable to decode audio data");
+            fallback.put("audioThreatScore", 0);
+            fallback.put("audioThreatReasons", List.of());
+            fallback.put("fulaniDialectDetected", false);
+            fallback.put("hasTranscript", transcript != null && !transcript.isBlank());
+            // If a transcript is provided, still run keyword analysis on it
+            if (transcript != null && !transcript.isBlank()) {
+                Map<String, Object> keywordResult = ruleBasedAnalysis(transcript);
+                fallback.put("hasDistress", "high".equals(keywordResult.get("priority")) || "critical".equals(keywordResult.get("priority")));
+                fallback.put("threatLevel", keywordResult.get("priority"));
+                fallback.put("confidence", Math.max(0.0, (Double) keywordResult.getOrDefault("confidence", 0.0)));
+                fallback.put("method", "transcript_keyword_fallback");
+                fallback.put("message", "Transcript keyword analysis — audio decode failed");
+            }
+            return ResponseEntity.ok(fallback);
+        }
+
+        try {
             
             // Calculate RMS (Root Mean Square) energy of the audio signal
             double sum = 0;

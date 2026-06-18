@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../shared/services/backend_api.dart';
 
 /// Thin API wrapper for predictive analytics.
@@ -9,6 +11,8 @@ import '../../../shared/services/backend_api.dart';
 ///
 /// New ML-powered endpoints (Prophet + XGBoost) provide spatio-temporal
 /// terrorist activity forecasting with 30-feature risk scoring.
+///
+/// Caches last successful ML results in SharedPreferences for offline use.
 class PredictiveEngine {
   static final PredictiveEngine _instance = PredictiveEngine._internal();
   factory PredictiveEngine() => _instance;
@@ -16,9 +20,38 @@ class PredictiveEngine {
 
   final BackendApi _api = BackendApi();
 
+  // SharedPreferences cache keys
+  static const String _cacheKeyForecast = 'predictive_engine_ml_forecast';
+  static const String _cacheKeyHotspots = 'predictive_engine_hotspots';
+  static const String _cacheKeyAllStates = 'predictive_engine_all_states';
+
   /// Initialize — no-op in thin client mode.
   Future<void> initialize() async {
     debugPrint('PredictiveEngine: Thin client mode — computation is server-side');
+  }
+
+  /// Save a value to SharedPreferences cache.
+  Future<void> _saveToCache(String key, Map<String, dynamic> data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, jsonEncode(data));
+    } catch (e) {
+      debugPrint('PredictiveEngine: Failed to save cache [$key]: $e');
+    }
+  }
+
+  /// Load a value from SharedPreferences cache.
+  Future<Map<String, dynamic>?> _loadFromCache(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(key);
+      if (cached != null) {
+        return jsonDecode(cached) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('PredictiveEngine: Failed to load cache [$key]: $e');
+    }
+    return null;
   }
 
   // ========================================================================
@@ -88,6 +121,53 @@ class PredictiveEngine {
       );
     } catch (e) {
       debugPrint('PredictiveEngine: ML forecast API failed: $e');
+      // Try loading from SharedPreferences cache for offline fallback
+      final cached = await _loadFromCache(_cacheKeyForecast);
+      if (cached != null) {
+        debugPrint('PredictiveEngine: Returning cached ML forecast');
+        final forecastPoints = <ForecastPoint>[];
+        if (cached['forecast'] is List) {
+          for (final f in cached['forecast'] as List) {
+            final fMap = f as Map<String, dynamic>;
+            forecastPoints.add(ForecastPoint(
+              timestamp: DateTime.parse(fMap['timestamp'] as String),
+              riskScore: (fMap['risk_score'] as num).toDouble(),
+              alertLevel: fMap['alert_level'] as String? ?? 'Normal',
+            ));
+          }
+        }
+        final hotspots = <HotspotPrediction>[];
+        if (cached['hotspots'] is List) {
+          for (final h in cached['hotspots'] as List) {
+            final hMap = h as Map<String, dynamic>;
+            hotspots.add(HotspotPrediction(
+              latitude: (hMap['latitude'] as num).toDouble(),
+              longitude: (hMap['longitude'] as num).toDouble(),
+              riskScore: (hMap['risk_score'] as num).toDouble(),
+              alertLevel: hMap['alert_level'] as String? ?? 'Normal',
+              peakTime: hMap['peak_time'] != null
+                  ? DateTime.tryParse(hMap['peak_time'] as String)
+                  : null,
+              expectedCount24h: (hMap['expected_count_24h'] as num?)?.toDouble() ?? 0.0,
+              trendDirection: hMap['trend_direction'] as String? ?? 'stable',
+              contributingFactors: (hMap['contributing_factors'] as List?)
+                      ?.map((e) => e.toString())
+                      .toList() ??
+                  [],
+              state: hMap['state'] as String?,
+              lga: hMap['lga'] as String?,
+            ));
+          }
+        }
+        return MLForecastResult(
+          latitude: (cached['latitude'] as num?)?.toDouble() ?? latitude,
+          longitude: (cached['longitude'] as num?)?.toDouble() ?? longitude,
+          forecastPoints: forecastPoints,
+          hotspots: hotspots,
+          source: 'cache',
+          error: 'Offline — showing cached data',
+        );
+      }
       return MLForecastResult(
         latitude: latitude,
         longitude: longitude,
@@ -96,6 +176,11 @@ class PredictiveEngine {
         error: e.toString(),
       );
     }
+  }
+
+  /// Cache a successful ML forecast result for offline use.
+  Future<void> cacheMLForecast(Map<String, dynamic> result) async {
+    await _saveToCache(_cacheKeyForecast, result);
   }
 
   /// Detect hotspots (high-risk areas) via ML model.
@@ -141,8 +226,46 @@ class PredictiveEngine {
       );
     } catch (e) {
       debugPrint('PredictiveEngine: Hotspot detection API failed: $e');
+      // Try loading from SharedPreferences cache for offline fallback
+      final cached = await _loadFromCache(_cacheKeyHotspots);
+      if (cached != null) {
+        debugPrint('PredictiveEngine: Returning cached hotspots');
+        final hotspots = <HotspotPrediction>[];
+        if (cached['hotspots'] is List) {
+          for (final h in cached['hotspots'] as List) {
+            final hMap = h as Map<String, dynamic>;
+            hotspots.add(HotspotPrediction(
+              latitude: (hMap['latitude'] as num).toDouble(),
+              longitude: (hMap['longitude'] as num).toDouble(),
+              riskScore: (hMap['risk_score'] as num).toDouble(),
+              alertLevel: hMap['alert_level'] as String? ?? 'Normal',
+              peakTime: hMap['peak_time'] != null
+                  ? DateTime.tryParse(hMap['peak_time'] as String)
+                  : null,
+              expectedCount24h: (hMap['expected_count_24h'] as num?)?.toDouble() ?? 0.0,
+              trendDirection: hMap['trend_direction'] as String? ?? 'stable',
+              contributingFactors: (hMap['contributing_factors'] as List?)
+                      ?.map((e) => e.toString())
+                      .toList() ??
+                  [],
+              state: hMap['state'] as String?,
+              lga: hMap['lga'] as String?,
+            ));
+          }
+        }
+        return HotspotResult(
+          hotspots: hotspots,
+          cached: true,
+          error: 'Offline — showing cached data',
+        );
+      }
       return HotspotResult(hotspots: [], error: e.toString());
     }
+  }
+
+  /// Cache a successful hotspot detection result for offline use.
+  Future<void> cacheHotspots(Map<String, dynamic> result) async {
+    await _saveToCache(_cacheKeyHotspots, result);
   }
 
   /// Get forecast for all 36 Nigerian states + FCT.
@@ -172,8 +295,38 @@ class PredictiveEngine {
       );
     } catch (e) {
       debugPrint('PredictiveEngine: All-states forecast API failed: $e');
+      // Try loading from SharedPreferences cache for offline fallback
+      final cached = await _loadFromCache(_cacheKeyAllStates);
+      if (cached != null) {
+        debugPrint('PredictiveEngine: Returning cached all-states forecast');
+        final stateForecasts = <StateForecast>[];
+        if (cached['forecasts'] is List) {
+          for (final f in cached['forecasts'] as List) {
+            final fMap = f as Map<String, dynamic>;
+            stateForecasts.add(StateForecast(
+              state: fMap['state'] as String? ?? 'Unknown',
+              riskScore: (fMap['risk_score'] as num?)?.toDouble() ?? 0.0,
+              alertLevel: fMap['alert_level'] as String? ?? 'Normal',
+              trendDirection: fMap['trend_direction'] as String? ?? 'stable',
+              hotspotCount: (fMap['hotspot_count'] as num?)?.toInt() ?? 0,
+            ));
+          }
+        }
+        return AllStatesForecastResult(
+          forecasts: stateForecasts,
+          generatedAt: cached['generated_at'] != null
+              ? DateTime.tryParse(cached['generated_at'] as String)
+              : null,
+          error: 'Offline — showing cached data',
+        );
+      }
       return AllStatesForecastResult(forecasts: [], error: e.toString());
     }
+  }
+
+  /// Cache a successful all-states forecast result for offline use.
+  Future<void> cacheAllStatesForecast(Map<String, dynamic> result) async {
+    await _saveToCache(_cacheKeyAllStates, result);
   }
 
   /// Trigger model training on the ML service.
