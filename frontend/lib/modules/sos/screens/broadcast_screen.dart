@@ -24,7 +24,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
 
   bool get _canCreateBroadcast {
     final user = _authService.currentUser;
-    return user != null && (user.role == 'coordinator' || user.role == 'admin');
+    return user != null && user.role == 'coordinator';
   }
 
   @override

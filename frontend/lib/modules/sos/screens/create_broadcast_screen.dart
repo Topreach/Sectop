@@ -120,10 +120,10 @@ class _CreateBroadcastScreenState extends State<CreateBroadcastScreen> {
 
     // Double-check role before submitting
     final user = _authService.currentUser;
-    if (user == null || (user.role != 'coordinator' && user.role != 'admin')) {
+    if (user == null || user.role != 'coordinator') {
       setState(() {
         _backendError = 'You do not have permission to create broadcasts. '
-            'Only coordinators and admins can create broadcasts.';
+            'Only coordinators can create broadcasts.';
       });
       return;
     }
