@@ -116,6 +116,21 @@ class BackendApi {
     }
   }
 
+  /// Check if the error is a connectivity issue (not an auth or server error).
+  /// Auth errors (401/403) and server errors (500+) are NOT connectivity failures.
+  bool _isConnectivityError(Object e) {
+    if (e is ApiException) {
+      // 401 Unauthorized, 403 Forbidden — auth issue, not connectivity
+      if (e.statusCode == 401 || e.statusCode == 403) return false;
+      // 4xx client errors — not connectivity
+      if (e.statusCode >= 400 && e.statusCode < 500) return false;
+      // 5xx server errors — server is reachable but has issues
+      if (e.statusCode >= 500) return false;
+    }
+    // SocketException, TimeoutException, HandshakeException = connectivity issues
+    return true;
+  }
+
   Future<T> _executeWithCircuitBreaker<T>(Future<T> Function() request) async {
     // Auto-recover: if the reset timeout has elapsed, close the circuit
     if (_circuitState == CircuitState.open) {
@@ -134,11 +149,20 @@ class BackendApi {
       _circuitState = CircuitState.closed;
       return result;
     } catch (e) {
-      _consecutiveFailures++;
-      _lastFailureTime = DateTime.now();
-      if (_consecutiveFailures >= _failureThreshold) {
-        _circuitState = CircuitState.open;
-        debugPrint('BackendApi: Circuit breaker opened after $_consecutiveFailures failures');
+      // Only count connectivity errors toward circuit breaker
+      // Auth errors (401/403) and server errors (500+) should NOT open the circuit
+      if (_isConnectivityError(e)) {
+        _consecutiveFailures++;
+        _lastFailureTime = DateTime.now();
+        if (_consecutiveFailures >= _failureThreshold) {
+          _circuitState = CircuitState.open;
+          debugPrint('BackendApi: Circuit breaker opened after $_consecutiveFailures failures');
+        }
+      } else {
+        // For non-connectivity errors (auth, server errors), reset failure count
+        // so a single auth error doesn't cascade into "offline mode"
+        _consecutiveFailures = 0;
+        debugPrint('BackendApi: Non-connectivity error (${e is ApiException ? e.statusCode : e.runtimeType}) — not counting toward circuit breaker');
       }
       rethrow;
     }
