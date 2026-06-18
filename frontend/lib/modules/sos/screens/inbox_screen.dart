@@ -59,9 +59,9 @@ class _InboxScreenState extends State<InboxScreen>
     _tabController.dispose();
     super.dispose();
   }
-Future<void> _loadData() async {
-  await Future.wait([_loadMessages(), _loadAlerts(), _loadTips()]);
-}
+
+  Future<void> _loadData() async {
+    await Future.wait([_loadMessages(), _loadAlerts(), _loadTips()]);
   }
 
   Future<void> _loadMessages() async {
@@ -183,41 +183,41 @@ Future<void> _loadData() async {
       });
     }
   }
-}
-/// Load recent actionable/forwarded tips for the Updates tab.
-/// Shows tips that have been reviewed as actionable or forwarded.
-Future<void> _loadTips() async {
-  setState(() => _isLoadingTips = true);
-  try {
-    final api = context.read<BackendApi>();
-    final result = await api.getRecentTips();
-    // _handleResponse wraps JSON arrays in {'data': [...]}
-    final rawTips = result['data'];
-    final List<Map<String, dynamic>> serverTips;
-    if (rawTips is List) {
-      serverTips = rawTips.cast<Map<String, dynamic>>().toList();
-    } else {
-      serverTips = [];
+
+  /// Load recent actionable/forwarded tips for the Updates tab.
+  /// Shows tips that have been reviewed as actionable or forwarded.
+  Future<void> _loadTips() async {
+    setState(() => _isLoadingTips = true);
+    try {
+      final api = context.read<BackendApi>();
+      final result = await api.getRecentTips();
+      // _handleResponse wraps JSON arrays in {'data': [...]}
+      final rawTips = result['data'];
+      final List<Map<String, dynamic>> serverTips;
+      if (rawTips is List) {
+        serverTips = rawTips.cast<Map<String, dynamic>>().toList();
+      } else {
+        serverTips = [];
+      }
+
+      setState(() {
+        _tips = serverTips;
+        _isLoadingTips = false;
+        _isTipsOffline = false;
+      });
+    } catch (e) {
+      debugPrint('InboxScreen: Failed to load tips: $e');
+      setState(() {
+        _isLoadingTips = false;
+        _isTipsOffline = false;
+      });
     }
-
-    setState(() {
-      _tips = serverTips;
-      _isLoadingTips = false;
-      _isTipsOffline = false;
-    });
-  } catch (e) {
-    debugPrint('InboxScreen: Failed to load tips: $e');
-    setState(() {
-      _isLoadingTips = false;
-      _isTipsOffline = false;
-    });
   }
-}
-}
 
-/// Connect to WebSocket for real-time message delivery.
-/// Subscribes to the user's personal message queue and urgent topic.
-Future<void> _connectMessageWebSocket() async {
+  /// Connect to WebSocket for real-time message delivery.
+  /// Subscribes to the user's personal message queue and urgent topic.
+  Future<void> _connectMessageWebSocket() async {
+    try {
       final storage = OfflineStorageService();
       final token = await storage.getSensitiveSetting(AppConstants.keyAuthToken);
       if (token == null || token.isEmpty) return;
@@ -1097,6 +1097,9 @@ class _MessagesTabState extends State<_MessagesTab> {
                 children: [
                   const SizedBox(
                     width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   const SizedBox(width: 12),
