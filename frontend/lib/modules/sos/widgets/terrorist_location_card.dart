@@ -159,17 +159,11 @@ class _TerroristLocationCardState extends State<TerroristLocationCard> {
     try {
       // Try backend API first
       final response = await BackendApi().getDangerZones();
-      final data = response['data'];
-      if (data is List) {
+      // Backend returns {'zones': [...]} — also accept 'data' key for flexibility
+      final zonesList = response['zones'] ?? response['data'];
+      if (zonesList is List) {
         setState(() {
-          _dangerZones = data.cast<Map<String, dynamic>>();
-          _isLoading = false;
-        });
-        return;
-      }
-      if (response['zones'] is List) {
-        setState(() {
-          _dangerZones = (response['zones'] as List).cast<Map<String, dynamic>>();
+          _dangerZones = zonesList.cast<Map<String, dynamic>>();
           _isLoading = false;
         });
         return;
@@ -180,11 +174,12 @@ class _TerroristLocationCardState extends State<TerroristLocationCard> {
     }
 
     // Fallback: load from offline storage
+    // Danger zones include hazard, exclusion, monitoring, and evacuation types
     try {
       final storage = OfflineStorageService();
       final cached = await storage.query('zones',
-          where: 'type = ? AND status = ?',
-          whereArgs: ['danger', 'active'],
+          where: 'type != ? AND status = ?',
+          whereArgs: ['safety', 'active'],
           orderBy: 'created_at DESC');
       setState(() {
         _dangerZones = cached;

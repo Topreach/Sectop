@@ -32,8 +32,7 @@ public class ZoneService {
     }
 
     public List<Zone> getActiveZones() {
-        return zoneRepository.findByTypeAndStatus(
-            Zone.ZoneType.safety.name(), Zone.ZoneStatus.active);
+        return zoneRepository.findByStatus(Zone.ZoneStatus.active);
     }
 
     public List<Zone> getZonesByTypeAndStatus(Zone.ZoneType type, Zone.ZoneStatus status) {
@@ -84,8 +83,9 @@ public class ZoneService {
     }
 
     public List<Zone> getDangerZones() {
-        return zoneRepository.findByTypeAndStatus(
-            Zone.ZoneType.hazard.name(), Zone.ZoneStatus.active);
+        // Return all active zones that are NOT safety type (hazard, exclusion, monitoring, evacuation)
+        return zoneRepository.findByTypeNotAndStatus(
+            Zone.ZoneType.safety.name(), Zone.ZoneStatus.active);
     }
 
     public List<Zone> getRestrictedZones() {

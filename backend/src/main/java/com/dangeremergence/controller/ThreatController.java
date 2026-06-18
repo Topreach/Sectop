@@ -234,9 +234,14 @@ public class ThreatController {
         // Fetch active SOS alerts nearby
         List<SOSAlert> activeAlerts = sosAlertService.getAlertsInArea(latitude, longitude, radiusKm);
 
-        // Fetch ML hotspot predictions
-        Map<String, Object> hotspotsResult = predictiveService.detectHotspots(latitude, longitude, radiusKm);
-        List<Map<String, Object>> hotspots = (List<Map<String, Object>>) hotspotsResult.getOrDefault("hotspots", List.of());
+        // Fetch ML hotspot predictions (with fallback if ML service is unavailable)
+        List<Map<String, Object>> hotspots = List.of();
+        try {
+            Map<String, Object> hotspotsResult = predictiveService.detectHotspots(latitude, longitude, radiusKm);
+            hotspots = (List<Map<String, Object>>) hotspotsResult.getOrDefault("hotspots", List.of());
+        } catch (Exception e) {
+            log.warn("ThreatController: Failed to fetch hotspot predictions, using empty list: {}", e.getMessage());
+        }
 
         // Calculate threat level (matches frontend _calculateThreatLevel logic)
         double level = 0.0;

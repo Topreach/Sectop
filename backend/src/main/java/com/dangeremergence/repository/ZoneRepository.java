@@ -19,6 +19,9 @@ public interface ZoneRepository extends JpaRepository<Zone, String> {
     @Query("SELECT z FROM Zone z WHERE z.type = :type AND z.status = :status")
     List<Zone> findByTypeAndStatus(@Param("type") String type, @Param("status") Zone.ZoneStatus status);
 
+    @Query("SELECT z FROM Zone z WHERE z.type <> :type AND z.status = :status")
+    List<Zone> findByTypeNotAndStatus(@Param("type") String type, @Param("status") Zone.ZoneStatus status);
+
     @Query("SELECT z FROM Zone z WHERE z.latitude BETWEEN :minLat AND :maxLat " +
            "AND z.longitude BETWEEN :minLon AND :maxLon " +
            "AND z.status = :status")
