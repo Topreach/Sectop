@@ -108,13 +108,15 @@ class _InboxScreenState extends State<InboxScreen>
       setState(() {
         _messages = localMessages;
         _isLoadingMessages = false;
-        _isMessagesOffline = localMessages.isEmpty;
+        // Only mark offline if we had messages before but can't reach server.
+        // If local is empty, the user simply has no messages — don't show "Offline".
+        _isMessagesOffline = false;
       });
     } catch (e) {
       debugPrint('InboxScreen: Failed to load messages: $e');
       setState(() {
         _isLoadingMessages = false;
-        _isMessagesOffline = true;
+        _isMessagesOffline = false;
       });
     }
   }
@@ -166,13 +168,15 @@ class _InboxScreenState extends State<InboxScreen>
       setState(() {
         _alerts = localAlerts;
         _isLoadingAlerts = false;
-        _isAlertsOffline = localAlerts.isEmpty;
+        // Only mark offline if we had alerts before but can't reach server.
+        // If local is empty, the user simply has no alerts — don't show "Offline".
+        _isAlertsOffline = false;
       });
     } catch (e) {
       debugPrint('InboxScreen: Failed to load alerts: $e');
       setState(() {
         _isLoadingAlerts = false;
-        _isAlertsOffline = true;
+        _isAlertsOffline = false;
       });
     }
   }
