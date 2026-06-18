@@ -23,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String _selectedRole = AppConstants.roleCitizen;
 
   @override
   void dispose() {
@@ -56,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
           name: _nameController.text.trim(),
           email: _emailController.text.trim(),
           phone: _phoneController.text.trim(),
-          role: AppConstants.roleCitizen,
+          role: _selectedRole,
           createdAt: DateTime.now().millisecondsSinceEpoch,
         );
         result = await authService.register(profile, _passwordController.text);
@@ -233,6 +234,32 @@ class _LoginScreenState extends State<LoginScreen> {
                           return 'Please enter your phone number';
                         }
                         return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Role selector (register only)
+                    DropdownButtonFormField<String>(
+                      value: _selectedRole,
+                      decoration: InputDecoration(
+                        labelText: 'I am a',
+                        prefixIcon: const Icon(Icons.badge_outlined),
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: AppConstants.roleCitizen,
+                          child: Text('Citizen — Receive alerts & send reports'),
+                        ),
+                        DropdownMenuItem(
+                          value: AppConstants.roleCoordinator,
+                          child: Text('Security Personnel — Create broadcasts & manage alerts'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _selectedRole = value);
+                        }
                       },
                     ),
                     const SizedBox(height: 16),
