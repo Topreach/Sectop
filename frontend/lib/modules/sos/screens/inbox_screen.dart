@@ -1099,9 +1099,6 @@ class _MessagesTabState extends State<_MessagesTab> {
                     width: 16, height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  const
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
                   const SizedBox(width: 12),
                   Text('AI analyzing message...', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                 ],
