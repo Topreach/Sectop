@@ -218,6 +218,22 @@ class ThreatAwarenessService extends ChangeNotifier {
   // Threat Polling (delegates to backend /api/v1/threat/*)
   // ---------------------------------------------------------------------------
 
+  /// Check if an error is a real connectivity issue vs an auth/server error.
+  /// Auth errors (401/403) and server errors (500+) mean the server IS reachable
+  /// but returned an error response — this is NOT "offline".
+  bool _isConnectivityError(Object e) {
+    if (e is ApiException) {
+      // 401 Unauthorized, 403 Forbidden — auth issue, not connectivity
+      if (e.statusCode == 401 || e.statusCode == 403) return false;
+      // 4xx client errors — not connectivity
+      if (e.statusCode >= 400 && e.statusCode < 500) return false;
+      // 5xx server errors — server is reachable but has issues
+      if (e.statusCode >= 500) return false;
+    }
+    // SocketException, TimeoutException, HandshakeException = connectivity issues
+    return true;
+  }
+
   Future<void> pollThreats() async {
     if (_isLoading) return;
     _isLoading = true;
@@ -235,6 +251,8 @@ class ThreatAwarenessService extends ChangeNotifier {
 
       bool alertsFailed = false;
       bool threatLevelFailed = false;
+      bool alertsConnectivityError = false;
+      bool threatLevelConnectivityError = false;
 
       // Step 1: Fetch pre-computed threat level from backend
       try {
@@ -251,6 +269,7 @@ class ThreatAwarenessService extends ChangeNotifier {
       } catch (levelError) {
         debugPrint('ThreatAwarenessService: Threat level poll failed: $levelError');
         threatLevelFailed = true;
+        threatLevelConnectivityError = _isConnectivityError(levelError);
         // Keep previous threat level values — don't reset to 0
       }
 
@@ -288,6 +307,7 @@ class ThreatAwarenessService extends ChangeNotifier {
       } catch (alertsError) {
         debugPrint('ThreatAwarenessService: Alerts poll failed: $alertsError');
         alertsFailed = true;
+        alertsConnectivityError = _isConnectivityError(alertsError);
         // Try loading cached alerts
         try {
           final cached = await _storage.getSetting(_alertsStorageKey);
@@ -303,16 +323,27 @@ class ThreatAwarenessService extends ChangeNotifier {
       }
 
       // Determine overall offline status
-      // Only mark as fully offline if BOTH threat level AND alerts failed
+      // Only mark as fully offline if BOTH failed AND at least one was a real connectivity error
       if (threatLevelFailed && alertsFailed) {
-        _isOffline = true;
-        _lastError = 'Offline mode — showing cached threat data';
+        if (threatLevelConnectivityError || alertsConnectivityError) {
+          _isOffline = true;
+          _lastError = 'Offline mode — showing cached threat data';
+        } else {
+          // Both failed but neither was a connectivity error (e.g. auth/server errors)
+          // Server IS reachable — do NOT show offline mode
+          _isOffline = false;
+          _lastError = 'Server returned errors — showing cached threat data';
+        }
       } else if (alertsFailed) {
         _isOffline = false;
-        _lastError = 'Alerts unavailable — threat level active';
+        _lastError = alertsConnectivityError
+            ? 'Alerts unavailable — threat level active'
+            : 'Alerts endpoint error — threat level active';
       } else if (threatLevelFailed) {
         _isOffline = false;
-        _lastError = 'Threat level unavailable — alerts active';
+        _lastError = threatLevelConnectivityError
+            ? 'Threat level unavailable — alerts active'
+            : 'Threat level endpoint error — alerts active';
       } else {
         _isOffline = false;
         _lastError = null;
@@ -322,8 +353,14 @@ class ThreatAwarenessService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('ThreatAwarenessService: Poll failed unexpectedly: $e');
-      _isOffline = true;
-      _lastError = 'Offline mode — showing cached threat data';
+      // Only mark offline if it's a real connectivity error
+      if (_isConnectivityError(e)) {
+        _isOffline = true;
+        _lastError = 'Offline mode — showing cached threat data';
+      } else {
+        _isOffline = false;
+        _lastError = 'Unexpected error — showing cached threat data';
+      }
 
       try {
         final cached = await _storage.getSetting(_alertsStorageKey);

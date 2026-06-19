@@ -37,6 +37,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/public/**").permitAll()
                 .requestMatchers("/api/v1/ai/**").permitAll() // Public AI analysis endpoints
+                .requestMatchers("/api/v1/threat/**").permitAll() // Public threat awareness (critical safety feature)
                 .requestMatchers("/api/v1/tips").permitAll() // Anonymous tip submission
                 .requestMatchers("/api/v1/tips/**").permitAll() // Public tip access
                 .requestMatchers("/api/v1/routes/**").authenticated()
