@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../shared/services/backend_api.dart';
+import '../../../modules/auth/services/auth_service.dart';
 
 class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({Key? key}) : super(key: key);
@@ -13,8 +15,10 @@ class EmergencyContactsScreen extends StatefulWidget {
 
 class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   final _storage = OfflineStorageService();
+  final _api = BackendApi();
   List<Map<String, String>> _contacts = [];
   bool _isLoading = true;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -38,11 +42,45 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
   Future<void> _saveContacts() async {
     await _storage.saveSetting('emergency_contacts', json.encode(_contacts));
+    // Sync to backend server so Covert SOS can notify these contacts
+    await _syncContactsToServer();
+  }
+
+  /// Sync emergency contact user IDs to the backend server.
+  /// The backend CovertAlertService reads emergency contacts from the
+  /// User.emergencyContacts field to know who to notify during a covert SOS.
+  Future<void> _syncContactsToServer() async {
+    final auth = AuthService();
+    final currentUser = auth.currentUser;
+    if (currentUser == null) {
+      debugPrint('EmergencyContactsScreen: No authenticated user, skipping server sync');
+      return;
+    }
+
+    setState(() => _isSyncing = true);
+    try {
+      // Extract user IDs from contacts that have them
+      final List<String> contactIds = [];
+      for (final contact in _contacts) {
+        final userId = contact['userId']?.trim();
+        if (userId != null && userId.isNotEmpty) {
+          contactIds.add(userId);
+        }
+      }
+      await _api.updateEmergencyContacts(currentUser.id, json.encode(contactIds));
+      debugPrint('EmergencyContactsScreen: Synced ${contactIds.length} contact IDs to server');
+    } catch (e) {
+      debugPrint('EmergencyContactsScreen: Failed to sync contacts to server: $e');
+      // Don't block the user — local save already succeeded
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
   }
 
   void _showAddEditContact({Map<String, String>? initialData, int? index}) {
     final nameController = TextEditingController(text: initialData?['name'] ?? '');
     final phoneController = TextEditingController(text: initialData?['phone'] ?? '');
+    final userIdController = TextEditingController(text: initialData?['userId'] ?? '');
 
     showDialog(
       context: context,
@@ -68,6 +106,16 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                 ),
                 keyboardType: TextInputType.phone,
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: userIdController,
+                decoration: InputDecoration(
+                  labelText: 'App User ID (optional)',
+                  hintText: 'Enter their Sectop user ID',
+                  prefixIcon: const Icon(Icons.fingerprint),
+                ),
+                keyboardType: TextInputType.text,
+              ),
             ],
           ),
           actions: [
@@ -80,6 +128,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                 final contact = {
                   'name': nameController.text.trim(),
                   'phone': phoneController.text.trim(),
+                  'userId': userIdController.text.trim(),
                 };
                 if (index != null) {
                   _contacts[index] = contact;
@@ -175,7 +224,17 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                             contact['name'] ?? '',
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          subtitle: Text(contact['phone'] ?? ''),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(contact['phone'] ?? ''),
+                              if (contact['userId'] != null && contact['userId']!.isNotEmpty)
+                                Text(
+                                  'ID: ${contact['userId']}',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                ),
+                            ],
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

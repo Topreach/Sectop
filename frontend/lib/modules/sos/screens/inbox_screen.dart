@@ -410,7 +410,10 @@ class _InboxScreenState extends State<InboxScreen>
     try {
       // Parse STOMP frame to extract JSON body
       String jsonStr = body;
-      if (body.contains('\n\n')) {
+      // STOMP protocol uses \r\n line endings
+      if (body.contains('\r\n\r\n')) {
+        jsonStr = body.substring(body.indexOf('\r\n\r\n') + 4).trim();
+      } else if (body.contains('\n\n')) {
         jsonStr = body.substring(body.indexOf('\n\n') + 2).trim();
       }
       jsonStr = jsonStr.replaceAll('\0', '').trim();

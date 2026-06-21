@@ -610,6 +610,18 @@ class BackendApi {
   }
 
   // ---------------------------------------------------------------------------
+  // User Profile / Emergency Contacts
+  // ---------------------------------------------------------------------------
+
+  /// Update emergency contacts for a user.
+  /// [emergencyContacts] is a JSON-encoded list of user IDs.
+  Future<Map<String, dynamic>> updateEmergencyContacts(String userId, String emergencyContacts) async {
+    return put('/users/$userId', body: {
+      'emergencyContacts': emergencyContacts,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Incidents (Kidnapper/Danger Location Detection)
   // ---------------------------------------------------------------------------
 

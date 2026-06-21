@@ -195,7 +195,10 @@ class SOSService extends ChangeNotifier {
       // STOMP frames may have headers before the JSON body; find the JSON part
       String jsonStr = body;
       // If it's a STOMP MESSAGE frame, the body follows the blank line after headers
-      if (body.contains('\n\n')) {
+      // STOMP protocol uses \r\n line endings
+      if (body.contains('\r\n\r\n')) {
+        jsonStr = body.substring(body.indexOf('\r\n\r\n') + 4).trim();
+      } else if (body.contains('\n\n')) {
         jsonStr = body.substring(body.indexOf('\n\n') + 2).trim();
       }
       // Remove STOMP null terminator if present
