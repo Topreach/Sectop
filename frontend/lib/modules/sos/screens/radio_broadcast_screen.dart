@@ -76,15 +76,18 @@ class _RadioBroadcastScreenState extends State<RadioBroadcastScreen> {
   }
 
   /// Send a raw STOMP frame over the WebSocket.
+  /// Uses \r\n line endings per the STOMP protocol specification.
   void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
     if (_wsChannel == null) return;
     try {
       final buffer = StringBuffer();
-      buffer.writeln(command);
+      buffer.write(command);
+      buffer.write('\r\n');
       headers.forEach((key, value) {
-        buffer.writeln('$key:$value');
+        buffer.write('$key:$value');
+        buffer.write('\r\n');
       });
-      buffer.writeln();
+      buffer.write('\r\n');
       if (body != null && body.isNotEmpty) {
         buffer.write(body);
       }

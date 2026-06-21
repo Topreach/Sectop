@@ -78,9 +78,10 @@ class _TerroristLocationCardState extends State<TerroristLocationCard> {
   void _handleStompFrame(String frame) {
     if (frame.startsWith('MESSAGE')) {
       // Extract the body after the headers
-      final parts = frame.split('\n\n');
+      // STOMP protocol uses \r\n line endings
+      final parts = frame.split('\r\n\r\n');
       if (parts.length >= 2) {
-        final body = parts.sublist(1).join('\n\n').trim().replaceAll('\0', '');
+        final body = parts.sublist(1).join('\r\n\r\n').trim().replaceAll('\0', '');
         if (body.isNotEmpty) {
           try {
             final data = json.decode(body);
@@ -124,15 +125,18 @@ class _TerroristLocationCardState extends State<TerroristLocationCard> {
   }
 
   /// Send a raw STOMP frame over the WebSocket.
+  /// Uses \r\n line endings per the STOMP protocol specification.
   void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
     if (_wsChannel == null) return;
     try {
       final buffer = StringBuffer();
-      buffer.writeln(command);
+      buffer.write(command);
+      buffer.write('\r\n');
       headers.forEach((key, value) {
-        buffer.writeln('$key:$value');
+        buffer.write('$key:$value');
+        buffer.write('\r\n');
       });
-      buffer.writeln();
+      buffer.write('\r\n');
       if (body != null && body.isNotEmpty) {
         buffer.write(body);
       }
