@@ -43,6 +43,7 @@ public class StompAlertController {
             Number accNum = (Number) payload.get("accuracy");
             Number priorityNum = (Number) payload.getOrDefault("priority", 5);
             Boolean isSilent = (Boolean) payload.getOrDefault("is_silent", false);
+            Boolean isCovert = (Boolean) payload.getOrDefault("is_covert", false);
 
             Double latitude = latNum != null ? latNum.doubleValue() : null;
             Double longitude = lngNum != null ? lngNum.doubleValue() : null;
@@ -58,10 +59,10 @@ public class StompAlertController {
                     userId, alertType, description,
                     latitude, longitude, accuracy,
                     priority, isSilent != null && isSilent,
-                    false // isCovert — STOMP alerts are not covert by default
+                    isCovert != null && isCovert
             );
 
-            log.debug("STOMP SOS alert processed: userId={}, type={}", userId, alertType);
+            log.debug("STOMP SOS alert processed: userId={}, type={}, covert={}", userId, alertType, isCovert);
         } catch (Exception e) {
             log.error("STOMP SOS alert handling failed: {}", e.getMessage());
         }
