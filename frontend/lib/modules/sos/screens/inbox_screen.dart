@@ -39,7 +39,10 @@ class _InboxScreenState extends State<InboxScreen>
 
   // Compose message state
   final TextEditingController _composeController = TextEditingController();
+  final TextEditingController _recipientController = TextEditingController();
   bool _isSending = false;
+  String? _selectedRecipientId;
+  String _selectedRecipientName = '';
   final List<Map<String, dynamic>> _outgoingMessages = [];
 
   @override
@@ -56,6 +59,7 @@ class _InboxScreenState extends State<InboxScreen>
     _wsSubscription?.cancel();
     _wsChannel?.sink.close();
     _composeController.dispose();
+    _recipientController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -270,15 +274,18 @@ class _InboxScreenState extends State<InboxScreen>
   }
 
   /// Send a raw STOMP frame over the message WebSocket.
+  /// Uses \r\n line endings per the STOMP protocol specification.
   void _sendMessageStompFrame(String command, Map<String, String> headers, {String? body}) {
     if (_wsChannel == null) return;
     try {
       final buffer = StringBuffer();
-      buffer.writeln(command);
+      buffer.write(command);
+      buffer.write('\r\n');
       headers.forEach((key, value) {
-        buffer.writeln('$key:$value');
+        buffer.write('$key:$value');
+        buffer.write('\r\n');
       });
-      buffer.writeln();
+      buffer.write('\r\n');
       if (body != null && body.isNotEmpty) {
         buffer.write(body);
       }
@@ -328,44 +335,50 @@ class _InboxScreenState extends State<InboxScreen>
   /// 2. Sends via STOMP SEND over existing WebSocket (fire-and-forget, ~1ms)
   /// 3. Fires HTTP POST in the background (does NOT await it)
   /// 4. Updates status to 'sent' immediately — no waiting for server round-trip
-  Future<void> _sendComposedMessage() async {
-    final text = _composeController.text.trim();
-    if (text.isEmpty || _isSending) return;
+  final text = _composeController.text.trim();
+  if (text.isEmpty || _isSending) return;
+  if (_selectedRecipientId == null || _selectedRecipientId!.isEmpty) {
+    debugPrint('InboxScreen: No recipient selected — cannot send message');
+    return;
+  }
 
-    final authService = context.read<AuthService>();
-    final userId = authService.currentUser?.id;
-    if (userId == null) return;
+  final authService = context.read<AuthService>();
+  final userId = authService.currentUser?.id;
+  if (userId == null) return;
 
-    // Generate a temporary ID for optimistic UI
-    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-    final now = DateTime.now().millisecondsSinceEpoch;
+  // Generate a temporary ID for optimistic UI
+  final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+  final now = DateTime.now().millisecondsSinceEpoch;
 
-    // Create optimistic message entry — appears instantly in the list
-    final optimisticMessage = <String, dynamic>{
-      'id': tempId,
-      'sender_id': userId,
-      'content': text,
-      'message_type': 'text',
-      'priority': 0,
-      'status': 'sending',
-      'created_at': now,
-      '_optimistic': true,
-    };
+  // Create optimistic message entry — appears instantly in the list
+  final optimisticMessage = <String, dynamic>{
+    'id': tempId,
+    'sender_id': userId,
+    'receiver_id': _selectedRecipientId,
+    'content': text,
+    'message_type': 'text',
+    'priority': 0,
+    'status': 'sending',
+    'created_at': now,
+    '_optimistic': true,
+  };
 
-    // Add to messages list immediately (optimistic UI) and clear input
-    setState(() {
-      _messages.insert(0, optimisticMessage);
-      _outgoingMessages.add(optimisticMessage);
-      _composeController.clear();
-    });
+  // Add to messages list immediately (optimistic UI) and clear input
+  setState(() {
+    _messages.insert(0, optimisticMessage);
+    _outgoingMessages.add(optimisticMessage);
+    _composeController.clear();
+  });
 
-    // Build the actual message payload
-    final messageData = <String, dynamic>{
-      'id': tempId,
-      'sender_id': userId,
-      'content': text,
-      'message_type': 'text',
-      'priority': 0,
+  // Build the actual message payload with receiver_id
+  final messageData = <String, dynamic>{
+    'id': tempId,
+    'sender_id': userId,
+    'receiver_id': _selectedRecipientId,
+    'content': text,
+    'message_type': 'text',
+    'priority': 0,
+  };
     };
 
     // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH — ~1ms)
@@ -575,7 +588,7 @@ class _InboxScreenState extends State<InboxScreen>
   }
 
   /// Build the compose message bar at the bottom of the screen.
-  /// Provides a text field and send button for instant message sending.
+  /// Provides a recipient selector, text field, and send button.
   Widget _buildComposeBar() {
     return Container(
       decoration: BoxDecoration(
@@ -591,73 +604,194 @@ class _InboxScreenState extends State<InboxScreen>
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Text input field
-              Expanded(
-                child: TextField(
-                  controller: _composeController,
-                  decoration: InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+              // Recipient selector row
+              if (_selectedRecipientId != null && _selectedRecipientName.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 4),
+                  child: Chip(
+                    avatar: const Icon(Icons.person, size: 16),
+                    label: Text(
+                      _selectedRecipientName,
+                      style: const TextStyle(fontSize: 12),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: AppTheme.primaryColor),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                  maxLines: 1,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendComposedMessage(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Send button
-              Material(
-                color: _isSending ? Colors.grey[400] : AppTheme.primaryColor,
-                borderRadius: BorderRadius.circular(24),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: _isSending ? null : _sendComposedMessage,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    child: _isSending
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.send_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () {
+                      setState(() {
+                        _selectedRecipientId = null;
+                        _selectedRecipientName = '';
+                      });
+                    },
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
+              Row(
+                children: [
+                  // Recipient selector button
+                  Material(
+                    color: _selectedRecipientId != null
+                        ? AppTheme.primaryColor.withOpacity(0.1)
+                        : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(24),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: _showRecipientPicker,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.person_add_alt_1,
+                          color: _selectedRecipientId != null
+                              ? AppTheme.primaryColor
+                              : Colors.grey[600],
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Text input field
+                  Expanded(
+                    child: TextField(
+                      controller: _composeController,
+                      decoration: InputDecoration(
+                        hintText: _selectedRecipientId != null
+                            ? 'Type a message...'
+                            : 'Select a recipient first',
+                        hintStyle: TextStyle(
+                          color: _selectedRecipientId != null
+                              ? Colors.grey[400]
+                              : Colors.grey[300],
+                          fontSize: 14,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide(color: AppTheme.primaryColor),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                      maxLines: 1,
+                      textInputAction: TextInputAction.send,
+                      enabled: _selectedRecipientId != null,
+                      onSubmitted: (_) => _sendComposedMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Send button
+                  Material(
+                    color: _isSending
+                        ? Colors.grey[400]
+                        : (_selectedRecipientId != null
+                            ? AppTheme.primaryColor
+                            : Colors.grey[300]),
+                    borderRadius: BorderRadius.circular(24),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: (_isSending || _selectedRecipientId == null)
+                          ? null
+                          : _sendComposedMessage,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        child: _isSending
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.send_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Show a dialog to pick a recipient from emergency contacts.
+  void _showRecipientPicker() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final nameCtrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Select Recipient'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Enter the recipient\'s user ID or name:',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Recipient user ID',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final id = nameCtrl.text.trim();
+                if (id.isNotEmpty) {
+                  setState(() {
+                    _selectedRecipientId = id;
+                    _selectedRecipientName = id;
+                  });
+                }
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Select'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -157,15 +157,18 @@ class SOSService extends ChangeNotifier {
   }
 
   /// Send a raw STOMP frame over the WebSocket.
+  /// Uses \r\n line endings per the STOMP protocol specification.
   void _sendStompFrame(String command, Map<String, String> headers, {String? body}) {
     if (_wsChannel == null) return;
     try {
       final buffer = StringBuffer();
-      buffer.writeln(command);
+      buffer.write(command);
+      buffer.write('\r\n');
       headers.forEach((key, value) {
-        buffer.writeln('$key:$value');
+        buffer.write('$key:$value');
+        buffer.write('\r\n');
       });
-      buffer.writeln();
+      buffer.write('\r\n');
       if (body != null && body.isNotEmpty) {
         buffer.write(body);
       }
@@ -329,34 +332,16 @@ class SOSService extends ChangeNotifier {
     }
   }
 
-  /// Try to send SOS via cloud API.
+  /// Try to send SOS via cloud API using BackendApi (with circuit breaker + retry).
   Future<void> _tryCloudSend(SOSAlert alert) async {
     try {
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      try {
-        final token = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
-        if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
-      } catch (_) {}
-
-      final response = await SecurityManager.instance.securePost(
-        Uri.parse('${AppConstants.apiBaseUrl}/${AppConstants.apiVersion}/alerts'),
-        headers: headers,
-        body: json.encode(alert.toMap()),
-      ).timeout(Duration(seconds: AppConstants.apiTimeout));
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        await _storage.update('sos_alerts', {
-          'mesh_relayed': 0,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, where: 'id = ?', whereArgs: [alert.id]);
-      } else {
-        // Server returned error — queue for retry via sync manager
-        debugPrint('Cloud SOS send returned ${response.statusCode}, queuing for retry');
-        await _storage.update('sos_alerts', {
-          'sync_state': AppConstants.msgSyncOffline,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        }, where: 'id = ?', whereArgs: [alert.id]);
-      }
+      final api = BackendApi();
+      await api.createAlert(alert.toMap());
+      // Success — update local storage
+      await _storage.update('sos_alerts', {
+        'mesh_relayed': 0,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      }, where: 'id = ?', whereArgs: [alert.id]);
     } catch (e) {
       debugPrint('Cloud SOS send failed: $e');
       // Server unreachable — queue for retry via sync manager

@@ -599,6 +599,11 @@ class BackendApi {
     return get('/alerts/user/$userId');
   }
 
+  /// Create a new SOS alert.
+  Future<Map<String, dynamic>> createAlert(Map<String, dynamic> alertData) async {
+    return post('/alerts', body: alertData);
+  }
+
   /// Get alert count.
   Future<Map<String, dynamic>> getAlertCount() async {
     return get('/alerts/count');
