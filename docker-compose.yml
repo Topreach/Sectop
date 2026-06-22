@@ -117,6 +117,47 @@ services:
           cpus: '1.0'
           memory: 1G
 
+  # SOS Microservice (Port 8081) - Dedicated SOS alert processing
+  sos-service:
+    build:
+      context: ./sos-service
+      dockerfile: Dockerfile
+    container_name: danger-emergence-sos
+    environment:
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JDBC_DATABASE_URL: jdbc:postgresql://danger-emergence-db:5432/danger_emergence
+      MQTT_BROKER: tcp://mosquitto:1883
+      JWT_SECRET: ${JWT_SECRET}
+      FCM_SERVER_KEY: ${FCM_SERVER_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || curl --fail http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - danger-emergence-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
   # FastAPI ML Service
   ml-service:
     build:
@@ -155,10 +196,11 @@ services:
       dockerfile: Dockerfile
     container_name: danger-emergence-nginx
     ports:
-      - "8081:80"
+      - "80:80"
     volumes: []
     depends_on:
       - backend
+      - sos-service
       - ml-service
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/api/v1/zones/count || exit 1"]
