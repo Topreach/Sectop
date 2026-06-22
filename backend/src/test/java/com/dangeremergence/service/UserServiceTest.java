@@ -287,7 +287,7 @@ class UserServiceTest {
 
         @Test
         @DisplayName("should generate token and send email for valid user")
-        void shouldSendResetEmailForValidUser() throws MessagingException {
+        void shouldSendResetEmailForValidUser() {
             when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
             when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
             doNothing().when(mailSender).send(any(MimeMessage.class));
