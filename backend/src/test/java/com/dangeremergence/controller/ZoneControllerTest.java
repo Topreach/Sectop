@@ -41,13 +41,13 @@ class ZoneControllerTest {
         testZone = new Zone();
         testZone.setId(ZONE_ID);
         testZone.setName("Lagos Danger Zone");
-        testZone.setType("danger");
+        testZone.setType(Zone.ZoneType.hazard);
         testZone.setDescription("High risk area in Lagos");
         testZone.setLatitude(6.5244);
         testZone.setLongitude(3.3792);
         testZone.setRadius(5.0);
         testZone.setSeverity("high");
-        testZone.setStatus("active");
+        testZone.setStatus(Zone.ZoneStatus.active);
         testZone.setCreatedAt(LocalDateTime.now());
     }
 

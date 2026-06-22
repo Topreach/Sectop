@@ -42,13 +42,13 @@ class MessageControllerTest {
     void setUp() {
         testMessage = new Message();
         testMessage.setId(MESSAGE_ID);
-        testMessage.setSenderId(SENDER_ID);
-        testMessage.setReceiverId(RECEIVER_ID);
+        testMessage.setSender(null);
+        testMessage.setReceiver(null);
         testMessage.setContent("Hello, this is a test message");
         testMessage.setMessageType(Message.MessageType.text);
         testMessage.setPriority(0);
-        testMessage.setDelivered(false);
-        testMessage.setRead(false);
+        testMessage.setStatus(Message.MessageStatus.sent);
+        testMessage.setSyncState(Message.SyncState.pending);
         testMessage.setCreatedAt(LocalDateTime.now());
     }
 

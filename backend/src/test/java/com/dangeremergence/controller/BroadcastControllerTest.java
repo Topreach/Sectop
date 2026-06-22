@@ -44,11 +44,11 @@ class BroadcastControllerTest {
         testBroadcast.setId(BROADCAST_ID);
         testBroadcast.setTitle("Emergency Alert");
         testBroadcast.setMessage("Flood warning in Lagos");
-        testBroadcast.setSeverity("critical");
-        testBroadcast.setBroadcastType("general");
+        testBroadcast.setSeverity(Broadcast.BroadcastSeverity.critical);
+        testBroadcast.setBroadcastType(Broadcast.BroadcastType.general);
         testBroadcast.setTargetState("Lagos");
         testBroadcast.setTargetLga("Ikeja");
-        testBroadcast.setCreatedById(CREATOR_ID);
+        testBroadcast.setCreatedBy(null);
         testBroadcast.setActive(true);
         testBroadcast.setCreatedAt(LocalDateTime.now());
     }

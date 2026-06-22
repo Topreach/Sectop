@@ -41,7 +41,7 @@ class SOSAlertControllerTest {
     void setUp() {
         testAlert = new SOSAlert();
         testAlert.setId(ALERT_ID);
-        testAlert.setUserId(USER_ID);
+        testAlert.setUser(null);
         testAlert.setAlertType("fire");
         testAlert.setDescription("Fire at market");
         testAlert.setLatitude(6.5244);

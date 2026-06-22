@@ -35,8 +35,8 @@ class RadioControllerTest {
         broadcast.setTitle("Emergency Alert");
         broadcast.setMessage("Flood warning in Lagos");
         broadcast.setLanguage("en");
-        broadcast.setSeverity("high");
-        broadcast.setBroadcastType("emergency");
+        broadcast.setSeverity(RadioBroadcast.BroadcastSeverity.warning);
+        broadcast.setBroadcastType(RadioBroadcast.BroadcastType.general);
         return broadcast;
     }
 

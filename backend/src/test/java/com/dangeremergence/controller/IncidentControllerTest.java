@@ -41,7 +41,7 @@ class IncidentControllerTest {
     void setUp() {
         testIncident = new Incident();
         testIncident.setId(INCIDENT_ID);
-        testIncident.setReporterId(REPORTER_ID);
+        testIncident.setReporter(null);
         testIncident.setIncidentType("kidnapping");
         testIncident.setDescription("Suspicious activity reported");
         testIncident.setLatitude(6.5244);

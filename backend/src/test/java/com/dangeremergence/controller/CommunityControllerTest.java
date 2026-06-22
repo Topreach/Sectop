@@ -44,18 +44,18 @@ class CommunityControllerTest {
     void setUp() {
         testPost = new CommunityPost();
         testPost.setId(POST_ID);
-        testPost.setUserId(USER_ID);
+        testPost.setUser(null);
         testPost.setCaption("Test post caption");
         testPost.setMediaUrl("/uploads/test.jpg");
-        testPost.setMediaType("image");
+        testPost.setMediaType(CommunityPost.MediaType.image);
         testPost.setLatitude(6.5244);
         testPost.setLongitude(3.3792);
         testPost.setCreatedAt(LocalDateTime.now());
 
         testComment = new CommunityComment();
         testComment.setId(COMMENT_ID);
-        testComment.setPostId(POST_ID);
-        testComment.setUserId(USER_ID);
+        testComment.setPost(null);
+        testComment.setUser(null);
         testComment.setContent("Great post!");
         testComment.setCreatedAt(LocalDateTime.now());
     }
@@ -86,9 +86,9 @@ class CommunityControllerTest {
             );
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
+                            .with(req -> {
+                                req.setRemoteUser(USER_ID);
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -108,9 +108,9 @@ class CommunityControllerTest {
             );
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
+                            .with(req -> {
+                                req.setRemoteUser(USER_ID);
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -302,9 +302,9 @@ class CommunityControllerTest {
             Map<String, String> request = Map.of("content", "Nice post!");
 
             mockMvc.perform(post("/api/v1/community/posts/{id}/comments", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
+                            .with(req -> {
+                                req.setRemoteUser(USER_ID);
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -378,9 +378,9 @@ class CommunityControllerTest {
             Map<String, String> request = Map.of("platform", "whatsapp");
 
             mockMvc.perform(post("/api/v1/community/posts/{id}/share", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
+                            .with(req -> {
+                                req.setRemoteUser(USER_ID);
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
