@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/constants.dart';
+import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/backend_api.dart';
@@ -1379,6 +1380,34 @@ class _AlertsTab extends StatelessWidget {
     required this.formatTimestamp,
   });
 
+  /// Extract user info from alert map (supports both nested `user` object and flat fields).
+  Map<String, String?> _extractUserInfo(Map<String, dynamic> alert) {
+    String? userId;
+    String? userName;
+    String? userPhone;
+    String? userEmail;
+
+    if (alert['user'] != null && alert['user'] is Map<String, dynamic>) {
+      final userData = alert['user'] as Map<String, dynamic>;
+      userId = userData['id'] as String?;
+      userName = userData['name'] as String?;
+      userPhone = userData['phone'] as String?;
+      userEmail = userData['email'] as String?;
+    } else {
+      userId = alert['user_id'] as String?;
+      userName = alert['user_name'] as String?;
+      userPhone = alert['user_phone'] as String?;
+      userEmail = alert['user_email'] as String?;
+    }
+
+    return {
+      'userId': userId,
+      'userName': userName,
+      'userPhone': userPhone,
+      'userEmail': userEmail,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -1430,8 +1459,10 @@ class _AlertsTab extends StatelessWidget {
               itemBuilder: (context, index) {
                 final alert = alerts[index];
                 final status = alert['status'] as String? ?? 'active';
-                final type = alert['type'] as String? ?? 'Alert';
+                final type = alert['alert_type'] as String? ?? alert['type'] as String? ?? 'Alert';
                 final isActive = status == 'active';
+                final userInfo = _extractUserInfo(alert);
+                final displayName = userInfo['userName'] ?? userInfo['userId'] ?? 'Unknown';
 
                 return Card(
                   margin: const EdgeInsets.symmetric(
@@ -1445,12 +1476,44 @@ class _AlertsTab extends StatelessWidget {
                       color: isActive ? Colors.red : Colors.green,
                       size: 32,
                     ),
-                    title: Text(
-                      type,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isActive ? Colors.red[900] : null,
-                      ),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            type,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isActive ? Colors.red[900] : null,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        // User badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.person, size: 10, color: AppTheme.primaryColor),
+                              const SizedBox(width: 3),
+                              Text(
+                                displayName.length > 12
+                                    ? '${displayName.substring(0, 12)}...'
+                                    : displayName,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1465,6 +1528,7 @@ class _AlertsTab extends StatelessWidget {
                               fontSize: 13,
                             ),
                           ),
+                        const SizedBox(height: 4),
                         Row(
                           children: [
                             Container(
@@ -1508,6 +1572,16 @@ class _AlertsTab extends StatelessWidget {
 
   void _showAlertDetail(
       BuildContext context, Map<String, dynamic> alert, String Function(dynamic) formatTimestamp) {
+    final userInfo = _extractUserInfo(alert);
+    final userId = userInfo['userId'];
+    final userName = userInfo['userName'];
+    final userPhone = userInfo['userPhone'];
+    final userEmail = userInfo['userEmail'];
+    final displayName = userName ?? userId ?? 'Unknown User';
+    final status = alert['status'] as String? ?? 'unknown';
+    final isActive = status == 'active';
+    final type = alert['alert_type'] as String? ?? alert['type'] as String? ?? 'Alert';
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -1519,13 +1593,14 @@ class _AlertsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Alert header
             Row(
               children: [
                 Icon(
-                  alert['status'] == 'active'
+                  isActive
                       ? Icons.warning
                       : Icons.check_circle,
-                  color: alert['status'] == 'active' ? Colors.red : Colors.green,
+                  color: isActive ? Colors.red : Colors.green,
                   size: 28,
                 ),
                 const SizedBox(width: 12),
@@ -1534,14 +1609,14 @@ class _AlertsTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        alert['type'] as String? ?? 'Alert',
+                        type,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
                         ),
                       ),
                       Text(
-                        'Status: ${alert['status'] ?? 'unknown'}',
+                        'Status: $status',
                         style: TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                     ],
@@ -1550,12 +1625,121 @@ class _AlertsTab extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+
+            // User info card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.primaryColor,
+                        child: Text(
+                          (displayName.isNotEmpty ? displayName[0] : '?').toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            if (userPhone != null && userPhone.isNotEmpty)
+                              Text(
+                                userPhone,
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              ),
+                            if (userEmail != null && userEmail.isNotEmpty)
+                              Text(
+                                userEmail,
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Action buttons
+                  Row(
+                    children: [
+                      if (userId != null && userId.isNotEmpty)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).pushNamed(
+                                AppRoutes.communityUserProfile,
+                                arguments: {
+                                  'id': userId,
+                                  'name': userName ?? userId,
+                                  'phone': userPhone ?? '',
+                                  'email': userEmail ?? '',
+                                },
+                              );
+                            },
+                            icon: const Icon(Icons.person_outline, size: 16),
+                            label: const Text('View Profile', style: TextStyle(fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                            ),
+                          ),
+                        ),
+                      if (userId != null && userId.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              // Navigate to inbox with recipient pre-selected
+                              Navigator.of(context).pushNamed(
+                                AppRoutes.inbox,
+                                arguments: {
+                                  'recipient_id': userId,
+                                  'recipient_name': userName ?? userId,
+                                },
+                              );
+                            },
+                            icon: const Icon(Icons.message_outlined, size: 16),
+                            label: const Text('Send Message', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Description
             if (alert['description'] != null)
               Text(
                 alert['description'] as String,
                 style: const TextStyle(fontSize: 15),
               ),
             const SizedBox(height: 12),
+
+            // Timestamps
             Text(
               'Created: ${formatTimestamp(alert['created_at'])}',
               style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -1564,6 +1748,16 @@ class _AlertsTab extends StatelessWidget {
               Text(
                 'Resolved: ${formatTimestamp(alert['resolved_at'])}',
                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              ),
+
+            // Location info
+            if (alert['latitude'] != null && alert['longitude'] != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Location: ${(alert['latitude'] as num).toStringAsFixed(4)}, ${(alert['longitude'] as num).toStringAsFixed(4)}',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
               ),
           ],
         ),

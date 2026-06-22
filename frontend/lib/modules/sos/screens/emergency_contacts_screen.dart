@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/routes.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/backend_api.dart';
@@ -218,7 +219,13 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: AppTheme.primaryColor,
-                            child: const Icon(Icons.person, color: Colors.white),
+                            child: Text(
+                              (contact['name'] != null && contact['name']!.isNotEmpty
+                                  ? contact['name']![0]
+                                  : '?')
+                                  .toUpperCase(),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
                           ),
                           title: Text(
                             contact['name'] ?? '',
@@ -238,6 +245,38 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // View Profile button — only if userId is present
+                              if (contact['userId'] != null && contact['userId']!.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.person_outline, size: 20, color: AppTheme.primaryColor),
+                                  tooltip: 'View Profile',
+                                  onPressed: () {
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.communityUserProfile,
+                                      arguments: {
+                                        'id': contact['userId'],
+                                        'name': contact['name'] ?? contact['userId'],
+                                        'phone': contact['phone'] ?? '',
+                                        'email': '',
+                                      },
+                                    );
+                                  },
+                                ),
+                              // Send Message button — only if userId is present
+                              if (contact['userId'] != null && contact['userId']!.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.message_outlined, size: 20, color: Colors.blue),
+                                  tooltip: 'Send Message',
+                                  onPressed: () {
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.inbox,
+                                      arguments: {
+                                        'recipient_id': contact['userId'],
+                                        'recipient_name': contact['name'] ?? contact['userId'],
+                                      },
+                                    );
+                                  },
+                                ),
                               IconButton(
                                 icon: const Icon(Icons.edit, size: 20),
                                 onPressed: () => _showAddEditContact(

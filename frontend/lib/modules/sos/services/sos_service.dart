@@ -563,6 +563,9 @@ class SOSService extends ChangeNotifier {
 class SOSAlert {
   final String id;
   final String userId;
+  final String? userName;
+  final String? userPhone;
+  final String? userEmail;
   final String alertType;
   final String? description;
   final double latitude;
@@ -579,6 +582,9 @@ class SOSAlert {
   SOSAlert({
     required this.id,
     required this.userId,
+    this.userName,
+    this.userPhone,
+    this.userEmail,
     required this.alertType,
     this.description,
     required this.latitude,
@@ -594,9 +600,26 @@ class SOSAlert {
   });
 
   factory SOSAlert.fromMap(Map<String, dynamic> map) {
+    // Parse nested user object if present (from backend JSON)
+    String userId = map['user_id'] as String? ?? '';
+    String? userName;
+    String? userPhone;
+    String? userEmail;
+
+    if (map['user'] != null && map['user'] is Map<String, dynamic>) {
+      final userData = map['user'] as Map<String, dynamic>;
+      userId = userData['id'] as String? ?? userId;
+      userName = userData['name'] as String?;
+      userPhone = userData['phone'] as String?;
+      userEmail = userData['email'] as String?;
+    }
+
     return SOSAlert(
       id: map['id'] as String,
-      userId: map['user_id'] as String,
+      userId: userId,
+      userName: userName,
+      userPhone: userPhone,
+      userEmail: userEmail,
       alertType: map['alert_type'] as String,
       description: map['description'] as String?,
       latitude: (map['latitude'] as num).toDouble(),
@@ -618,6 +641,9 @@ class SOSAlert {
   Map<String, dynamic> toMap() => {
     'id': id,
     'user_id': userId,
+    'user_name': userName,
+    'user_phone': userPhone,
+    'user_email': userEmail,
     'alert_type': alertType,
     'description': description,
     'latitude': latitude,
@@ -635,6 +661,9 @@ class SOSAlert {
   SOSAlert copyWith({
     String? id,
     String? userId,
+    String? userName,
+    String? userPhone,
+    String? userEmail,
     String? alertType,
     String? description,
     double? latitude,
@@ -651,6 +680,9 @@ class SOSAlert {
     return SOSAlert(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userPhone: userPhone ?? this.userPhone,
+      userEmail: userEmail ?? this.userEmail,
       alertType: alertType ?? this.alertType,
       description: description ?? this.description,
       latitude: latitude ?? this.latitude,
