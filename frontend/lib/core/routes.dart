@@ -34,6 +34,7 @@ import '../modules/community/screens/create_post_screen.dart';
 import '../modules/community/screens/post_detail_screen.dart';
 import '../modules/community/screens/user_posts_screen.dart';
 import '../modules/community/screens/favorites_screen.dart';
+import '../modules/community/screens/community_notifications_screen.dart';
 
 /// Route names for the Danger Emergence System.
 class AppRoutes {
@@ -70,6 +71,7 @@ class AppRoutes {
   static const String communityPostDetail = '/community/post';
   static const String communityMyPosts = '/community/my-posts';
   static const String communityFavorites = '/community/favorites';
+  static const String communityNotifications = '/community/notifications';
 
   // Store Compliance routes
   static const String forgotPassword = '/forgot-password';
@@ -225,6 +227,11 @@ class AppRoutes {
       case communityFavorites:
         return MaterialPageRoute(
           builder: (_) => const FavoritesScreen(),
+          settings: settings,
+        );
+      case communityNotifications:
+        return MaterialPageRoute(
+          builder: (_) => const CommunityNotificationsScreen(),
           settings: settings,
         );
       case forgotPassword:

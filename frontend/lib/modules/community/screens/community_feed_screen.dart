@@ -5,6 +5,7 @@ import '../../../../core/routes.dart';
 import '../services/community_service.dart';
 import '../models/community_post.dart';
 import '../widgets/post_card.dart';
+import 'community_notifications_screen.dart';
 
 /// Main community feed screen showing posts from all users.
 ///
@@ -31,11 +32,20 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   bool _useNearby = false;
   Position? _currentPosition;
 
+  int _unreadNotifications = 0;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     _loadFeed();
+    _loadNotificationCount();
+  }
+
+  Future<void> _loadNotificationCount() async {
+    final service = CommunityNotificationService.instance;
+    await service.load();
+    setState(() => _unreadNotifications = service.unreadCount);
   }
 
   @override
@@ -163,6 +173,47 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       appBar: AppBar(
         title: const Text('Community'),
         actions: [
+          // Notifications bell
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Notifications',
+                onPressed: () async {
+                  await Navigator.pushNamed(
+                      context, AppRoutes.communityNotifications);
+                  _loadNotificationCount();
+                },
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      _unreadNotifications > 99
+                          ? '99+'
+                          : '$_unreadNotifications',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           // Toggle feed type
           IconButton(
             icon: Icon(_useNearby ? Icons.explore : Icons.explore_outlined),
