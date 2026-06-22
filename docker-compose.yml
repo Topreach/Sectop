@@ -196,7 +196,7 @@ services:
       dockerfile: Dockerfile
     container_name: danger-emergence-nginx
     ports:
-      - "80:80"
+      - "8088:80"
     volumes: []
     depends_on:
       - backend

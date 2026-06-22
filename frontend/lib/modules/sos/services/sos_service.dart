@@ -12,7 +12,6 @@ import '../../../shared/services/backend_api.dart';
 import '../../security/services/security_manager.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../auth/services/auth_service.dart';
-import '../../../shared/services/evidence_service.dart';
 
 /// SOS Service - Handles emergency alert creation, broadcasting, and tracking.
 /// Implements multi-channel delivery: cloud API, Bluetooth mesh, Wi-Fi Direct, LoRa.
@@ -283,10 +282,7 @@ class SOSService extends ChangeNotifier {
       // STEP 6: Start location tracking for dynamic updates
       _startLocationTracking(alert.id);
 
-      // STEP 7: Capture last-gasp evidence (audio/photo)
-      unawaited(EvidenceService().captureLastGasp(alert.id));
-
-      // STEP 8: Fire HTTP POST in the background (DO NOT AWAIT)
+      // STEP 7: Fire HTTP POST in the background (DO NOT AWAIT)
       // This ensures delivery even if WebSocket message is lost.
       // The backend deduplicates by alert ID, so this is safe.
       unawaited(_tryCloudSend(alert));
