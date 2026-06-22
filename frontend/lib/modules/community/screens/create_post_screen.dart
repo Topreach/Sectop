@@ -100,10 +100,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.low,
-          timeLimit: Duration(seconds: 10),
-        ),
+        desiredAccuracy: LocationAccuracy.low,
       );
 
       _latitude = position.latitude;
@@ -353,7 +350,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           subtitle: const Text('Your name will not be shown'),
           value: _isAnonymous,
           onChanged: (val) => setState(() => _isAnonymous = val),
-          secondary: const Icon(Icons.incognito),
+          secondary: const Icon(Icons.visibility_off),
         ),
         // Location toggle
         SwitchListTile(

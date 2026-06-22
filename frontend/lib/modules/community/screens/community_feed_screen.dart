@@ -136,10 +136,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       if (permission == LocationPermission.deniedForever) return null;
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.low,
-          timeLimit: Duration(seconds: 10),
-        ),
+        desiredAccuracy: LocationAccuracy.low,
       );
       _currentPosition = position;
       return position;

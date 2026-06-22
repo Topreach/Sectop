@@ -54,6 +54,28 @@ class CommunityPost {
     );
   }
 
+  CommunityPost copyWith({
+    int? commentCount,
+  }) {
+    return CommunityPost(
+      id: id,
+      caption: caption,
+      mediaUrl: mediaUrl,
+      mediaType: mediaType,
+      latitude: latitude,
+      longitude: longitude,
+      locationName: locationName,
+      isAnonymous: isAnonymous,
+      createdAt: createdAt,
+      likeCount: likeCount,
+      commentCount: commentCount ?? this.commentCount,
+      shareCount: shareCount,
+      likedByMe: likedByMe,
+      favoritedByMe: favoritedByMe,
+      user: user,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

@@ -131,7 +131,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     setState(() {
       _comments.add(tempComment);
-      _post?.commentCount++;
+      _post = _post?.copyWith(commentCount: _post!.commentCount + 1);
     });
 
     try {
@@ -147,7 +147,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       // Remove temp comment on failure
       setState(() {
         _comments.remove(tempComment);
-        _post?.commentCount--;
+        _post = _post?.copyWith(commentCount: _post!.commentCount - 1);
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -162,7 +162,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       await _service.deleteComment(commentId);
       setState(() {
         _comments.removeWhere((c) => c.id == commentId);
-        _post?.commentCount--;
+        _post = _post?.copyWith(commentCount: _post!.commentCount - 1);
       });
     } catch (e) {
       if (mounted) {
