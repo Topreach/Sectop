@@ -11,6 +11,7 @@ import com.dangeremergence.service.IncidentService;
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.SOSAlertService;
 import com.dangeremergence.service.ZoneService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
