@@ -335,50 +335,50 @@ class _InboxScreenState extends State<InboxScreen>
   /// 2. Sends via STOMP SEND over existing WebSocket (fire-and-forget, ~1ms)
   /// 3. Fires HTTP POST in the background (does NOT await it)
   /// 4. Updates status to 'sent' immediately — no waiting for server round-trip
-  final text = _composeController.text.trim();
-  if (text.isEmpty || _isSending) return;
-  if (_selectedRecipientId == null || _selectedRecipientId!.isEmpty) {
-    debugPrint('InboxScreen: No recipient selected — cannot send message');
-    return;
-  }
+  void _sendComposedMessage() {
+    final text = _composeController.text.trim();
+    if (text.isEmpty || _isSending) return;
+    if (_selectedRecipientId == null || _selectedRecipientId!.isEmpty) {
+      debugPrint('InboxScreen: No recipient selected — cannot send message');
+      return;
+    }
 
-  final authService = context.read<AuthService>();
-  final userId = authService.currentUser?.id;
-  if (userId == null) return;
+    final authService = context.read<AuthService>();
+    final userId = authService.currentUser?.id;
+    if (userId == null) return;
 
-  // Generate a temporary ID for optimistic UI
-  final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-  final now = DateTime.now().millisecondsSinceEpoch;
+    // Generate a temporary ID for optimistic UI
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final now = DateTime.now().millisecondsSinceEpoch;
 
-  // Create optimistic message entry — appears instantly in the list
-  final optimisticMessage = <String, dynamic>{
-    'id': tempId,
-    'sender_id': userId,
-    'receiver_id': _selectedRecipientId,
-    'content': text,
-    'message_type': 'text',
-    'priority': 0,
-    'status': 'sending',
-    'created_at': now,
-    '_optimistic': true,
-  };
+    // Create optimistic message entry — appears instantly in the list
+    final optimisticMessage = <String, dynamic>{
+      'id': tempId,
+      'sender_id': userId,
+      'receiver_id': _selectedRecipientId,
+      'content': text,
+      'message_type': 'text',
+      'priority': 0,
+      'status': 'sending',
+      'created_at': now,
+      '_optimistic': true,
+    };
 
-  // Add to messages list immediately (optimistic UI) and clear input
-  setState(() {
-    _messages.insert(0, optimisticMessage);
-    _outgoingMessages.add(optimisticMessage);
-    _composeController.clear();
-  });
+    // Add to messages list immediately (optimistic UI) and clear input
+    setState(() {
+      _messages.insert(0, optimisticMessage);
+      _outgoingMessages.add(optimisticMessage);
+      _composeController.clear();
+    });
 
-  // Build the actual message payload with receiver_id
-  final messageData = <String, dynamic>{
-    'id': tempId,
-    'sender_id': userId,
-    'receiver_id': _selectedRecipientId,
-    'content': text,
-    'message_type': 'text',
-    'priority': 0,
-  };
+    // Build the actual message payload with receiver_id
+    final messageData = <String, dynamic>{
+      'id': tempId,
+      'sender_id': userId,
+      'receiver_id': _selectedRecipientId,
+      'content': text,
+      'message_type': 'text',
+      'priority': 0,
     };
 
     // STEP 1: Send via STOMP SEND over existing WebSocket (FASTEST PATH — ~1ms)
