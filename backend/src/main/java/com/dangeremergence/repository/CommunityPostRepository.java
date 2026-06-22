@@ -18,11 +18,16 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, St
 
     List<CommunityPost> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, PostStatus status);
 
-    @Query("SELECT p FROM CommunityPost p WHERE p.status = 'active' " +
+    @Query(value = "SELECT * FROM community_posts p WHERE p.status = 'active' " +
            "AND (:latitude IS NULL OR :longitude IS NULL OR " +
-           "function('sqrt', function('pow', (p.latitude - :latitude) * 111.32, 2) + " +
-           "function('pow', (p.longitude - :longitude) * 111.32 * function('cos', function('radians', :latitude)), 2)) < :radiusKm) " +
-           "ORDER BY p.createdAt DESC")
+           "SQRT(POW((p.latitude - :latitude) * 111.32, 2) + " +
+           "POW((p.longitude - :longitude) * 111.32 * COS(RADIANS(:latitude)), 2)) < :radiusKm) " +
+           "ORDER BY p.created_at DESC",
+           countQuery = "SELECT COUNT(*) FROM community_posts p WHERE p.status = 'active' " +
+                        "AND (:latitude IS NULL OR :longitude IS NULL OR " +
+                        "SQRT(POW((p.latitude - :latitude) * 111.32, 2) + " +
+                        "POW((p.longitude - :longitude) * 111.32 * COS(RADIANS(:latitude)), 2)) < :radiusKm)",
+           nativeQuery = true)
     Page<CommunityPost> findNearby(
             @Param("latitude") Double latitude,
             @Param("longitude") Double longitude,
