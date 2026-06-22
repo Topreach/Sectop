@@ -1,6 +1,8 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Broadcast;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.BroadcastService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,12 @@ class BroadcastControllerTest {
 
     @MockBean
     private BroadcastService broadcastService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private Broadcast testBroadcast;
     private static final String BROADCAST_ID = "bcast-123";

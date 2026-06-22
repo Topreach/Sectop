@@ -1,6 +1,8 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Incident;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.IncidentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,12 @@ class IncidentControllerTest {
 
     @MockBean
     private IncidentService incidentService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private Incident testIncident;
     private static final String INCIDENT_ID = "inc-123";

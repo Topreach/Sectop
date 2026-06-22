@@ -1,6 +1,8 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.SOSAlert;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.SOSAlertService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,12 @@ class SOSAlertControllerTest {
 
     @MockBean
     private SOSAlertService alertService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private SOSAlert testAlert;
     private static final String ALERT_ID = "alert-123";

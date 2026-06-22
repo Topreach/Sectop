@@ -1,6 +1,8 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Zone;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.ZoneService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,12 @@ class ZoneControllerTest {
 
     @MockBean
     private ZoneService zoneService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private Zone testZone;
     private static final String ZONE_ID = "zone-123";

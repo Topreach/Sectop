@@ -1,5 +1,7 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.IncidentService;
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.SOSAlertService;
@@ -9,8 +11,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.http.MediaType;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -40,6 +42,12 @@ class ThreatControllerTest {
 
     @MockBean
     private PredictiveService predictiveService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     @Nested
     @DisplayName("POST /api/v1/threat/analyze-text")

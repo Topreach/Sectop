@@ -1,6 +1,8 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Message;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.MessageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,12 @@ class MessageControllerTest {
 
     @MockBean
     private MessageService messageService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private Message testMessage;
     private static final String MESSAGE_ID = "msg-123";

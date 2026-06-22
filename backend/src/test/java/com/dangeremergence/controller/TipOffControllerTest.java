@@ -1,6 +1,8 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.TipOff;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.TipOffService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,12 @@ class TipOffControllerTest {
 
     @MockBean
     private TipOffService tipOffService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private TipOff testTipOff;
     private static final String TIP_ID = "tip-123";

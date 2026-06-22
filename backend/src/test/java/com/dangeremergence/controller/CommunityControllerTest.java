@@ -1,7 +1,9 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.CommunityComment;
 import com.dangeremergence.model.CommunityPost;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.CommunityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,12 @@ class CommunityControllerTest {
 
     @MockBean
     private CommunityService communityService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private CommunityPost testPost;
     private CommunityComment testComment;

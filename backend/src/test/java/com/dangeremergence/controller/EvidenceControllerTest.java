@@ -1,14 +1,16 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Evidence;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.EvidenceService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.http.MediaType;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -29,6 +31,12 @@ class EvidenceControllerTest {
 
     @MockBean
     private EvidenceService evidenceService;
+
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private Evidence createSampleEvidence() {
         Evidence evidence = new Evidence();
