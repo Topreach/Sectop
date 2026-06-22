@@ -6,6 +6,7 @@ import '../models/community_post.dart';
 import '../services/community_service.dart';
 import 'media_player_widget.dart';
 import 'like_button.dart';
+import '../screens/user_profile_screen.dart';
 
 /// Card widget for a single community post in the feed.
 ///
@@ -147,40 +148,54 @@ class _PostCardState extends State<PostCard> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: post.isAnonymous
-                ? Colors.grey.withOpacity(0.3)
-                : AppTheme.infoColor.withOpacity(0.2),
-            child: Text(
-              userAvatar,
-              style: TextStyle(
-                color: post.isAnonymous ? Colors.grey : AppTheme.infoColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+      child: InkWell(
+        onTap: post.isAnonymous
+            ? null
+            : () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.communityUserProfile,
+                  arguments: post.user,
+                );
+              },
+        borderRadius: BorderRadius.circular(8),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: post.isAnonymous
+                  ? Colors.grey.withOpacity(0.3)
+                  : AppTheme.infoColor.withOpacity(0.2),
+              child: Text(
+                userAvatar,
+                style: TextStyle(
+                  color: post.isAnonymous ? Colors.grey : AppTheme.infoColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  userName,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-                if (post.isAnonymous)
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Anonymous post',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    userName,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                   ),
-              ],
+                  if (post.isAnonymous)
+                    Text(
+                      'Anonymous post',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+            if (!post.isAnonymous)
+              Icon(Icons.chevron_right, size: 16, color: Colors.grey[400]),
+          ],
+        ),
       ),
     );
   }

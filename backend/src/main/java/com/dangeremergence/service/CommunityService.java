@@ -365,11 +365,13 @@ public class CommunityService {
             response.put("user", Map.of("id", "anonymous", "name", "Anonymous", "isAnonymous", true));
         } else {
             User u = post.getUser();
-            response.put("user", Map.of(
-                    "id", u.getId(),
-                    "name", u.getName() != null ? u.getName() : "Unknown",
-                    "isAnonymous", false
-            ));
+            Map<String, Object> userMap = new LinkedHashMap<>();
+            userMap.put("id", u.getId());
+            userMap.put("name", u.getName() != null ? u.getName() : "Unknown");
+            userMap.put("phone", u.getPhone() != null ? u.getPhone() : "");
+            userMap.put("email", u.getEmail() != null ? u.getEmail() : "");
+            userMap.put("isAnonymous", false);
+            response.put("user", userMap);
         }
 
         return response;

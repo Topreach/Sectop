@@ -167,6 +167,15 @@ public class CommunityController {
     }
 
     /**
+     * Get posts by a specific user (for viewing other users' profiles).
+     */
+    @GetMapping("/users/{userId}/posts")
+    public ResponseEntity<?> getUserPosts(@PathVariable String userId, Authentication auth) {
+        String currentUserId = auth != null ? auth.getName() : null;
+        return ResponseEntity.ok(communityService.getUserPosts(userId, currentUserId));
+    }
+
+    /**
      * Delete a post (soft delete).
      */
     @DeleteMapping("/posts/{id}")

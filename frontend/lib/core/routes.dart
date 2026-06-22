@@ -33,6 +33,7 @@ import '../modules/community/screens/community_feed_screen.dart';
 import '../modules/community/screens/create_post_screen.dart';
 import '../modules/community/screens/post_detail_screen.dart';
 import '../modules/community/screens/user_posts_screen.dart';
+import '../modules/community/screens/user_profile_screen.dart';
 import '../modules/community/screens/favorites_screen.dart';
 import '../modules/community/screens/community_notifications_screen.dart';
 
@@ -70,6 +71,7 @@ class AppRoutes {
   static const String communityCreatePost = '/community/create';
   static const String communityPostDetail = '/community/post';
   static const String communityMyPosts = '/community/my-posts';
+  static const String communityUserProfile = '/community/user-profile';
   static const String communityFavorites = '/community/favorites';
   static const String communityNotifications = '/community/notifications';
 
@@ -232,6 +234,12 @@ class AppRoutes {
       case communityNotifications:
         return MaterialPageRoute(
           builder: (_) => const CommunityNotificationsScreen(),
+          settings: settings,
+        );
+      case communityUserProfile:
+        final userData = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => UserProfileScreen(userData: userData),
           settings: settings,
         );
       case forgotPassword:

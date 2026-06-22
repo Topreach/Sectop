@@ -135,6 +135,15 @@ class CommunityService {
         .toList();
   }
 
+  /// Get posts by a specific user (for viewing other users' profiles).
+  Future<List<CommunityPost>> getUserPosts(String userId) async {
+    final response = await _api.get('/community/users/$userId/posts');
+    final data = response['data'] as List? ?? [];
+    return data
+        .map((p) => CommunityPost.fromJson(p as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Delete a post.
   Future<void> deletePost(String postId) async {
     await _api.delete('/community/posts/$postId');
