@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -20,10 +22,11 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = IncidentController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = IncidentController.class)
 class IncidentControllerTest {
 
     @Autowired
@@ -45,8 +48,11 @@ class IncidentControllerTest {
     private static final String INCIDENT_ID = "inc-123";
     private static final String REPORTER_ID = "user-123";
 
+    private Authentication testAuth;
+
     @BeforeEach
     void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
         testIncident = new Incident();
         testIncident.setId(INCIDENT_ID);
         testIncident.setReporter(null);
@@ -80,7 +86,8 @@ class IncidentControllerTest {
 
             mockMvc.perform(post("/api/v1/incidents")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
                     .andExpect(jsonPath("$.message").value("Incident reported successfully"));
@@ -95,7 +102,8 @@ class IncidentControllerTest {
 
             mockMvc.perform(post("/api/v1/incidents")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("incidentType is required"));
         }
@@ -108,7 +116,8 @@ class IncidentControllerTest {
 
             mockMvc.perform(post("/api/v1/incidents")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("latitude and longitude are required"));
         }
@@ -132,7 +141,8 @@ class IncidentControllerTest {
 
             mockMvc.perform(post("/api/v1/incidents")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }
@@ -148,7 +158,8 @@ class IncidentControllerTest {
             mockMvc.perform(get("/api/v1/incidents/nearby")
                             .param("latitude", "6.5")
                             .param("longitude", "3.3")
-                            .param("radiusKm", "10"))
+                            .param("radiusKm", "10")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.incidents[0].id").value(INCIDENT_ID))
                     .andExpect(jsonPath("$.count").value(1));
@@ -167,14 +178,16 @@ class IncidentControllerTest {
                             .param("latitude", "6.5")
                             .param("longitude", "3.3")
                             .param("radiusKm", "20")
-                            .param("since", "2024-01-01T00:00:00"))
+                            .param("since", "2024-01-01T00:00:00")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.heatmap[0].count").value(5));
         }
 
         @Test
         void shouldGetIncidentById() throws Exception {
-            mockMvc.perform(get("/api/v1/incidents/{id}", INCIDENT_ID))
+            mockMvc.perform(get("/api/v1/incidents/{id}", INCIDENT_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.incidentId").value(INCIDENT_ID));
         }
@@ -188,7 +201,8 @@ class IncidentControllerTest {
             );
             when(incidentService.getStatistics()).thenReturn(stats);
 
-            mockMvc.perform(get("/api/v1/incidents/stats"))
+            mockMvc.perform(get("/api/v1/incidents/stats")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.total").value(100));
         }
@@ -206,7 +220,8 @@ class IncidentControllerTest {
 
             mockMvc.perform(post("/api/v1/incidents/{id}/verify", INCIDENT_ID)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
                     .andExpect(jsonPath("$.message").value("Incident verified successfully"));
@@ -221,7 +236,8 @@ class IncidentControllerTest {
             when(incidentService.upvoteIncident(INCIDENT_ID))
                     .thenReturn(testIncident);
 
-            mockMvc.perform(post("/api/v1/incidents/{id}/upvote", INCIDENT_ID))
+            mockMvc.perform(post("/api/v1/incidents/{id}/upvote", INCIDENT_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
                     .andExpect(jsonPath("$.message").value("Incident upvoted"));

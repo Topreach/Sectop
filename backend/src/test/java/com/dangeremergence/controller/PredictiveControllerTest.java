@@ -4,6 +4,7 @@ import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.ZoneService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -18,11 +21,12 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(value = PredictiveController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = PredictiveController.class)
 class PredictiveControllerTest {
 
     @Autowired
@@ -39,6 +43,13 @@ class PredictiveControllerTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    private Authentication testAuth;
+
+    @BeforeEach
+    void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
+    }
 
     @Nested
     @DisplayName("POST /api/v1/predictive/ml-forecast")
@@ -60,6 +71,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/ml-forecast")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -77,6 +89,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/ml-forecast")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
@@ -103,6 +116,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/ml-forecast/batch")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -119,6 +133,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/ml-forecast/batch")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
@@ -145,6 +160,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/hotspots")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -162,6 +178,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/hotspots")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
@@ -186,6 +203,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/train")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -203,7 +221,8 @@ class PredictiveControllerTest {
             when(predictiveService.getTrainingStatus())
                     .thenReturn(Map.of("status", "idle", "lastTraining", "2024-01-01T00:00:00Z"));
 
-            mockMvc.perform(get("/api/v1/predictive/training-status"))
+            mockMvc.perform(get("/api/v1/predictive/training-status")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("idle"));
         }
@@ -219,7 +238,8 @@ class PredictiveControllerTest {
             when(predictiveService.getModelInfo())
                     .thenReturn(Map.of("model", "Prophet+XGBoost", "version", "2.0"));
 
-            mockMvc.perform(get("/api/v1/predictive/model-info"))
+            mockMvc.perform(get("/api/v1/predictive/model-info")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.model").value("Prophet+XGBoost"));
         }
@@ -235,7 +255,8 @@ class PredictiveControllerTest {
             when(predictiveService.getAllStatesForecast())
                     .thenReturn(Map.of("states", List.of(), "generatedAt", "2024-01-01T00:00:00Z"));
 
-            mockMvc.perform(post("/api/v1/predictive/forecast/all-states"))
+            mockMvc.perform(post("/api/v1/predictive/forecast/all-states")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.generatedAt").isString());
         }
@@ -251,7 +272,8 @@ class PredictiveControllerTest {
             when(predictiveService.healthCheck())
                     .thenReturn(Map.of("status", "healthy", "mlService", "connected"));
 
-            mockMvc.perform(get("/api/v1/predictive/health"))
+            mockMvc.perform(get("/api/v1/predictive/health")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("healthy"));
         }
@@ -273,6 +295,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/forecast")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -294,6 +317,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/anomaly")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -335,6 +359,7 @@ class PredictiveControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/predictive/optimize-resources")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())

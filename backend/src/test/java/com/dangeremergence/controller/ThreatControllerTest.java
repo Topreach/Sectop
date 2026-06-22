@@ -1,6 +1,9 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtUtil;
+import com.dangeremergence.model.Incident;
+import com.dangeremergence.model.SOSAlert;
+import com.dangeremergence.model.Zone;
 import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.IncidentService;
 import com.dangeremergence.service.PredictiveService;
@@ -15,6 +18,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -25,7 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(value = ThreatController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = ThreatController.class)
 class ThreatControllerTest {
 
     @Autowired
@@ -48,6 +52,27 @@ class ThreatControllerTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    private Incident createSampleIncident() {
+        Incident incident = new Incident();
+        incident.setId("inc-001");
+        incident.setIncidentType("flood");
+        incident.setDescription("Flood in Lagos");
+        incident.setLatitude(6.5244);
+        incident.setLongitude(3.3792);
+        incident.setCreatedAt(LocalDateTime.now());
+        return incident;
+    }
+
+    private SOSAlert createSampleAlert() {
+        SOSAlert alert = new SOSAlert();
+        alert.setId("alert-001");
+        alert.setDescription("Help needed");
+        alert.setLatitude(6.5244);
+        alert.setLongitude(3.3792);
+        alert.setCreatedAt(LocalDateTime.now());
+        return alert;
+    }
 
     @Nested
     @DisplayName("POST /api/v1/threat/analyze-text")
@@ -168,15 +193,26 @@ class ThreatControllerTest {
         @Test
         @DisplayName("should return threat level for a location")
         void shouldReturnThreatLevel() throws Exception {
+            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), any()))
+                    .thenReturn(List.of());
+            when(zoneService.getDangerZones()).thenReturn(List.of());
+            when(sosAlertService.getAlertsInArea(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of());
+            when(predictiveService.detectHotspots(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(Map.of("hotspots", List.of()));
+
             mockMvc.perform(get("/api/v1/threat/level")
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
                             .param("radiusKm", "5"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.latitude").value(6.5244))
-                    .andExpect(jsonPath("$.longitude").value(3.3792))
-                    .andExpect(jsonPath("$.threatLevel").isString())
-                    .andExpect(jsonPath("$.threatScore").isNumber());
+                    .andExpect(jsonPath("$.threatLevel").isNumber())
+                    .andExpect(jsonPath("$.incidentCount").isNumber())
+                    .andExpect(jsonPath("$.dangerZoneCount").isNumber())
+                    .andExpect(jsonPath("$.activeAlertCount").isNumber())
+                    .andExpect(jsonPath("$.predictedHotspotCount").isNumber())
+                    .andExpect(jsonPath("$.hasCritical").isBoolean())
+                    .andExpect(jsonPath("$.levelLabel").isString());
         }
     }
 
@@ -187,13 +223,20 @@ class ThreatControllerTest {
         @Test
         @DisplayName("should return threat alerts for a location")
         void shouldReturnThreatAlerts() throws Exception {
+            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), any()))
+                    .thenReturn(List.of());
+            when(zoneService.getDangerZones()).thenReturn(List.of());
+            when(sosAlertService.getAlertsInArea(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of());
+
             mockMvc.perform(get("/api/v1/threat/alerts")
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
                             .param("radiusKm", "10"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts").isArray())
-                    .andExpect(jsonPath("$.total").isNumber());
+                    .andExpect(jsonPath("$.totalCount").isNumber())
+                    .andExpect(jsonPath("$.unreadCount").isNumber());
         }
     }
 
@@ -202,17 +245,14 @@ class ThreatControllerTest {
     class AudioResult {
 
         @Test
-        @DisplayName("should process audio analysis result")
-        void shouldProcessAudioResult() throws Exception {
+        @DisplayName("should process audio analysis result with distress detected")
+        void shouldProcessAudioResultWithDistress() throws Exception {
             String request = """
                     {
-                        "sessionId": "session_001",
-                        "text": "gunshots detected",
-                        "threatDetected": true,
-                        "threatType": "gunshot",
+                        "hasDistress": true,
+                        "threatLevel": "high",
                         "confidence": 0.85,
-                        "latitude": 6.5244,
-                        "longitude": 3.3792
+                        "method": "ambient_audio_monitor"
                     }
                     """;
 
@@ -220,8 +260,29 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("processed"))
-                    .andExpect(jsonPath("$.sessionId").value("session_001"));
+                    .andExpect(jsonPath("$.created").value(true))
+                    .andExpect(jsonPath("$.alertId").isString())
+                    .andExpect(jsonPath("$.alert.type").value("ambient_audio"))
+                    .andExpect(jsonPath("$.alert.severity").value("high"));
+        }
+
+        @Test
+        @DisplayName("should return created=false when no distress detected")
+        void shouldReturnNotCreatedWhenNoDistress() throws Exception {
+            String request = """
+                    {
+                        "hasDistress": false,
+                        "threatLevel": "low",
+                        "confidence": 0.0
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/threat/audio-result")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.created").value(false))
+                    .andExpect(jsonPath("$.message").value("No distress detected — no alert created"));
         }
     }
 }

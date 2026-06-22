@@ -4,6 +4,7 @@ import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Evidence;
 import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.EvidenceService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -19,11 +22,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(value = EvidenceController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = EvidenceController.class)
 class EvidenceControllerTest {
 
     @Autowired
@@ -37,6 +41,13 @@ class EvidenceControllerTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    private Authentication testAuth;
+
+    @BeforeEach
+    void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
+    }
 
     private Evidence createSampleEvidence() {
         Evidence evidence = new Evidence();
@@ -74,6 +85,7 @@ class EvidenceControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/evidence")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isCreated())
@@ -91,6 +103,7 @@ class EvidenceControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/evidence")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest());
@@ -107,7 +120,8 @@ class EvidenceControllerTest {
             Evidence evidence = createSampleEvidence();
             when(evidenceService.getEvidence("ev_001")).thenReturn(evidence);
 
-            mockMvc.perform(get("/api/v1/evidence/ev_001"))
+            mockMvc.perform(get("/api/v1/evidence/ev_001")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value("ev_001"));
         }
@@ -117,7 +131,8 @@ class EvidenceControllerTest {
         void shouldReturn404WhenNotFound() throws Exception {
             when(evidenceService.getEvidence("nonexistent")).thenThrow(new RuntimeException("Not found"));
 
-            mockMvc.perform(get("/api/v1/evidence/nonexistent"))
+            mockMvc.perform(get("/api/v1/evidence/nonexistent")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isNotFound());
         }
     }
@@ -131,7 +146,8 @@ class EvidenceControllerTest {
         void shouldReturnEvidenceForParent() throws Exception {
             when(evidenceService.getEvidenceForParent("parent_001")).thenReturn(List.of(createSampleEvidence()));
 
-            mockMvc.perform(get("/api/v1/evidence/parent/parent_001"))
+            mockMvc.perform(get("/api/v1/evidence/parent/parent_001")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value("ev_001"));
         }
@@ -144,7 +160,8 @@ class EvidenceControllerTest {
         @Test
         @DisplayName("should delete evidence by ID")
         void shouldDeleteEvidence() throws Exception {
-            mockMvc.perform(delete("/api/v1/evidence/ev_001"))
+            mockMvc.perform(delete("/api/v1/evidence/ev_001")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isNoContent());
         }
 
@@ -153,7 +170,8 @@ class EvidenceControllerTest {
         void shouldReturn404WhenNotFound() throws Exception {
             doThrow(new RuntimeException("Not found")).when(evidenceService).deleteEvidence("nonexistent");
 
-            mockMvc.perform(delete("/api/v1/evidence/nonexistent"))
+            mockMvc.perform(delete("/api/v1/evidence/nonexistent")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isNotFound());
         }
     }
@@ -165,7 +183,8 @@ class EvidenceControllerTest {
         @Test
         @DisplayName("should delete all evidence for parent")
         void shouldDeleteEvidenceForParent() throws Exception {
-            mockMvc.perform(delete("/api/v1/evidence/parent/parent_001"))
+            mockMvc.perform(delete("/api/v1/evidence/parent/parent_001")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isNoContent());
         }
     }

@@ -2,6 +2,7 @@ package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -9,14 +10,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(value = DroneController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = DroneController.class)
 class DroneControllerTest {
 
     @Autowired
@@ -28,6 +34,13 @@ class DroneControllerTest {
     @MockBean
     private UserRepository userRepository;
 
+    private Authentication testAuth;
+
+    @BeforeEach
+    void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
+    }
+
     @Nested
     @DisplayName("GET /api/v1/drones/available")
     class GetAvailableDrones {
@@ -35,7 +48,8 @@ class DroneControllerTest {
         @Test
         @DisplayName("should return available drones without location filter")
         void shouldReturnAvailableDronesWithoutLocation() throws Exception {
-            mockMvc.perform(get("/api/v1/drones/available"))
+            mockMvc.perform(get("/api/v1/drones/available")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.drones").isArray())
                     .andExpect(jsonPath("$.count").isNumber());
@@ -45,6 +59,7 @@ class DroneControllerTest {
         @DisplayName("should return available drones with location filter")
         void shouldReturnAvailableDronesWithLocation() throws Exception {
             mockMvc.perform(get("/api/v1/drones/available")
+                            .with(authentication(testAuth))
                             .param("latitude", "40.7128")
                             .param("longitude", "-74.0060"))
                     .andExpect(status().isOk())
@@ -69,6 +84,7 @@ class DroneControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/drones/deploy-relay")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -89,6 +105,7 @@ class DroneControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/drones/deploy-relay")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
@@ -107,6 +124,7 @@ class DroneControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/drones/deploy-relay")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
@@ -131,6 +149,7 @@ class DroneControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/drones/assess-damage")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -138,9 +157,8 @@ class DroneControllerTest {
                     .andExpect(jsonPath("$.damagedBuildings").isArray())
                     .andExpect(jsonPath("$.fireHotspots").isArray())
                     .andExpect(jsonPath("$.blockedRoads").isArray())
-                    .andExpect(jsonPath("$.totalBuildingsDamaged").isNumber())
-                    .andExpect(jsonPath("$.totalFireHotspots").isNumber())
-                    .andExpect(jsonPath("$.totalBlockedRoads").isNumber());
+                    .andExpect(jsonPath("$.assessmentComplete").value(true))
+                    .andExpect(jsonPath("$.estimatedCasualties").isNumber());
         }
     }
 }

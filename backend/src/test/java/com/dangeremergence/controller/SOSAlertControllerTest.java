@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -20,10 +22,11 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = SOSAlertController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = SOSAlertController.class)
 class SOSAlertControllerTest {
 
     @Autowired
@@ -45,8 +48,11 @@ class SOSAlertControllerTest {
     private static final String ALERT_ID = "alert-123";
     private static final String USER_ID = "user-123";
 
+    private Authentication testAuth;
+
     @BeforeEach
     void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
         testAlert = new SOSAlert();
         testAlert.setId(ALERT_ID);
         testAlert.setUser(null);
@@ -82,7 +88,8 @@ class SOSAlertControllerTest {
 
             mockMvc.perform(post("/api/v1/alerts")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(ALERT_ID))
                     .andExpect(jsonPath("$.alertType").value("fire"))
@@ -108,7 +115,8 @@ class SOSAlertControllerTest {
 
             mockMvc.perform(post("/api/v1/alerts")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
 
@@ -131,7 +139,8 @@ class SOSAlertControllerTest {
 
             mockMvc.perform(post("/api/v1/alerts")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }
@@ -143,7 +152,8 @@ class SOSAlertControllerTest {
         void shouldGetActiveAlerts() throws Exception {
             when(alertService.getActiveAlerts()).thenReturn(List.of(testAlert));
 
-            mockMvc.perform(get("/api/v1/alerts/active"))
+            mockMvc.perform(get("/api/v1/alerts/active")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts[0].id").value(ALERT_ID));
         }
@@ -152,7 +162,8 @@ class SOSAlertControllerTest {
         void shouldGetAlertsForUser() throws Exception {
             when(alertService.getAlertsForUser(USER_ID)).thenReturn(List.of(testAlert));
 
-            mockMvc.perform(get("/api/v1/alerts/user/{userId}", USER_ID))
+            mockMvc.perform(get("/api/v1/alerts/user/{userId}", USER_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts[0].id").value(ALERT_ID));
         }
@@ -165,7 +176,8 @@ class SOSAlertControllerTest {
             mockMvc.perform(get("/api/v1/alerts/nearby")
                             .param("latitude", "6.5")
                             .param("longitude", "3.3")
-                            .param("radiusKm", "5.0"))
+                            .param("radiusKm", "5.0")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts[0].id").value(ALERT_ID));
         }
@@ -176,7 +188,8 @@ class SOSAlertControllerTest {
                     .thenReturn(List.of(testAlert));
 
             mockMvc.perform(get("/api/v1/alerts/sync")
-                            .param("since", "2024-01-01T00:00:00"))
+                            .param("since", "2024-01-01T00:00:00")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts[0].id").value(ALERT_ID));
         }
@@ -185,7 +198,8 @@ class SOSAlertControllerTest {
         void shouldGetAlertCount() throws Exception {
             when(alertService.getActiveAlertCount()).thenReturn(5L);
 
-            mockMvc.perform(get("/api/v1/alerts/count"))
+            mockMvc.perform(get("/api/v1/alerts/count")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.count").value(5));
         }
@@ -203,7 +217,8 @@ class SOSAlertControllerTest {
 
             mockMvc.perform(post("/api/v1/alerts/{alertId}/acknowledge", ALERT_ID)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(ALERT_ID));
         }
@@ -216,7 +231,8 @@ class SOSAlertControllerTest {
         void shouldResolveAlert() throws Exception {
             when(alertService.resolveAlert(ALERT_ID)).thenReturn(testAlert);
 
-            mockMvc.perform(post("/api/v1/alerts/{alertId}/resolve", ALERT_ID))
+            mockMvc.perform(post("/api/v1/alerts/{alertId}/resolve", ALERT_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(ALERT_ID));
         }

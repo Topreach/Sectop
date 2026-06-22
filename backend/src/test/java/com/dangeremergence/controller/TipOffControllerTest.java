@@ -12,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -21,10 +24,11 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = TipOffController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = TipOffController.class)
 class TipOffControllerTest {
 
     @Autowired
@@ -45,8 +49,12 @@ class TipOffControllerTest {
     private TipOff testTipOff;
     private static final String TIP_ID = "tip-123";
 
+    private Authentication coordinatorAuth;
+
     @BeforeEach
     void setUp() {
+        coordinatorAuth = new UsernamePasswordAuthenticationToken("coordinator-123", null,
+                List.of(new SimpleGrantedAuthority("coordinator")));
         testTipOff = new TipOff();
         testTipOff.setId(TIP_ID);
         testTipOff.setTipType(TipOff.TipType.suspicious_person);
@@ -82,7 +90,7 @@ class TipOffControllerTest {
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(TIP_ID))
-                    .andExpect(jsonPath("$.tipType").value("suspicious_activity"));
+                    .andExpect(jsonPath("$.tipType").value("suspicious_person"));
         }
 
         @Test
@@ -115,7 +123,8 @@ class TipOffControllerTest {
         void shouldGetPendingTips() throws Exception {
             when(tipOffService.getPendingTips()).thenReturn(List.of(testTipOff));
 
-            mockMvc.perform(get("/api/v1/tips/pending"))
+            mockMvc.perform(get("/api/v1/tips/pending")
+                            .with(authentication(coordinatorAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(TIP_ID));
         }
@@ -155,7 +164,8 @@ class TipOffControllerTest {
             );
             when(tipOffService.getStatistics()).thenReturn(stats);
 
-            mockMvc.perform(get("/api/v1/tips/stats"))
+            mockMvc.perform(get("/api/v1/tips/stats")
+                            .with(authentication(coordinatorAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.total").value(50));
         }
@@ -178,7 +188,8 @@ class TipOffControllerTest {
 
             mockMvc.perform(post("/api/v1/tips/{id}/review", TIP_ID)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(coordinatorAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(TIP_ID));
         }

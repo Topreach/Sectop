@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = AuthController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = AuthController.class)
 class AuthControllerTest {
 
     @Autowired
@@ -64,6 +64,8 @@ class AuthControllerTest {
 
         when(jwtUtil.generateToken(anyString(), anyString(), anyString()))
                 .thenReturn("test-jwt-token");
+        when(jwtUtil.generateTokenWithExpiry(anyString(), anyString(), anyString(), anyLong(), anyBoolean()))
+                .thenReturn("test-emergency-token");
     }
 
     @Nested

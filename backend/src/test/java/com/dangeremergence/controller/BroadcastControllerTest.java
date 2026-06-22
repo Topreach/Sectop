@@ -12,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -21,10 +24,11 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = BroadcastController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = BroadcastController.class)
 class BroadcastControllerTest {
 
     @Autowired
@@ -42,12 +46,19 @@ class BroadcastControllerTest {
     @MockBean
     private UserRepository userRepository;
 
+    private Authentication testAuth;
+    private Authentication coordinatorAuth;
+
     private Broadcast testBroadcast;
     private static final String BROADCAST_ID = "bcast-123";
     private static final String CREATOR_ID = "coordinator-123";
 
     @BeforeEach
     void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
+        coordinatorAuth = new UsernamePasswordAuthenticationToken(CREATOR_ID, null,
+                List.of(new SimpleGrantedAuthority("coordinator")));
+
         testBroadcast = new Broadcast();
         testBroadcast.setId(BROADCAST_ID);
         testBroadcast.setTitle("Emergency Alert");
@@ -85,6 +96,7 @@ class BroadcastControllerTest {
             );
 
             mockMvc.perform(post("/api/v1/broadcasts")
+                            .with(authentication(coordinatorAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -106,6 +118,7 @@ class BroadcastControllerTest {
             );
 
             mockMvc.perform(post("/api/v1/broadcasts")
+                            .with(authentication(coordinatorAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
@@ -121,7 +134,8 @@ class BroadcastControllerTest {
             when(broadcastService.getActiveBroadcasts(null, null))
                     .thenReturn(List.of(testBroadcast));
 
-            mockMvc.perform(get("/api/v1/broadcasts/active"))
+            mockMvc.perform(get("/api/v1/broadcasts/active")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(BROADCAST_ID));
         }
@@ -132,6 +146,7 @@ class BroadcastControllerTest {
                     .thenReturn(List.of(testBroadcast));
 
             mockMvc.perform(get("/api/v1/broadcasts/active")
+                            .with(authentication(testAuth))
                             .param("state", "Lagos"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(BROADCAST_ID));
@@ -143,6 +158,7 @@ class BroadcastControllerTest {
                     .thenReturn(List.of(testBroadcast));
 
             mockMvc.perform(get("/api/v1/broadcasts/active")
+                            .with(authentication(testAuth))
                             .param("state", "Lagos")
                             .param("lga", "Ikeja"))
                     .andExpect(status().isOk())
@@ -154,7 +170,8 @@ class BroadcastControllerTest {
             when(broadcastService.getBroadcastById(BROADCAST_ID))
                     .thenReturn(Optional.of(testBroadcast));
 
-            mockMvc.perform(get("/api/v1/broadcasts/{id}", BROADCAST_ID))
+            mockMvc.perform(get("/api/v1/broadcasts/{id}", BROADCAST_ID)
+                            .with(authentication(coordinatorAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(BROADCAST_ID));
         }
@@ -164,7 +181,8 @@ class BroadcastControllerTest {
             when(broadcastService.getBroadcastById("unknown"))
                     .thenReturn(Optional.empty());
 
-            mockMvc.perform(get("/api/v1/broadcasts/{id}", "unknown"))
+            mockMvc.perform(get("/api/v1/broadcasts/{id}", "unknown")
+                            .with(authentication(coordinatorAuth)))
                     .andExpect(status().isNotFound());
         }
 
@@ -172,7 +190,8 @@ class BroadcastControllerTest {
         void shouldGetBroadcastCount() throws Exception {
             when(broadcastService.getActiveBroadcastCount()).thenReturn(3L);
 
-            mockMvc.perform(get("/api/v1/broadcasts/count"))
+            mockMvc.perform(get("/api/v1/broadcasts/count")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.count").value(3));
         }
@@ -183,7 +202,8 @@ class BroadcastControllerTest {
 
         @Test
         void shouldExpireBroadcast() throws Exception {
-            mockMvc.perform(post("/api/v1/broadcasts/{id}/expire", BROADCAST_ID))
+            mockMvc.perform(post("/api/v1/broadcasts/{id}/expire", BROADCAST_ID)
+                            .with(authentication(coordinatorAuth)))
                     .andExpect(status().isOk());
         }
     }

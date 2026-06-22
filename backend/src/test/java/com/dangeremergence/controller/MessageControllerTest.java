@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -20,10 +22,11 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = MessageController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = MessageController.class)
 class MessageControllerTest {
 
     @Autowired
@@ -46,8 +49,11 @@ class MessageControllerTest {
     private static final String SENDER_ID = "sender-123";
     private static final String RECEIVER_ID = "receiver-123";
 
+    private Authentication testAuth;
+
     @BeforeEach
     void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
         testMessage = new Message();
         testMessage.setId(MESSAGE_ID);
         testMessage.setSender(null);
@@ -79,7 +85,8 @@ class MessageControllerTest {
 
             mockMvc.perform(post("/api/v1/messages")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(MESSAGE_ID))
                     .andExpect(jsonPath("$.content").value("Hello, this is a test message"));
@@ -103,7 +110,8 @@ class MessageControllerTest {
 
             mockMvc.perform(post("/api/v1/messages")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
 
@@ -124,7 +132,8 @@ class MessageControllerTest {
 
             mockMvc.perform(post("/api/v1/messages")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .content(objectMapper.writeValueAsString(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }
@@ -137,7 +146,8 @@ class MessageControllerTest {
             when(messageService.getMessagesForUser(RECEIVER_ID))
                     .thenReturn(List.of(testMessage));
 
-            mockMvc.perform(get("/api/v1/messages/user/{userId}", RECEIVER_ID))
+            mockMvc.perform(get("/api/v1/messages/user/{userId}", RECEIVER_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.messages[0].id").value(MESSAGE_ID));
         }
@@ -149,7 +159,8 @@ class MessageControllerTest {
 
             mockMvc.perform(get("/api/v1/messages/sync")
                             .param("userId", RECEIVER_ID)
-                            .param("since", "2024-01-01T00:00:00"))
+                            .param("since", "2024-01-01T00:00:00")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.messages[0].id").value(MESSAGE_ID));
         }
@@ -159,7 +170,8 @@ class MessageControllerTest {
             when(messageService.getPendingSyncMessages())
                     .thenReturn(List.of(testMessage));
 
-            mockMvc.perform(get("/api/v1/messages/pending-sync"))
+            mockMvc.perform(get("/api/v1/messages/pending-sync")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.messages[0].id").value(MESSAGE_ID));
         }
@@ -168,7 +180,8 @@ class MessageControllerTest {
         void shouldGetUnreadCount() throws Exception {
             when(messageService.getUnreadCount(RECEIVER_ID)).thenReturn(3L);
 
-            mockMvc.perform(get("/api/v1/messages/unread/{userId}", RECEIVER_ID))
+            mockMvc.perform(get("/api/v1/messages/unread/{userId}", RECEIVER_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.count").value(3));
         }
@@ -181,7 +194,8 @@ class MessageControllerTest {
         void shouldMarkAsDelivered() throws Exception {
             when(messageService.markAsDelivered(MESSAGE_ID)).thenReturn(testMessage);
 
-            mockMvc.perform(put("/api/v1/messages/{messageId}/deliver", MESSAGE_ID))
+            mockMvc.perform(put("/api/v1/messages/{messageId}/deliver", MESSAGE_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(MESSAGE_ID));
         }
@@ -190,14 +204,16 @@ class MessageControllerTest {
         void shouldMarkAsRead() throws Exception {
             when(messageService.markAsRead(MESSAGE_ID)).thenReturn(testMessage);
 
-            mockMvc.perform(put("/api/v1/messages/{messageId}/read", MESSAGE_ID))
+            mockMvc.perform(put("/api/v1/messages/{messageId}/read", MESSAGE_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(MESSAGE_ID));
         }
 
         @Test
         void shouldMarkAsSynced() throws Exception {
-            mockMvc.perform(put("/api/v1/messages/{messageId}/sync", MESSAGE_ID))
+            mockMvc.perform(put("/api/v1/messages/{messageId}/sync", MESSAGE_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }

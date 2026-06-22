@@ -2,6 +2,7 @@ package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -11,19 +12,23 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(value = MeshController.class, excludeAutoConfiguration = {org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class, org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration.class})
+@WebMvcTest(value = MeshController.class)
 class MeshControllerTest {
 
     @Autowired
@@ -81,7 +86,8 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/route")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .content(request)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("sourceDeviceId and targetDeviceId are required"));
         }
@@ -97,10 +103,18 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/route")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .content(request)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("sourceDeviceId and targetDeviceId are required"));
         }
+    }
+
+    private Authentication testAuth;
+
+    @BeforeEach
+    void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
     }
 
     @SuppressWarnings("unchecked")
@@ -126,7 +140,8 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/broadcast")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .content(request)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.messageId").isString())
                     .andExpect(jsonPath("$.sourceDeviceId").value("device_001"))
@@ -144,7 +159,8 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/broadcast")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .content(request)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("sourceDeviceId is required"));
         }
@@ -163,7 +179,8 @@ class MeshControllerTest {
             peerMap.put("dev_001", Map.of("deviceId", "dev_001", "signalStrength", -70));
             when(hashOperations.entries(anyString())).thenReturn(peerMap);
 
-            mockMvc.perform(get("/api/v1/mesh/peers"))
+            mockMvc.perform(get("/api/v1/mesh/peers")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.peers").isArray())
                     .andExpect(jsonPath("$.count").isNumber());
@@ -190,7 +207,8 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/stats")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .content(request)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("recorded"))
                     .andExpect(jsonPath("$.deviceId").value("device_001"));
@@ -205,9 +223,10 @@ class MeshControllerTest {
                     }
                     """;
 
-            mockMvc.perform(post("/api/v1/mesh/stats")
+            mockMvc.perform(post("/api/v1/mesh/route")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .content(request)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("deviceId is required"));
         }
