@@ -2,6 +2,7 @@ package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.User;
+import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.EmergencyBypassService;
 import com.dangeremergence.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +41,9 @@ class AuthControllerTest {
 
     @MockBean
     private EmergencyBypassService emergencyBypassService;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private User testUser;
     private static final String USER_ID = "user-123";

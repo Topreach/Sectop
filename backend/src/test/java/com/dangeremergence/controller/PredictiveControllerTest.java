@@ -266,10 +266,9 @@ class PredictiveControllerTest {
         void shouldReturnLegacyForecast() throws Exception {
             String request = """
                     {
-                        "latitude": 6.5244,
-                        "longitude": 3.3792,
-                        "radiusKm": 10,
-                        "hours": 24
+                        "zoneIds": ["zone-1", "zone-2"],
+                        "historyHours": 72,
+                        "forecastHours": 6
                     }
                     """;
 
@@ -277,8 +276,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.latitude").value(6.5244))
-                    .andExpect(jsonPath("$.longitude").value(3.3792));
+                    .andExpect(jsonPath("$.forecasts").exists());
         }
     }
 
@@ -291,9 +289,7 @@ class PredictiveControllerTest {
         void shouldDetectAnomalies() throws Exception {
             String request = """
                     {
-                        "latitude": 6.5244,
-                        "longitude": 3.3792,
-                        "radiusKm": 5
+                        "values": [10, 12, 15, 100, 11, 13]
                     }
                     """;
 
@@ -301,7 +297,9 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.latitude").value(6.5244));
+                    .andExpect(jsonPath("$.anomalies").exists())
+                    .andExpect(jsonPath("$.mean").exists())
+                    .andExpect(jsonPath("$.stdDev").exists());
         }
     }
 
@@ -314,9 +312,25 @@ class PredictiveControllerTest {
         void shouldOptimizeResources() throws Exception {
             String request = """
                     {
-                        "latitude": 6.5244,
-                        "longitude": 3.3792,
-                        "radiusKm": 20
+                        "zones": [
+                            {
+                                "id": "z1",
+                                "latitude": 6.5244,
+                                "longitude": 3.3792,
+                                "priority": 1,
+                                "requiredSkill": "general"
+                            }
+                        ],
+                        "responders": [
+                            {
+                                "id": "r1",
+                                "latitude": 6.5244,
+                                "longitude": 3.3792,
+                                "skill": "general",
+                                "availability": 100,
+                                "name": "Responder 1"
+                            }
+                        ]
                     }
                     """;
 
@@ -324,7 +338,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.latitude").value(6.5244));
+                    .andExpect(jsonPath("$").exists());
         }
     }
 }
