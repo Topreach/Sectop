@@ -1,0 +1,124 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+    min-response-size: 1024
+
+spring:
+  application:
+    name: sos-service
+
+  datasource:
+    url: ${JDBC_DATABASE_URL:jdbc:postgresql://localhost:5432/danger_emergence}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10          # Smaller pool — SOS only
+      minimum-idle: 3
+      idle-timeout: 300000
+      connection-timeout: 10000      # Faster timeout for SOS
+      validation-timeout: 3000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  redis:
+    host: ${REDIS_HOST:redis}
+    port: ${REDIS_PORT:6379}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 4
+        min-idle: 2
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+
+# FCM Push Notification Configuration
+fcm:
+  server-key: ${FCM_SERVER_KEY:}
+  api-url: https://fcm.googleapis.com/fcm/send
+
+# SMS Gateway Configuration (Twilio)
+sms:
+  twilio:
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    from-number: ${TWILIO_FROM_NUMBER:}
+    api-url: https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json
+
+# MQTT Configuration
+mqtt:
+  broker: ${MQTT_BROKER:tcp://localhost:1883}
+  client-id: sos-service
+  topic-prefix: danger/emergence/
+
+# Logging
+logging:
+  level:
+    com.dangeremergence.sos: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/sos-service.log
+    max-size: 10MB
+    max-history: 7
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+    prometheus:
+      enabled: true
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+        step: 30s
+    tags:
+      application: ${spring.application.name}
+      environment: ${APP_ENV:development}
+
+# Async Configuration
+spring.task.execution:
+  pool:
+    core-size: 4        # Smaller pool — SOS only needs a few threads
+    max-size: 8
+    queue-capacity: 50
+  thread-name-prefix: sos-async-
