@@ -65,16 +65,11 @@ class CommunityControllerTest {
 
         @Test
         void shouldCreatePostSuccessfully() throws Exception {
-            Map<String, Object> postResponse = Map.of(
-                    "id", POST_ID,
-                    "caption", "Test post",
-                    "mediaUrl", "/uploads/test.jpg"
-            );
             when(communityService.createPost(
                     eq(USER_ID), eq("Test post"), eq("/uploads/test.jpg"),
                     eq("image"), eq(6.5244), eq(3.3792),
                     eq("Lagos"), eq(false)
-            )).thenReturn(postResponse);
+            )).thenReturn(testPost);
 
             Map<String, Object> request = Map.of(
                     "caption", "Test post",

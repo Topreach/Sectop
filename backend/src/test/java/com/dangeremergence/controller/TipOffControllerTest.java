@@ -41,7 +41,7 @@ class TipOffControllerTest {
     void setUp() {
         testTipOff = new TipOff();
         testTipOff.setId(TIP_ID);
-        testTipOff.setTipType(TipOff.TipType.suspicious_activity);
+        testTip.setTipType(TipOff.TipType.suspicious_person);
         testTipOff.setDescription("Suspicious package at market");
         testTipOff.setLatitude(6.5244);
         testTipOff.setLongitude(3.3792);
