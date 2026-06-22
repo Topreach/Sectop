@@ -29,6 +29,11 @@ import '../modules/sos/screens/privacy_policy_screen.dart';
 import '../modules/sos/screens/how_to_use_screen.dart';
 import '../modules/maps/screens/map_screen.dart';
 import '../modules/mesh/screens/mesh_status_screen.dart';
+import '../modules/community/screens/community_feed_screen.dart';
+import '../modules/community/screens/create_post_screen.dart';
+import '../modules/community/screens/post_detail_screen.dart';
+import '../modules/community/screens/user_posts_screen.dart';
+import '../modules/community/screens/favorites_screen.dart';
 
 /// Route names for the Danger Emergence System.
 class AppRoutes {
@@ -58,6 +63,13 @@ class AppRoutes {
   static const String tipReview = '/tip-review';
   static const String radioBroadcast = '/radio-broadcast';
   static const String walkieTalkieMonitor = '/walkie-talkie-monitor';
+
+  // Community routes
+  static const String communityFeed = '/community';
+  static const String communityCreatePost = '/community/create';
+  static const String communityPostDetail = '/community/post';
+  static const String communityMyPosts = '/community/my-posts';
+  static const String communityFavorites = '/community/favorites';
 
   // Store Compliance routes
   static const String forgotPassword = '/forgot-password';
@@ -187,6 +199,32 @@ class AppRoutes {
       case walkieTalkieMonitor:
         return MaterialPageRoute(
           builder: (_) => const WalkieTalkieMonitorScreen(),
+          settings: settings,
+        );
+      case communityFeed:
+        return MaterialPageRoute(
+          builder: (_) => const CommunityFeedScreen(),
+          settings: settings,
+        );
+      case communityCreatePost:
+        return MaterialPageRoute(
+          builder: (_) => const CreatePostScreen(),
+          settings: settings,
+        );
+      case communityPostDetail:
+        final postId = settings.arguments as String? ?? '';
+        return MaterialPageRoute(
+          builder: (_) => PostDetailScreen(postId: postId),
+          settings: settings,
+        );
+      case communityMyPosts:
+        return MaterialPageRoute(
+          builder: (_) => const UserPostsScreen(),
+          settings: settings,
+        );
+      case communityFavorites:
+        return MaterialPageRoute(
+          builder: (_) => const FavoritesScreen(),
           settings: settings,
         );
       case forgotPassword:

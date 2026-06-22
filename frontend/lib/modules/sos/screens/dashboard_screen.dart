@@ -406,6 +406,34 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              // Community section
+              Text(
+                'Community',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.groups_outlined,
+                      label: 'Community Feed',
+                      color: const Color(0xFF7B1FA2),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.communityFeed),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.add_a_photo_outlined,
+                      label: 'Create Post',
+                      color: const Color(0xFF00897B),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.communityCreatePost),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 24),
 
               // Status Cards
