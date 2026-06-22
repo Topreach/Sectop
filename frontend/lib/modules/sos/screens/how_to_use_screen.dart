@@ -188,9 +188,103 @@ class HowToUseScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // 12. Account & Privacy
+          // 12. Community
           _stepCard(
             step: '12',
+            title: 'Community',
+            icon: Icons.groups,
+            items: [
+              'The Community section lets you share videos and images of incidents in your area.',
+              'Post media from your camera or gallery with a caption and location.',
+              'You can post anonymously to protect your identity.',
+              'Like, comment, share, and save posts to your favorites.',
+              'Browse the feed by "Latest" or "Nearby" to see posts from your area.',
+              'Report inappropriate content by flagging posts.',
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 13. Threat Awareness
+          _stepCard(
+            step: '13',
+            title: 'Threat Awareness & Alerts',
+            icon: Icons.notifications_active,
+            items: [
+              'The app continuously monitors your area for threats and danger zones.',
+              'You will receive instant pop-up alerts for critical threats in your vicinity.',
+              'Threat alerts include: terrorist activity, kidnapping reports, armed robbery, and natural disasters.',
+              'Tap "ACKNOWLEDGE" on threat pop-ups to confirm you have seen the alert.',
+              'Tap "VIEW ON MAP" to see the threat location on the map.',
+              'Threat levels are color-coded: Low (green), Medium (yellow), High (orange), Critical (red).',
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 14. AI & Predictive Analytics
+          _stepCard(
+            step: '14',
+            title: 'AI Threat Detection & Predictions',
+            icon: Icons.auto_awesome,
+            items: [
+              'The AI engine analyzes incident patterns to predict future threats.',
+              'View the Predictive Dashboard to see 6-hour threat forecasts.',
+              'Hotspot maps show areas with high incident concentration.',
+              'The ambient audio monitor can detect distress sounds (gunshots, screams, breaking glass).',
+              'AI-powered distress detection works even when the app is in the background.',
+              'Predictions help you avoid dangerous areas before incidents occur.',
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 15. Digital Twin & AR
+          _stepCard(
+            step: '15',
+            title: 'Digital Twin & Augmented Reality',
+            icon: Icons.view_in_ar,
+            items: [
+              'Digital Twin creates a virtual replica of your environment for situational awareness.',
+              'Use AR mode to see danger zones overlaid on your camera view.',
+              'View safe routes highlighted in your real-world surroundings.',
+              'See nearby emergency resources (hospitals, police stations, shelters) through AR.',
+              'Digital Twin data syncs in real-time with the command center.',
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 16. Drone Monitoring
+          _stepCard(
+            step: '16',
+            title: 'Drone Surveillance & Monitoring',
+            icon: Icons.flight,
+            items: [
+              'View live drone feeds from emergency response drones in your area.',
+              'Drones provide aerial surveillance of danger zones and incidents.',
+              'Track drone telemetry: battery level, altitude, speed, and camera feed.',
+              'Authorized responders can control drone flight paths.',
+              'Drone footage is recorded as evidence for incident investigation.',
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 17. Covert / Stealth Mode
+          _stepCard(
+            step: '17',
+            title: 'Covert & Stealth Mode',
+            icon: Icons.visibility_off,
+            items: [
+              'Stealth Mode hides the app icon and disables all visible notifications.',
+              'Activate Stealth Mode from Settings > Security > Stealth Mode.',
+              'In Stealth Mode, press Volume Up + Volume Down simultaneously to send a silent SOS.',
+              'Covert alerts are sent discreetly without public broadcast.',
+              'Emergency contacts are notified privately via SMS and silent push notification.',
+              'Use Covert Mode when you are in a dangerous situation and cannot be seen using your phone.',
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 18. Account & Privacy
+          _stepCard(
+            step: '18',
             title: 'Account & Privacy',
             icon: Icons.security,
             items: [
