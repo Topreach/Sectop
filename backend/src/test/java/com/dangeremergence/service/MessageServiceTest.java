@@ -196,7 +196,7 @@ class MessageServiceTest {
             when(userRepository.findById(receiverId)).thenReturn(Optional.of(receiver));
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
             doThrow(new RuntimeException("Topic unavailable"))
-                    .when(messagingTemplate).convertAndSend("/topic/messages/urgent", any());
+                    .when(messagingTemplate).convertAndSend("/topic/messages/urgent", any(Object.class));
 
             Message result = messageService.sendMessage(
                     senderId, receiverId, "URGENT!", Message.MessageType.alert, 10, null, null);
@@ -341,9 +341,9 @@ class MessageServiceTest {
         @Test
         @DisplayName("should return messages for user")
         void shouldReturnMessages() {
-            when(messageRepository.findMessagesForUser(userId)).thenReturn(List.of(testMessage));
+            when(messageRepository.findMessagesForUser(senderId)).thenReturn(List.of(testMessage));
 
-            List<Message> result = messageService.getMessagesForUser(userId);
+            List<Message> result = messageService.getMessagesForUser(senderId);
 
             assertThat(result).hasSize(1);
             assertThat(result.get(0).getId()).isEqualTo(messageId);
@@ -352,9 +352,9 @@ class MessageServiceTest {
         @Test
         @DisplayName("should return empty list when no messages")
         void shouldReturnEmptyWhenNone() {
-            when(messageRepository.findMessagesForUser(userId)).thenReturn(List.of());
+            when(messageRepository.findMessagesForUser(senderId)).thenReturn(List.of());
 
-            List<Message> result = messageService.getMessagesForUser(userId);
+            List<Message> result = messageService.getMessagesForUser(senderId);
 
             assertThat(result).isEmpty();
         }
@@ -368,9 +368,9 @@ class MessageServiceTest {
         @DisplayName("should return messages since given time")
         void shouldReturnMessagesSince() {
             LocalDateTime since = LocalDateTime.now().minusHours(1);
-            when(messageRepository.findMessagesSince(userId, since)).thenReturn(List.of(testMessage));
+            when(messageRepository.findMessagesSince(senderId, since)).thenReturn(List.of(testMessage));
 
-            List<Message> result = messageService.getMessagesSince(userId, since);
+            List<Message> result = messageService.getMessagesSince(senderId, since);
 
             assertThat(result).hasSize(1);
         }

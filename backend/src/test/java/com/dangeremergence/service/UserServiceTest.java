@@ -554,7 +554,7 @@ class UserServiceTest {
                     .deletionRequestedAt(LocalDateTime.now().minusDays(31))
                     .build();
 
-            when(userRepository.findByDeletionRequestedAtBefore(any(LocalDateTime.class)))
+            when(userRepository.findPendingDeletions(any(LocalDateTime.class)))
                     .thenReturn(java.util.List.of(expiredUser));
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -570,7 +570,7 @@ class UserServiceTest {
         @Test
         @DisplayName("should handle empty list gracefully")
         void shouldHandleEmptyList() {
-            when(userRepository.findByDeletionRequestedAtBefore(any(LocalDateTime.class)))
+            when(userRepository.findPendingDeletions(any(LocalDateTime.class)))
                     .thenReturn(java.util.List.of());
 
             userService.processPendingDeletions();

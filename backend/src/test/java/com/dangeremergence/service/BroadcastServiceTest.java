@@ -284,7 +284,7 @@ class BroadcastServiceTest {
             when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
             when(broadcastRepository.save(any(Broadcast.class))).thenAnswer(invocation -> invocation.getArgument(0));
             doThrow(new RuntimeException("WebSocket unavailable"))
-                    .when(messagingTemplate).convertAndSend(anyString(), any());
+                    .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
 
             Broadcast result = broadcastService.createBroadcast(
                     "Title", "Message", "warning", "general", null, null, null,

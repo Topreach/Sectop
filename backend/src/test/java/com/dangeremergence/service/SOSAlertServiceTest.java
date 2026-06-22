@@ -63,7 +63,7 @@ class SOSAlertServiceTest {
     private SOSAlertService sosAlertService;
 
     @Captor
-    private ArgumentCaptor<SOSAlert> alertCaptor;
+    private ArgumentCaptor<List<SOSAlert>> alertListCaptor;
 
     private User testUser;
     private SOSAlert testAlert;
@@ -145,7 +145,7 @@ class SOSAlertServiceTest {
         @DisplayName("should handle null lat/lng gracefully")
         void shouldHandleNullCoordinates() {
             when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-            when(nigeriaLocationService.resolve(null, null)).thenReturn(new String[]{"Unknown", "Unknown"});
+            when(nigeriaLocationService.resolve(0.0, 0.0)).thenReturn(new String[]{"Unknown", "Unknown"});
             when(alertRepository.save(any(SOSAlert.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             SOSAlert result = sosAlertService.createAlert(
@@ -171,7 +171,7 @@ class SOSAlertServiceTest {
             verify(mqttService, never()).publish(anyString(), any());
             verify(mqttService, never()).publishAlert(any());
             verify(droneService, never()).deployRelayIfNecessary(anyString(), anyString(), anyDouble(), anyDouble(), anyInt());
-            verify(messagingTemplate, never()).convertAndSend(anyString(), any());
+            verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
             verify(alertPubSubService, never()).publishAlert(any());
             verify(fcmPushService, never()).notifyAlertToNearbyUsers(any(), anyDouble());
             verify(smsGatewayService, never()).sendAlertSms(any(), anyString());
@@ -451,8 +451,8 @@ class SOSAlertServiceTest {
 
             sosAlertService.cleanupExpiredAlerts();
 
-            verify(alertRepository).saveAll(alertCaptor.capture());
-            List<SOSAlert> saved = (List<SOSAlert>) alertCaptor.getValue();
+            verify(alertRepository).saveAll(alertListCaptor.capture());
+            List<SOSAlert> saved = alertListCaptor.getValue();
             assertThat(saved).hasSize(1);
             assertThat(saved.get(0).getStatus()).isEqualTo(SOSAlert.AlertStatus.expired);
             assertThat(saved.get(0).getUpdatedAt()).isNotNull();
