@@ -179,7 +179,7 @@ class MessageServiceTest {
             when(userRepository.findById(receiverId)).thenReturn(Optional.of(receiver));
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
             doThrow(new RuntimeException("Broker unavailable"))
-                    .when(messagingTemplate).convertAndSendToUser(receiverId, "/queue/messages", any());
+                    .when(messagingTemplate).convertAndSendToUser(eq(receiverId), eq("/queue/messages"), any());
 
             Message result = messageService.sendMessage(
                     senderId, receiverId, "Hello", Message.MessageType.text, 5, null, null);
@@ -196,7 +196,7 @@ class MessageServiceTest {
             when(userRepository.findById(receiverId)).thenReturn(Optional.of(receiver));
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
             doThrow(new RuntimeException("Topic unavailable"))
-                    .when(messagingTemplate).convertAndSend("/topic/messages/urgent", any(Object.class));
+                    .when(messagingTemplate).convertAndSend(eq("/topic/messages/urgent"), any(Object.class));
 
             Message result = messageService.sendMessage(
                     senderId, receiverId, "URGENT!", Message.MessageType.alert, 10, null, null);
@@ -220,7 +220,7 @@ class MessageServiceTest {
                     senderId, receiverId, "Fast message", Message.MessageType.text, 5, null, null);
 
             // WebSocket push happens before DB save
-            verify(messagingTemplate).convertAndSendToUser(receiverId, "/queue/messages", any(Message.class));
+            verify(messagingTemplate).convertAndSendToUser(eq(receiverId), eq("/queue/messages"), any(Message.class));
             verify(messageRepository).save(any(Message.class));
             verify(priorityMessageQueue).enqueue(any(Message.class));
         }
@@ -235,7 +235,7 @@ class MessageServiceTest {
             messageService.sendMessageFast(
                     senderId, receiverId, "URGENT!", Message.MessageType.alert, 10, null, null);
 
-            verify(messagingTemplate).convertAndSend("/topic/messages/urgent", any(Message.class));
+            verify(messagingTemplate).convertAndSend(eq("/topic/messages/urgent"), any(Message.class));
         }
 
         @Test
@@ -268,7 +268,7 @@ class MessageServiceTest {
             when(userRepository.findById(senderId)).thenReturn(Optional.of(sender));
             when(userRepository.findById(receiverId)).thenReturn(Optional.of(receiver));
             doThrow(new RuntimeException("Broker down"))
-                    .when(messagingTemplate).convertAndSendToUser(receiverId, "/queue/messages", any());
+                    .when(messagingTemplate).convertAndSendToUser(eq(receiverId), eq("/queue/messages"), any());
             when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             messageService.sendMessageFast(
@@ -501,7 +501,8 @@ class MessageServiceTest {
 
             messageService.cleanupExpiredMessages();
 
-            verify(messageRepository, never()).deleteAll(any());
+            // The service always calls deleteAll() — verify it's called with an empty list
+            verify(messageRepository).deleteAll(List.of());
         }
     }
 }

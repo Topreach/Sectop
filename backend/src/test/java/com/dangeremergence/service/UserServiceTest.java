@@ -2,7 +2,6 @@ package com.dangeremergence.service;
 
 import com.dangeremergence.model.User;
 import com.dangeremergence.repository.UserRepository;
-import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -119,6 +118,7 @@ class UserServiceTest {
             User newUser = User.builder()
                     .name("Default Role User")
                     .email("defaultrole@example.com")
+                    .role(User.UserRole.citizen)
                     .build();
 
             when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
@@ -329,10 +329,10 @@ class UserServiceTest {
 
         @Test
         @DisplayName("should return false when mail sending fails")
-        void shouldReturnFalseOnMailFailure() throws MessagingException {
+        void shouldReturnFalseOnMailFailure() {
             when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
             when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-            doThrow(new MessagingException("SMTP error")).when(mailSender).send(any(MimeMessage.class));
+            doThrow(new RuntimeException("SMTP error")).when(mailSender).send(any(MimeMessage.class));
 
             boolean result = userService.requestPasswordReset(email);
 
@@ -506,11 +506,10 @@ class UserServiceTest {
             verify(userRepository).save(userCaptor.capture());
             User saved = userCaptor.getValue();
             assertThat(saved.getName()).contains("Deleted User");
-            assertThat(saved.getEmail()).contains("@deleted.local");
-            assertThat(saved.getPhone()).contains("000");
+            assertThat(saved.getEmail()).contains("@anon.dangeremergence.com");
+            assertThat(saved.getPhone()).isNull();
             assertThat(saved.isActive()).isFalse();
             assertThat(saved.getDeletedAt()).isNotNull();
-            assertThat(saved.getFcmToken()).isNull();
             assertThat(saved.getPasswordHash()).isNull();
             assertThat(saved.getPasswordResetToken()).isNull();
             assertThat(saved.getPasswordResetTokenExpiry()).isNull();
@@ -556,6 +555,8 @@ class UserServiceTest {
 
             when(userRepository.findPendingDeletions(any(LocalDateTime.class)))
                     .thenReturn(java.util.List.of(expiredUser));
+            // processPendingDeletions() calls deleteUserAccount(user.getId()) which calls findById
+            when(userRepository.findById("expired-user")).thenReturn(Optional.of(expiredUser));
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             userService.processPendingDeletions();

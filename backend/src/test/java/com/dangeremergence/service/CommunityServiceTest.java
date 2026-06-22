@@ -123,6 +123,8 @@ class CommunityServiceTest {
         @Test
         @DisplayName("should throw when media URL is null or empty")
         void shouldThrowWhenMediaUrlMissing() {
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+
             assertThatThrownBy(() -> communityService.createPost(
                     userId, "caption", null, "image", null, null, null, false))
                     .isInstanceOf(IllegalArgumentException.class)
