@@ -58,6 +58,16 @@ class AppConstants {
   // WebSocket / STOMP
   static const String wsBaseUrl = 'wss://sectop.resultscaleai.com/ws';
 
+  // Dedicated Microservice URLs
+  // SOS Service (Port 8081) - Dedicated SOS alert processing with guaranteed delivery
+  static const String sosApiBaseUrl = 'https://sectop.resultscaleai.com/api';
+  static const String sosWsBaseUrl = 'wss://sectop.resultscaleai.com/ws-sos';
+  // Messaging Service (Port 8082) - Dedicated messaging with priority queuing
+  static const String msgApiBaseUrl = 'https://sectop.resultscaleai.com/api';
+  static const String msgWsBaseUrl = 'wss://sectop.resultscaleai.com/ws';
+  // Community Service (Port 8083) - Dedicated community media sharing
+  static const String communityApiBaseUrl = 'https://sectop.resultscaleai.com/api';
+
   // Table names
   static const String tableUsers = 'users';
   static const String tableMessages = 'messages';
