@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -21,6 +23,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -48,8 +51,12 @@ class CommunityControllerTest {
     private static final String USER_ID = "user-123";
     private static final String COMMENT_ID = "comment-123";
 
+    private Authentication testAuth;
+
     @BeforeEach
     void setUp() {
+        testAuth = new UsernamePasswordAuthenticationToken(USER_ID, null, List.of());
+
         testPost = new CommunityPost();
         testPost.setId(POST_ID);
         testPost.setUser(null);
@@ -89,10 +96,7 @@ class CommunityControllerTest {
             );
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(req -> {
-                                req.setRemoteUser(USER_ID);
-                                return req;
-                            })
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -111,10 +115,7 @@ class CommunityControllerTest {
             );
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(req -> {
-                                req.setRemoteUser(USER_ID);
-                                return req;
-                            })
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
@@ -138,10 +139,7 @@ class CommunityControllerTest {
             mockMvc.perform(get("/api/v1/community/feed")
                             .param("page", "0")
                             .param("size", "20")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.posts[0].id").value(POST_ID));
         }
@@ -183,10 +181,7 @@ class CommunityControllerTest {
                             .param("radiusKm", "10")
                             .param("page", "0")
                             .param("size", "20")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.posts[0].id").value(POST_ID));
         }
@@ -205,10 +200,7 @@ class CommunityControllerTest {
                     .thenReturn(postResponse);
 
             mockMvc.perform(get("/api/v1/community/posts/{id}", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(POST_ID));
         }
@@ -219,10 +211,7 @@ class CommunityControllerTest {
                     .thenThrow(new IllegalArgumentException("Post not found"));
 
             mockMvc.perform(get("/api/v1/community/posts/{id}", "unknown")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("Post not found"));
         }
@@ -234,10 +223,7 @@ class CommunityControllerTest {
         @Test
         void shouldDeletePost() throws Exception {
             mockMvc.perform(delete("/api/v1/community/posts/{id}", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Post deleted successfully"));
         }
@@ -248,10 +234,7 @@ class CommunityControllerTest {
                     .when(communityService).deletePost(POST_ID, USER_ID);
 
             mockMvc.perform(delete("/api/v1/community/posts/{id}", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("Not authorized"));
         }
@@ -263,10 +246,7 @@ class CommunityControllerTest {
         @Test
         void shouldFlagPost() throws Exception {
             mockMvc.perform(post("/api/v1/community/posts/{id}/flag", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Post flagged for review"));
         }
@@ -285,10 +265,7 @@ class CommunityControllerTest {
                     .thenReturn(likeResponse);
 
             mockMvc.perform(post("/api/v1/community/posts/{id}/like", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.liked").value(true));
         }
@@ -305,10 +282,7 @@ class CommunityControllerTest {
             Map<String, String> request = Map.of("content", "Nice post!");
 
             mockMvc.perform(post("/api/v1/community/posts/{id}/comments", POST_ID)
-                            .with(req -> {
-                                req.setRemoteUser(USER_ID);
-                                return req;
-                            })
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -329,10 +303,7 @@ class CommunityControllerTest {
         @Test
         void shouldDeleteComment() throws Exception {
             mockMvc.perform(delete("/api/v1/community/comments/{id}", COMMENT_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Comment deleted successfully"));
         }
@@ -351,10 +322,7 @@ class CommunityControllerTest {
                     .thenReturn(favResponse);
 
             mockMvc.perform(post("/api/v1/community/posts/{id}/favorite", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.favorited").value(true));
         }
@@ -365,10 +333,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/my-favorites")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }
@@ -381,10 +346,7 @@ class CommunityControllerTest {
             Map<String, String> request = Map.of("platform", "whatsapp");
 
             mockMvc.perform(post("/api/v1/community/posts/{id}/share", POST_ID)
-                            .with(req -> {
-                                req.setRemoteUser(USER_ID);
-                                return req;
-                            })
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -394,10 +356,7 @@ class CommunityControllerTest {
         @Test
         void shouldRecordShareWithDefaultPlatform() throws Exception {
             mockMvc.perform(post("/api/v1/community/posts/{id}/share", POST_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            })
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isOk())
@@ -414,10 +373,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/my-posts")
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
 
@@ -427,10 +383,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/users/{userId}/posts", USER_ID)
-                            .with(request -> {
-                                request.setRemoteUser(USER_ID);
-                                return request;
-                            }))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }
