@@ -11,6 +11,7 @@ import 'shared/services/offline_storage.dart';
 import 'shared/services/sync_manager.dart';
 import 'shared/services/service_health.dart';
 import 'shared/services/backend_api.dart';
+import 'shared/services/push_notification_service.dart';
 import 'shared/widgets/responsive_layout.dart';
 import 'shared/widgets/degraded_mode_banner.dart';
 import 'modules/auth/services/auth_service.dart';
@@ -101,6 +102,7 @@ final Map<Type, Object Function()> _fallbackRegistry = {
   BackendApi: () => BackendApi(),
   HardwareTriggerService: () => HardwareTriggerService(),
   ThreatAwarenessService: () => ThreatAwarenessService(),
+  PushNotificationService: () => PushNotificationService(),
 };
 
 /// Creates a fallback instance for a service type when initialization fails.
@@ -135,6 +137,16 @@ void main() async {
       } catch (e) {
         debugPrint('[WorkManager] Initialization failed (non-fatal): $e');
       }
+    }
+
+    // Initialize Push Notification Service (FCM)
+    // This initializes Firebase, requests notification permissions,
+    // obtains the FCM token, and registers it with the backend.
+    // Non-fatal — the app works without push notifications.
+    try {
+      await PushNotificationService().initialize();
+    } catch (e) {
+      debugPrint('[PushNotification] Initialization failed (non-fatal): $e');
     }
 
     // Set system UI overlay style

@@ -294,6 +294,7 @@ public class AuthController {
             if (request.getMedicalInfo() != null) user.setMedicalInfo(request.getMedicalInfo());
             if (request.getPublicKey() != null) user.setPublicKey(request.getPublicKey());
             if (request.getRole() != null) user.setRole(request.getRole());
+            if (request.getFcmToken() != null) user.setFcmToken(request.getFcmToken());
 
             User updatedUser = userService.updateUser(user);
             Map<String, Object> response = new HashMap<>();
@@ -367,6 +368,7 @@ public class AuthController {
         private String medicalInfo;
         private String publicKey;
         private User.UserRole role;
+        private String fcmToken;
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
@@ -380,6 +382,8 @@ public class AuthController {
         public void setPublicKey(String publicKey) { this.publicKey = publicKey; }
         public User.UserRole getRole() { return role; }
         public void setRole(User.UserRole role) { this.role = role; }
+        public String getFcmToken() { return fcmToken; }
+        public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
     }
 
     public static class ForgotPasswordRequest {

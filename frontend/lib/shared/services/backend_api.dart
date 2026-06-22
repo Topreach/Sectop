@@ -954,6 +954,27 @@ class BackendApi {
       'method': method,
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Push Notifications (FCM)
+  // ---------------------------------------------------------------------------
+
+  /// Register (or update) the FCM push notification token for the current user.
+  ///
+  /// The backend saves this token in the [User.fcmToken] column so that
+  /// [FcmPushService] can deliver push notifications for:
+  ///   - SOS alerts to nearby responders
+  ///   - Covert alerts to emergency contacts
+  ///   - Acknowledgements and resolutions
+  ///   - Threat alert broadcasts
+  ///
+  /// Uses the PUT /api/v1/auth/users/{userId} endpoint which accepts
+  /// an 'fcmToken' field in the request body.
+  Future<void> registerFcmToken(String userId, String fcmToken) async {
+    await put('/auth/users/$userId', body: {
+      'fcmToken': fcmToken,
+    });
+  }
 }
 
 /// Exception thrown when the API returns a non-2xx status code.

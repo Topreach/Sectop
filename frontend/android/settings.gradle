@@ -26,6 +26,9 @@ plugins {
     // that use the library plugin in their own build.gradle files.
     id "com.android.library" version "8.11.1" apply false
     id "org.jetbrains.kotlin.android" version "2.0.21" apply false
+    // Google Services plugin for Firebase Cloud Messaging (FCM)
+    // Required by firebase_messaging Flutter plugin for push notifications.
+    id "com.google.gms.google-services" version "4.4.0" apply false
 }
 
 include ":app"

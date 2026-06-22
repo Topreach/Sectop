@@ -7,6 +7,7 @@ import '../../../core/constants.dart';
 import '../../../shared/services/encryption.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/services/backend_api.dart';
+import '../../../shared/services/push_notification_service.dart';
 
 /// Authentication service supporting offline-first authentication
 /// with emergency bypass mode for disaster situations.
@@ -252,6 +253,29 @@ class AuthService extends ChangeNotifier {
     }
 
     _currentUser = UserProfile.fromMap(userData);
+
+    // Register FCM push notification token with the backend
+    // so the server can deliver push notifications to this device.
+    // This runs in the background and is non-fatal if it fails.
+    unawaited(_registerFcmToken());
+  }
+
+  /// Register the FCM push notification token with the backend.
+  /// Called after successful authentication to associate the device
+  /// token with the authenticated user for push notification delivery.
+  Future<void> _registerFcmToken() async {
+    try {
+      final pushService = PushNotificationService();
+      if (pushService.isInitialized) {
+        final userId = _currentUser?.id;
+        final authToken = await _storage.getSensitiveSetting(AppConstants.keyAuthToken);
+        if (userId != null && authToken != null) {
+          await pushService.registerTokenAfterLogin(userId, authToken);
+        }
+      }
+    } catch (e) {
+      debugPrint('AuthService: FCM token registration failed (non-fatal): $e');
+    }
   }
 
   /// Logout the current user.
@@ -260,6 +284,8 @@ class AuthService extends ChangeNotifier {
     _isEmergencyMode = false;
     await _storage.removeSetting(AppConstants.keyUserId);
     await _storage.removeSensitiveSetting(AppConstants.keyAuthToken);
+    // Clear the FCM token reference on logout
+    PushNotificationService().clearToken();
     notifyListeners();
   }
 
