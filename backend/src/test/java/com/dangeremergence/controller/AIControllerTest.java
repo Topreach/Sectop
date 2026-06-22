@@ -15,6 +15,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,6 +39,16 @@ class AIControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @BeforeEach
+    void setUp() {
+        doAnswer(invocation -> {
+            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
+            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
+                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
+            return null;
+        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
+    }
 
     @Nested
     @DisplayName("POST /api/v1/ai/analyze-message")

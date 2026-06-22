@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -52,6 +53,13 @@ class RouteControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
+
+        doAnswer(invocation -> {
+            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
+            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
+                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
+            return null;
+        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
     }
 
     @Nested

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -57,6 +58,13 @@ class RadioControllerTest {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
         coordinatorAuth = new UsernamePasswordAuthenticationToken("coordinator-123", null,
                 List.of(new SimpleGrantedAuthority("coordinator")));
+
+        doAnswer(invocation -> {
+            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
+            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
+                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
+            return null;
+        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
     }
 
     private RadioBroadcast createSampleBroadcast() {

@@ -46,6 +46,12 @@ class DroneControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
+        doAnswer(invocation -> {
+            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
+            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
+                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
+            return null;
+        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
     }
 
     @Nested
