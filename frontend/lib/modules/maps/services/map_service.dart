@@ -262,20 +262,33 @@ class MapService extends ChangeNotifier {
     // Try server first for danger-aware route planning
     try {
       final api = BackendApi();
-      final result = await api.post('/route/plan', body: {
-        'fromLat': fromLat,
-        'fromLon': fromLon,
-      });
-      if (result['waypoints'] is List) {
-        final waypoints = result['waypoints'] as List;
-        if (waypoints.isNotEmpty) {
-          return waypoints.map((wp) {
-            final w = wp as Map<String, dynamic>;
-            return {
-              'lat': (w['lat'] as num).toDouble(),
-              'lon': (w['lon'] as num).toDouble(),
-            };
-          }).toList();
+      // Find nearest safe zone to use as destination
+      final nearest = _findNearestSafeZone(fromLat, fromLon);
+      if (nearest != null) {
+        final result = await api.post('/route/plan', body: {
+          'fromLat': fromLat,
+          'fromLon': fromLon,
+          'toLat': nearest.latitude,
+          'toLon': nearest.longitude,
+        });
+        // Backend returns { routes: [{ waypoints: [...] }, ...] }
+        if (result['routes'] is List) {
+          final routes = result['routes'] as List;
+          if (routes.isNotEmpty) {
+            final firstRoute = routes[0] as Map<String, dynamic>;
+            if (firstRoute['waypoints'] is List) {
+              final waypoints = firstRoute['waypoints'] as List;
+              if (waypoints.isNotEmpty) {
+                return waypoints.map((wp) {
+                  final w = wp as Map<String, dynamic>;
+                  return {
+                    'lat': (w['latitude'] as num).toDouble(),
+                    'lon': (w['longitude'] as num).toDouble(),
+                  };
+                }).toList();
+              }
+            }
+          }
         }
       }
     } catch (e) {
@@ -283,7 +296,22 @@ class MapService extends ChangeNotifier {
     }
 
     // Fallback: find nearest safe zone from local data
-    Zone? nearestSafeZone;
+    final nearestSafeZone = _findNearestSafeZone(fromLat, fromLon);
+    if (nearestSafeZone == null) return [];
+
+    // Generate intermediate waypoints for a smoother path
+    return _generateIntermediateWaypoints(
+      fromLat: fromLat,
+      fromLon: fromLon,
+      toLat: nearestSafeZone.latitude,
+      toLon: nearestSafeZone.longitude,
+      count: 8,
+    );
+  }
+
+  /// Find the nearest safe zone from local data.
+  Zone? _findNearestSafeZone(double fromLat, double fromLon) {
+    Zone? nearest;
     double minDistance = double.infinity;
 
     for (final zone in safeZones) {
@@ -293,17 +321,36 @@ class MapService extends ChangeNotifier {
       );
       if (distance < minDistance) {
         minDistance = distance;
-        nearestSafeZone = zone;
+        nearest = zone;
       }
     }
+    return nearest;
+  }
 
-    if (nearestSafeZone == null) return [];
+  /// Generate intermediate waypoints between two points for a smoother path.
+  List<Map<String, double>> _generateIntermediateWaypoints({
+    required double fromLat,
+    required double fromLon,
+    required double toLat,
+    required double toLon,
+    int count = 8,
+  }) {
+    final waypoints = <Map<String, double>>[];
+    for (int i = 0; i <= count; i++) {
+      final fraction = i / count;
+      double lat = fromLat + (toLat - fromLat) * fraction;
+      double lon = fromLon + (toLon - fromLon) * fraction;
 
-    // Return direct line path as fallback
-    return [
-      {'lat': fromLat, 'lon': fromLon},
-      {'lat': nearestSafeZone.latitude, 'lon': nearestSafeZone.longitude},
-    ];
+      // Add slight randomization to intermediate points to simulate road-following
+      if (i > 0 && i < count) {
+        final seed = i * 31;
+        lat += ((seed * 7 + 13) % 100 - 50) / 10000.0;
+        lon += ((seed * 11 + 17) % 100 - 50) / 10000.0;
+      }
+
+      waypoints.add({'lat': lat, 'lon': lon});
+    }
+    return waypoints;
   }
 
   /// Get current location as a position.

@@ -1,5 +1,7 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.model.Zone;
+import com.dangeremergence.repository.ZoneRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +15,12 @@ import java.util.stream.Collectors;
 public class DigitalTwinController {
 
     private static final Logger log = LoggerFactory.getLogger(DigitalTwinController.class);
+
+    private final ZoneRepository zoneRepository;
+
+    public DigitalTwinController(ZoneRepository zoneRepository) {
+        this.zoneRepository = zoneRepository;
+    }
 
     // In-memory cache for city data (in production, use Redis or database)
     private final Map<String, Map<String, Object>> cityCache = new HashMap<>();
@@ -191,31 +199,53 @@ public class DigitalTwinController {
     }
 
     /**
-     * Find nearest safe zones to a location.
+     * Find nearest safe zones to a location by querying the database.
      */
     private List<Map<String, Object>> findNearestSafeZones(double lat, double lng) {
-        // In production, query database for safe zones
-        // For now, return synthetic safe zones
-        List<Map<String, Object>> safeZones = new ArrayList<>();
+        List<Map<String, Object>> result = new ArrayList<>();
 
-        // Generate safe zones at increasing distances
-        double[][] offsets = {{0.01, 0.01}, {-0.01, 0.02}, {0.02, -0.01}, {-0.02, -0.02}};
-        String[] names = {"North Shelter", "East Assembly Point", "South Evacuation Center", "West Safe Zone"};
+        // Query the database for active safety-type zones
+        List<Zone> dbZones = zoneRepository.findByTypeAndStatus(
+                Zone.ZoneType.safety.name(), Zone.ZoneStatus.active);
 
-        for (int i = 0; i < offsets.length; i++) {
-            Map<String, Object> zone = new HashMap<>();
-            zone.put("name", names[i]);
-            zone.put("latitude", lat + offsets[i][0]);
-            zone.put("longitude", lng + offsets[i][1]);
-            zone.put("capacity", 500 + i * 200);
-            zone.put("distanceKm", Math.round(Math.sqrt(
-                    Math.pow(offsets[i][0] * 111, 2) + Math.pow(offsets[i][1] * 111, 2)
-            ) * 10.0) / 10.0);
-            safeZones.add(zone);
+        if (dbZones.isEmpty()) {
+            log.warn("No safe zones found in database for location ({}, {})", lat, lng);
+            return result;
         }
 
-        safeZones.sort(Comparator.comparingDouble(z -> (double) z.get("distanceKm")));
-        return safeZones;
+        // Calculate distance for each zone and sort by proximity
+        for (Zone zone : dbZones) {
+            double distanceKm = Math.round(
+                    haversineDistance(lat, lng, zone.getLatitude(), zone.getLongitude()) * 10.0
+            ) / 10.0;
+
+            Map<String, Object> z = new HashMap<>();
+            z.put("name", zone.getName());
+            z.put("latitude", zone.getLatitude());
+            z.put("longitude", zone.getLongitude());
+            z.put("capacity", 500); // default capacity
+            z.put("distanceKm", distanceKm);
+            z.put("zoneId", zone.getId());
+            z.put("description", zone.getDescription() != null ? zone.getDescription() : "");
+            result.add(z);
+        }
+
+        result.sort(Comparator.comparingDouble(z -> (double) z.get("distanceKm")));
+        return result;
+    }
+
+    /**
+     * Calculate Haversine distance between two coordinates in km.
+     */
+    private double haversineDistance(double lat1, double lng1, double lat2, double lng2) {
+        final double R = 6371.0; // Earth radius in km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 
     /**
