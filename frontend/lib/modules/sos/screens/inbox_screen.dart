@@ -67,6 +67,51 @@ class _InboxScreenState extends State<InboxScreen>
 
   Future<void> _loadData() async {
     await Future.wait([_loadMessages(), _loadAlerts(), _loadTips()]);
+    _mergeTipsIntoMessages();
+  }
+
+  /// Merge tip-off items into the messages list so they appear in the Messages tab.
+  /// Tip items are converted to message-like entries with evidence metadata.
+  void _mergeTipsIntoMessages() {
+    if (_tips.isEmpty) return;
+    final existingIds = _messages.map((m) => m['id'] as String?).toSet();
+    final tipMessages = <Map<String, dynamic>>[];
+    for (final tip in _tips) {
+      final tipId = tip['id'] as String? ?? tip['_id'] as String?;
+      if (tipId != null && existingIds.contains(tipId)) continue;
+
+      final tipType = tip['tipType'] as String? ?? 'other';
+      final description = tip['description'] as String? ?? 'No description';
+      final threatScore = tip['threatScore'] as int? ?? 0;
+      final createdAt = tip['createdAt'];
+      final evidence = tip['evidence'];
+      final photoPath = tip['photo_path'] as String?;
+      final videoPath = tip['video_path'] as String?;
+      final audioPath = tip['audio_path'] as String?;
+
+      tipMessages.add({
+        'id': tipId ?? 'tip_${tipMessages.length}_${DateTime.now().millisecondsSinceEpoch}',
+        'sender_id': 'Tip Off System',
+        'content': description,
+        'message_type': 'tip_off',
+        'priority': threatScore >= 70 ? 3 : (threatScore >= 40 ? 2 : 1),
+        'status': tip['status'] as String? ?? 'pending',
+        'created_at': createdAt,
+        'read_at': null,
+        'evidence': evidence,
+        'photo_path': photoPath,
+        'video_path': videoPath,
+        'audio_path': audioPath,
+        '_is_tip': true,
+        '_tip_type': tipType,
+        '_threat_score': threatScore,
+      });
+    }
+    if (tipMessages.isNotEmpty) {
+      setState(() {
+        _messages = [...tipMessages, ..._messages];
+      });
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -949,6 +994,50 @@ class _MessagesTabState extends State<_MessagesTab> {
                 final content = msg['content'] as String? ?? '';
                 final senderId = msg['sender_id'] as String? ?? 'Unknown';
                 final timestamp = widget.formatTimestamp(msg['created_at']);
+                final isTip = msg['_is_tip'] == true;
+                final tipType = msg['_tip_type'] as String? ?? '';
+                final hasEvidence = msg['evidence'] != null ||
+                    msg['photo_path'] != null ||
+                    msg['video_path'] != null ||
+                    msg['audio_path'] != null;
+
+                // Determine icon and color for tip items
+                IconData leadingIcon;
+                Color leadingColor;
+                if (isTip) {
+                  switch (tipType) {
+                    case 'planned_attack':
+                      leadingIcon = Icons.groups;
+                      leadingColor = Colors.red;
+                      break;
+                    case 'suspicious_person':
+                      leadingIcon = Icons.person_search;
+                      leadingColor = Colors.orange;
+                      break;
+                    case 'suspicious_vehicle':
+                      leadingIcon = Icons.directions_car;
+                      leadingColor = Colors.amber;
+                      break;
+                    case 'hidden_weapons':
+                      leadingIcon = Icons.gavel;
+                      leadingColor = Colors.deepOrange;
+                      break;
+                    case 'kidnapping_plot':
+                      leadingIcon = Icons.people_outline;
+                      leadingColor = Colors.red;
+                      break;
+                    case 'bombing_plot':
+                      leadingIcon = Icons.warning;
+                      leadingColor = Colors.deepPurple;
+                      break;
+                    default:
+                      leadingIcon = Icons.tips_and_updates;
+                      leadingColor = Colors.blue;
+                  }
+                } else {
+                  leadingIcon = Icons.person;
+                  leadingColor = isRead ? Colors.grey : AppTheme.primaryColor;
+                }
 
                 return Dismissible(
                   key: Key(msg['id'] as String),
@@ -985,11 +1074,12 @@ class _MessagesTabState extends State<_MessagesTab> {
                   onDismissed: (_) => widget.onDelete(msg['id'] as String),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor:
-                          isRead ? Colors.grey[300] : AppTheme.primaryColor,
+                      backgroundColor: isTip
+                          ? leadingColor.withOpacity(0.2)
+                          : (isRead ? Colors.grey[300] : AppTheme.primaryColor),
                       child: Icon(
-                        Icons.person,
-                        color: isRead ? Colors.grey : Colors.white,
+                        leadingIcon,
+                        color: isTip ? leadingColor : (isRead ? Colors.grey : Colors.white),
                         size: 20,
                       ),
                     ),
@@ -997,16 +1087,44 @@ class _MessagesTabState extends State<_MessagesTab> {
                       children: [
                         Expanded(
                           child: Text(
-                            senderId,
+                            isTip ? 'Tip Off: ${tipType.replaceAll('_', ' ')}' : senderId,
                             style: TextStyle(
                               fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
                               fontSize: 14,
+                              color: isTip ? leadingColor : null,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 6),
+                        // Evidence badge
+                        if (hasEvidence)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            margin: const EdgeInsets.only(right: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.attach_file, size: 10, color: Colors.blue),
+                                const SizedBox(width: 2),
+                                Text(
+                                  'MEDIA',
+                                  style: TextStyle(
+                                    fontSize: 7,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         // AI Priority Badge
                         _buildPriorityBadge(msg),
                       ],
@@ -1130,95 +1248,10 @@ class _MessagesTabState extends State<_MessagesTab> {
       Map<String, dynamic> msg,
       String Function(dynamic) formatTimestamp,
       Future<void> Function(String) onDelete) {
-    final content = msg['content'] as String? ?? '';
-    final priority = msg['priority'];
-    final label = _priorityLabel(priority);
-    final color = _priorityColor(label);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.85,
-        expand: false,
-        builder: (context, scrollController) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: ListView(
-            controller: scrollController,
-            children: [
-              // Sender info
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: AppTheme.primaryColor,
-                    child: const Icon(Icons.person, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          msg['sender_id'] as String? ?? 'Unknown',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          formatTimestamp(msg['created_at']),
-                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Message content
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  content,
-                  style: const TextStyle(fontSize: 15, height: 1.4),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // AI Analysis Panel
-              _buildAiAnalysisPanel(content, label, color),
-              const SizedBox(height: 16),
-
-              // Delete button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    onDelete(msg['id'] as String);
-                  },
-                  icon: const Icon(Icons.delete_outlined, color: Colors.red),
-                  label: const Text('Delete Message',
-                      style: TextStyle(color: Colors.red)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    // Navigate to the full MessageDetailScreen which supports media playback
+    Navigator.of(context).pushNamed(
+      AppRoutes.messageDetail,
+      arguments: msg,
     );
   }
 

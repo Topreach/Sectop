@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
+import '../../../shared/services/evidence_service.dart';
 import '../../ai/services/distress_detector.dart';
 
 class MessageDetailScreen extends StatefulWidget {
@@ -20,6 +24,13 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
   DistressResult? _aiResult;
   bool _isAnalyzing = false;
 
+  // Video player state
+  VideoPlayerController? _videoController;
+  bool _isVideoInitialized = false;
+  bool _isVideoPlaying = false;
+
+  // Audio player state
+  bool _isAudioPlaying = false;
 
   Future<void> _markAsReadIfUnread() async {
     if (_messageData['read_at'] != null) return;
@@ -82,7 +93,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Message deleted')),
           );
-          Navigator.of(context).pop(true); // Return true to indicate deletion
+          Navigator.of(context).pop(true);
         }
       } catch (e) {
         debugPrint('MessageDetailScreen: Failed to delete message: $e');
@@ -98,6 +109,340 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     }
   }
 
+  /// Initialize video player for a given file path.
+  Future<void> _initVideoPlayer(String filePath) async {
+    try {
+      _videoController?.dispose();
+      final controller = VideoPlayerController.file(File(filePath));
+      _videoController = controller;
+      await controller.initialize();
+      if (mounted) {
+        setState(() {
+          _isVideoInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('MessageDetailScreen: Failed to init video player: $e');
+      if (mounted) {
+        setState(() {
+          _isVideoInitialized = false;
+        });
+      }
+    }
+  }
+
+  void _toggleVideoPlayback() {
+    if (_videoController == null || !_isVideoInitialized) return;
+    if (_isVideoPlaying) {
+      _videoController!.pause();
+    } else {
+      _videoController!.play();
+    }
+    setState(() {
+      _isVideoPlaying = !_isVideoPlaying;
+    });
+  }
+
+  /// Open a media file with the phone's native player using url_launcher.
+  Future<void> _openWithNativePlayer(String filePath) async {
+    final uri = Uri.file(filePath);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open file with external player')),
+        );
+      }
+    }
+  }
+
+  /// Show a full-screen image preview.
+  void _showImagePreview(String filePath) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: const Text('Photo'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.open_in_new),
+                tooltip: 'Open with gallery',
+                onPressed: () => _openWithNativePlayer(filePath),
+              ),
+            ],
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.file(
+                File(filePath),
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                    SizedBox(height: 8),
+                    Text('Failed to load image', style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build the evidence/media section for a message.
+  Widget _buildEvidenceSection() {
+    // Check for evidence in the message data
+    final evidenceRaw = _messageData['evidence'];
+    final mediaUrlsRaw = _messageData['media_urls'];
+    final evidenceList = <Map<String, dynamic>>[];
+
+    // Parse evidence from various possible formats
+    if (evidenceRaw is List) {
+      for (final item in evidenceRaw) {
+        if (item is Map<String, dynamic>) {
+          evidenceList.add(item);
+        }
+      }
+    } else if (evidenceRaw is Map<String, dynamic>) {
+      evidenceList.add(evidenceRaw);
+    }
+
+    // Also check for media_urls (list of file paths/URLs)
+    if (mediaUrlsRaw is List) {
+      for (final url in mediaUrlsRaw) {
+        if (url is String && url.isNotEmpty) {
+          evidenceList.add({
+            'filePath': url,
+            'type': _inferMediaType(url),
+          });
+        }
+      }
+    }
+
+    // Check individual evidence fields
+    final photoPath = _messageData['photo_path'] as String?;
+    final videoPath = _messageData['video_path'] as String?;
+    final audioPath = _messageData['audio_path'] as String?;
+    final imageUrl = _messageData['image_url'] as String?;
+    final videoUrl = _messageData['video_url'] as String?;
+    final audioUrl = _messageData['audio_url'] as String?;
+
+    if (photoPath != null) evidenceList.add({'filePath': photoPath, 'type': 'photo'});
+    if (videoPath != null) evidenceList.add({'filePath': videoPath, 'type': 'video'});
+    if (audioPath != null) evidenceList.add({'filePath': audioPath, 'type': 'audio'});
+    if (imageUrl != null) evidenceList.add({'filePath': imageUrl, 'type': 'photo'});
+    if (videoUrl != null) evidenceList.add({'filePath': videoUrl, 'type': 'video'});
+    if (audioUrl != null) evidenceList.add({'filePath': audioUrl, 'type': 'audio'});
+
+    if (evidenceList.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        // Evidence header
+        Row(
+          children: [
+            Icon(Icons.attach_file, size: 16, color: Colors.grey[500]),
+            const SizedBox(width: 8),
+            Text(
+              'Attachments (${evidenceList.length})',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...evidenceList.asMap().entries.map((entry) {
+          final index = entry.key;
+          final evidence = entry.value;
+          final filePath = evidence['filePath'] as String? ?? '';
+          final type = evidence['type'] as String? ?? _inferMediaType(filePath);
+          return _buildMediaTile(index, filePath, type);
+        }),
+      ],
+    );
+  }
+
+  /// Infer media type from file extension.
+  String _inferMediaType(String filePath) {
+    final lower = filePath.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') ||
+        lower.endsWith('.gif') || lower.endsWith('.bmp') || lower.endsWith('.webp')) {
+      return 'photo';
+    }
+    if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.avi') ||
+        lower.endsWith('.mkv') || lower.endsWith('.3gp') || lower.endsWith('.webm')) {
+      return 'video';
+    }
+    if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.aac') ||
+        lower.endsWith('.m4a') || lower.endsWith('.ogg') || lower.endsWith('.wma')) {
+      return 'audio';
+    }
+    return 'unknown';
+  }
+
+  /// Build a media tile for a single evidence file.
+  Widget _buildMediaTile(int index, String filePath, String type) {
+    final fileName = filePath.split('/').last;
+    final fileExists = File(filePath).existsSync();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // File info row
+            Row(
+              children: [
+                Icon(
+                  type == 'photo' ? Icons.image :
+                  type == 'video' ? Icons.videocam :
+                  type == 'audio' ? Icons.mic : Icons.insert_drive_file,
+                  size: 20,
+                  color: type == 'photo' ? Colors.green :
+                         type == 'video' ? Colors.blue :
+                         type == 'audio' ? Colors.orange : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    fileName,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (!fileExists)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'OFFLINE',
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Preview / action buttons
+            Row(
+              children: [
+                // Preview button
+                if (fileExists)
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => _openMedia(filePath, type),
+                      icon: Icon(
+                        type == 'photo' ? Icons.visibility :
+                        type == 'video' ? Icons.play_arrow :
+                        Icons.play_circle_outline,
+                        size: 16,
+                      ),
+                      label: Text(
+                        type == 'photo' ? 'View Photo' :
+                        type == 'video' ? 'Play Video' :
+                        type == 'audio' ? 'Play Audio' : 'Open',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                // Open with native player button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openWithNativePlayer(filePath),
+                    icon: const Icon(Icons.open_in_new, size: 14),
+                    label: const Text('Open with...', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Inline video player (only when actively playing)
+            if (type == 'video' && fileExists && _isVideoInitialized && _videoController != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: AspectRatio(
+                        aspectRatio: _videoController!.value.aspectRatio,
+                        child: VideoPlayer(_videoController!),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _isVideoPlaying ? Icons.pause : Icons.play_arrow,
+                          ),
+                          onPressed: _toggleVideoPlayback,
+                        ),
+                        if (_videoController!.value.duration > Duration.zero)
+                          Text(
+                            '${_formatDuration(_videoController!.value.position)} / ${_formatDuration(_videoController!.value.duration)}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Open a media file — shows photo in full-screen, plays video/audio inline.
+  void _openMedia(String filePath, String type) {
+    switch (type) {
+      case 'photo':
+        _showImagePreview(filePath);
+        break;
+      case 'video':
+        _initVideoPlayer(filePath).then((_) {
+          if (_isVideoInitialized) {
+            _toggleVideoPlayback();
+          }
+        });
+        break;
+      case 'audio':
+        // For audio, open with native player
+        _openWithNativePlayer(filePath);
+        break;
+      default:
+        _openWithNativePlayer(filePath);
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +456,12 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
         _analyzeMessageContent();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
   }
 
   @override
@@ -265,6 +616,8 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                     content,
                     style: const TextStyle(fontSize: 15, height: 1.5),
                   ),
+                  // Evidence / media attachments
+                  _buildEvidenceSection(),
                 ],
               ),
             ),
