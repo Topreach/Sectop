@@ -10,7 +10,7 @@ import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/evidence_service.dart';
 import '../../../shared/services/offline_storage.dart';
-import '../../../shared/widgets/nigeria_location_picker.dart';
+import '../../../shared/widgets/global_location_picker.dart';
 
 /// Screen to submit an anonymous tip-off / intelligence report.
 class TipOffScreen extends StatefulWidget {
@@ -344,7 +344,7 @@ class _TipOffScreenState extends State<TipOffScreen> {
               ),
               const SizedBox(height: 16),
 
-              NigeriaLocationPicker(
+              GlobalLocationPicker(
                 label: 'Location (optional)',
                 onLocationSelected: (lat, lng, name) {
                   setState(() {

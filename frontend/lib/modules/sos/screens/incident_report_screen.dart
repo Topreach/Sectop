@@ -8,9 +8,9 @@ import 'package:video_player/video_player.dart';
 import '../../../core/constants.dart';
 import '../../../core/themes.dart';
 import '../../../shared/services/offline_storage.dart';
-import '../../../shared/services/nigeria_location_service.dart';
+import '../../../shared/services/global_location_service.dart';
 import '../../../shared/services/evidence_service.dart';
-import '../../../shared/widgets/nigeria_location_picker.dart';
+import '../../../shared/widgets/global_location_picker.dart';
 import '../../incidents/services/incident_service.dart';
 import '../../maps/services/map_service.dart';
 
@@ -84,7 +84,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
           _latitude = position.latitude;
           _longitude = position.longitude;
           // Try to resolve GPS coordinates to a location name
-          final resolved = NigeriaLocationService.searchByCoordinates(
+          final resolved = await GlobalLocationService.reverseGeocode(
             position.latitude,
             position.longitude,
           );
@@ -540,7 +540,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                   ),
                 ),
               ] else
-                NigeriaLocationPicker(
+                GlobalLocationPicker(
                   label: 'Select Location',
                   initialLatitude: _latitude,
                   initialLongitude: _longitude,

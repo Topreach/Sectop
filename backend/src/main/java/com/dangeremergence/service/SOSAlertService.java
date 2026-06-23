@@ -28,7 +28,7 @@ public class SOSAlertService {
     private final AlertPubSubService alertPubSubService;
     private final FcmPushService fcmPushService;
     private final SmsGatewayService smsGatewayService;
-    private final NigeriaLocationService nigeriaLocationService;
+    private final GeoLocationService geoLocationService;
     private final CovertAlertService covertAlertService;
 
     @Transactional
@@ -38,10 +38,11 @@ public class SOSAlertService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-        // Resolve State and LGA for Nigeria
-        String[] geoInfo = resolveNigeriaGeoInfo(latitude, longitude);
-        String state = geoInfo[0];
-        String lga = geoInfo[1];
+        // Resolve geographic info (country, region, city) via Nominatim
+        String[] geoInfo = resolveGeoInfo(latitude, longitude);
+        String country = geoInfo[0];
+        String region = geoInfo[1];
+        String city = geoInfo[2];
 
         SOSAlert alert = SOSAlert.builder()
                 .id(UUID.randomUUID().toString())
@@ -51,8 +52,8 @@ public class SOSAlertService {
                 .latitude(latitude)
                 .longitude(longitude)
                 .accuracy(accuracy)
-                .state(state)
-                .lga(lga)
+                .state(region)
+                .lga(city)
                 .priority(priority)
                 .silent(isSilent)
                 .covert(isCovert)
@@ -63,7 +64,7 @@ public class SOSAlertService {
                 .build();
 
         SOSAlert saved = alertRepository.save(alert);
-        log.info("SOS alert created: {} in {}, {} (silent={}, covert={})", saved.getId(), lga, state, isSilent, isCovert);
+        log.info("SOS alert created: {} in {}, {} (silent={}, covert={})", saved.getId(), city, region, isSilent, isCovert);
 
         // Trigger async processing
         processNewAlert(saved);
@@ -85,21 +86,21 @@ protected void processNewAlert(SOSAlert alert) {
     }
 
     // 1. Notify nearby responders via MQTT (fastest) - Localized Topic
-    String stateSlug = alert.getState().toLowerCase().replace(" ", "_");
-    String lgaSlug = alert.getLga().toLowerCase().replace(" ", "_");
+    String countrySlug = alert.getState() != null ? alert.getState().toLowerCase().replace(" ", "_") : "unknown";
+    String regionSlug = alert.getLga() != null ? alert.getLga().toLowerCase().replace(" ", "_") : "unknown";
     
-    String geoTopic = String.format("alerts/%s/%s", stateSlug, lgaSlug);
+    String geoTopic = String.format("alerts/%s/%s", countrySlug, regionSlug);
     log.info("Step 1: Publishing MQTT to topic: {}", geoTopic);
     mqttService.publish(geoTopic, alert);
 
     // Notify Community Guardians
-    String guardianTopic = String.format("guardians/%s/%s", stateSlug, lgaSlug);
+    String guardianTopic = String.format("guardians/%s/%s", countrySlug, regionSlug);
     mqttService.publish(guardianTopic, alert);
     
     mqttService.publishAlert(alert);
     
     // 2. Trigger Drone Relay if in high-risk area
-    log.info("Step 2: Checking drone relay for LGA: {}, State: {}", alert.getLga(), alert.getState());
+    log.info("Step 2: Checking drone relay for region: {}, country: {}", alert.getLga(), alert.getState());
     droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(),
         alert.getLatitude(), alert.getLongitude(), alert.getPriority());
 
@@ -109,8 +110,8 @@ protected void processNewAlert(SOSAlert alert) {
         // Push to global alert topic (all connected clients)
         messagingTemplate.convertAndSend("/topic/alerts/new", alert);
 
-        // Push to geo-specific topic for state/LGA filtering
-        String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
+        // Push to geo-specific topic for country/region filtering
+        String geoDest = String.format("/topic/alerts/%s/%s", countrySlug, regionSlug);
         messagingTemplate.convertAndSend(geoDest, alert);
 
         // Push to user-specific queue for the alert creator
@@ -125,7 +126,7 @@ protected void processNewAlert(SOSAlert alert) {
     // 4. Publish to Redis pub/sub for cross-server broadcast (all instances)
     log.info("Step 4: Publishing to Redis pub/sub");
     alertPubSubService.publishAlert(alert);
-    alertPubSubService.publishGeoAlert(alert, stateSlug, lgaSlug);
+    alertPubSubService.publishGeoAlert(alert, countrySlug, regionSlug);
 
     // 5. Send FCM push notifications to nearby users (offline delivery)
     log.info("Step 5: Sending FCM push notifications (radius=10.0km)");
@@ -150,16 +151,16 @@ protected void processNewAlert(SOSAlert alert) {
      */
     public void pushAlertToWebSocket(SOSAlert alert) {
         try {
-            String stateSlug = alert.getState() != null
+            String countrySlug = alert.getState() != null
                     ? alert.getState().toLowerCase().replace(" ", "_") : "unknown";
-            String lgaSlug = alert.getLga() != null
+            String regionSlug = alert.getLga() != null
                     ? alert.getLga().toLowerCase().replace(" ", "_") : "unknown";
 
             // Push to global alert topic
             messagingTemplate.convertAndSend("/topic/alerts/new", alert);
 
             // Push to geo-specific topic
-            String geoDest = String.format("/topic/alerts/%s/%s", stateSlug, lgaSlug);
+            String geoDest = String.format("/topic/alerts/%s/%s", countrySlug, regionSlug);
             messagingTemplate.convertAndSend(geoDest, alert);
 
             // Push to user-specific queue if user is available
@@ -173,11 +174,11 @@ protected void processNewAlert(SOSAlert alert) {
         }
     }
 
-    private String[] resolveNigeriaGeoInfo(Double lat, Double lng) {
+    private String[] resolveGeoInfo(Double lat, Double lng) {
         if (lat == null || lng == null) {
-            return new String[]{"Unknown", "Unknown"};
+            return new String[]{"Unknown", "Unknown", "Unknown", ""};
         }
-        return nigeriaLocationService.resolve(lat, lng);
+        return geoLocationService.resolve(lat, lng);
     }
 
     @Transactional

@@ -35,10 +35,9 @@ class AppConstants {
   static const List<String> sosEmergencyNumbers = ['112', '911', '999'];
 
   // Maps
-  static const String mapsDirectory = 'offline_maps';
   static const double defaultMapZoom = 14.0;
   static const double geofenceDefaultRadius = 100.0; // meters
-  static const int mapTileCacheSize = 500; // MB
+  static const int mapTileCacheSize = 50; // MB — reduced for online-only maps
 
   // AI/ML
   static const double distressThreshold = 0.8;

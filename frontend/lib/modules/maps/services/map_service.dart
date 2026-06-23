@@ -244,25 +244,14 @@ class MapService extends ChangeNotifier {
   List<Zone> get medicalZones =>
       getZonesByType(AppConstants.zoneTypeMedical);
 
-  /// Preload offline map tiles for a region.
+  /// Preload map data for a region (online maps — lightweight no-op).
   Future<void> preloadMapRegion({
     required double latitude,
     required double longitude,
     required double radiusKm,
   }) async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final mapDir = Directory('${dir.path}/${AppConstants.mapsDirectory}');
-      if (!await mapDir.exists()) {
-        await mapDir.create(recursive: true);
-      }
-
-      // In production, download PMTiles vector tiles for the region
-      // and store routing graphs for offline navigation
-      debugPrint('Preloading map region: $latitude, $longitude ($radiusKm km)');
-    } catch (e) {
-      debugPrint('Map preload error: $e');
-    }
+    // Online maps are used globally — no offline tile preloading needed.
+    debugPrint('Map region ready (online): $latitude, $longitude ($radiusKm km)');
   }
 
   /// Calculate safe evacuation route — try server first, fall back to local.
