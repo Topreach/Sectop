@@ -7,6 +7,7 @@ import com.dangeremergence.model.CommunityPost;
 import com.dangeremergence.service.CommunityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,9 +101,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(post("/api/v1/community/posts")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
@@ -120,9 +121,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(post("/api/v1/community/posts")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
@@ -140,9 +141,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/feed")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             })
                             .param("page", "0")
                             .param("size", "20"))
@@ -158,9 +159,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/feed")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.posts").isArray());
@@ -177,9 +178,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/nearby")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             })
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
@@ -199,9 +200,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/posts/" + POST_ID)
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(POST_ID));
@@ -214,9 +215,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/posts/nonexistent")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isBadRequest());
         }
@@ -229,9 +230,9 @@ class CommunityControllerTest {
         void shouldDeleteOwnPost() throws Exception {
             mockMvc.perform(delete("/api/v1/community/posts/" + POST_ID)
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Post deleted successfully"));
@@ -244,9 +245,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(delete("/api/v1/community/posts/nonexistent")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isBadRequest());
         }
@@ -259,9 +260,9 @@ class CommunityControllerTest {
         void shouldFlagPost() throws Exception {
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/flag")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk());
         }
@@ -276,9 +277,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/like")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.liked").value(true));
@@ -301,9 +302,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/comments")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
@@ -325,9 +326,9 @@ class CommunityControllerTest {
         void shouldDeleteComment() throws Exception {
             mockMvc.perform(delete("/api/v1/community/comments/" + COMMENT_ID)
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Comment deleted successfully"));
@@ -343,9 +344,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/favorite")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.favorited").value(true));
@@ -358,9 +359,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/my-favorites")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(POST_ID));
@@ -382,9 +383,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/share")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
@@ -403,9 +404,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/my-posts")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(POST_ID));
@@ -418,9 +419,9 @@ class CommunityControllerTest {
 
             mockMvc.perform(get("/api/v1/community/users/other-user/posts")
                             .with(authentication(testAuth))
-                            .with(request -> {
+                            .with(req -> {
                                 SecurityContextHolder.getContext().setAuthentication(testAuth);
-                                return request;
+                                return req;
                             }))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray());
