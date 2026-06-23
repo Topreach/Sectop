@@ -65,7 +65,7 @@ class CommunityControllerTest {
     private static final String COMMENT_ID = "comment-123";
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws ServletException, IOException {
         testPost = new CommunityPost();
         testPost.setId(POST_ID);
         testPost.setUser(null);
