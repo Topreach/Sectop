@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = CommunityController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 class CommunityControllerTest {
 
     @Autowired
@@ -62,7 +62,6 @@ class CommunityControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken(USER_ID, null, List.of());
-        SecurityContextHolder.getContext().setAuthentication(testAuth);
 
         testPost = new CommunityPost();
         testPost.setId(POST_ID);
@@ -82,10 +81,6 @@ class CommunityControllerTest {
         testComment.setCreatedAt(LocalDateTime.now());
     }
 
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
 
     @Nested
     class CreatePost {
@@ -182,7 +177,7 @@ class CommunityControllerTest {
 
         @Test
         void shouldReturnPostById() throws Exception {
-            when(communityService.getPostById(POST_ID, nullable(String.class)))
+            when(communityService.getPostById(eq(POST_ID), nullable(String.class)))
                     .thenReturn(Map.of("id", POST_ID, "caption", "Test post caption"));
 
             mockMvc.perform(get("/api/v1/community/posts/" + POST_ID)
@@ -193,7 +188,7 @@ class CommunityControllerTest {
 
         @Test
         void shouldReturn400WhenPostNotFound() throws Exception {
-            when(communityService.getPostById("nonexistent", nullable(String.class)))
+            when(communityService.getPostById(eq("nonexistent"), nullable(String.class)))
                     .thenThrow(new IllegalArgumentException("Post not found"));
 
             mockMvc.perform(get("/api/v1/community/posts/nonexistent")
@@ -353,7 +348,7 @@ class CommunityControllerTest {
 
         @Test
         void shouldGetUserPosts() throws Exception {
-            when(communityService.getUserPosts("other-user", nullable(String.class)))
+            when(communityService.getUserPosts(eq("other-user"), nullable(String.class)))
                     .thenReturn(List.of());
 
             mockMvc.perform(get("/api/v1/community/users/other-user/posts")
