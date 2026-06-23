@@ -1,19 +1,15 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
 import com.dangeremergence.model.SOSAlert;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.SOSAlertService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -24,14 +20,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = SOSAlertController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class SOSAlertControllerTest {
 
     @Autowired
@@ -43,15 +38,6 @@ class SOSAlertControllerTest {
     @MockBean
     private SOSAlertService alertService;
 
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private SOSAlert testAlert;
     private static final String ALERT_ID = "alert-123";
     private static final String USER_ID = "user-123";
@@ -62,12 +48,6 @@ class SOSAlertControllerTest {
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
 
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
         testAlert = new SOSAlert();
         testAlert.setId(ALERT_ID);
         testAlert.setUser(null);

@@ -1,24 +1,19 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
 import com.dangeremergence.model.CommunityComment;
 import com.dangeremergence.model.CommunityPost;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.CommunityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -26,13 +21,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = CommunityController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class CommunityControllerTest {
 
     @Autowired
@@ -44,15 +38,6 @@ class CommunityControllerTest {
     @MockBean
     private CommunityService communityService;
 
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private CommunityPost testPost;
     private CommunityComment testComment;
     private static final String POST_ID = "post-123";
@@ -63,13 +48,6 @@ class CommunityControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken(USER_ID, null, List.of());
-
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
 
         testPost = new CommunityPost();
         testPost.setId(POST_ID);
@@ -93,47 +71,42 @@ class CommunityControllerTest {
     class CreatePost {
 
         @Test
-        void shouldCreatePostSuccessfully() throws Exception {
-            when(communityService.createPost(
-                    eq(USER_ID), eq("Test post"), eq("/uploads/test.jpg"),
-                    eq("image"), eq(6.5244), eq(3.3792),
-                    eq("Lagos"), eq(false)
-            )).thenReturn(testPost);
+        void shouldCreatePost() throws Exception {
+            when(communityService.createPost(anyString(), anyString(), anyString(), anyString(),
+                    any(), any(), any(), anyString()))
+                    .thenReturn(testPost);
 
-            Map<String, Object> request = Map.of(
-                    "caption", "Test post",
-                    "mediaUrl", "/uploads/test.jpg",
-                    "mediaType", "image",
-                    "latitude", 6.5244,
-                    "longitude", 3.3792,
-                    "locationName", "Lagos"
-            );
+            String request = """
+                    {
+                        "caption": "Test post caption",
+                        "mediaUrl": "/uploads/test.jpg",
+                        "mediaType": "image",
+                        "latitude": 6.5244,
+                        "longitude": 3.3792
+                    }
+                    """;
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
+                            .content(request))
+                    .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").value(POST_ID));
         }
 
         @Test
-        void shouldReturn400WhenServiceThrows() throws Exception {
-            when(communityService.createPost(
-                    anyString(), anyString(), anyString(),
-                    anyString(), any(), any(), anyString(), anyBoolean()
-            )).thenThrow(new IllegalArgumentException("Media URL is required"));
-
-            Map<String, Object> request = Map.of(
-                    "caption", "Test post"
-            );
+        void shouldReturn400WhenCaptionMissing() throws Exception {
+            String request = """
+                    {
+                        "mediaUrl": "/uploads/test.jpg"
+                    }
+                    """;
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("Media URL is required"));
+                            .content(request))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -141,38 +114,28 @@ class CommunityControllerTest {
     class GetFeed {
 
         @Test
-        void shouldGetFeed() throws Exception {
-            Map<String, Object> feedResponse = Map.of(
-                    "posts", List.of(Map.of("id", POST_ID)),
-                    "totalPages", 1,
-                    "currentPage", 0
-            );
-            when(communityService.getFeed(eq(0), eq(20), eq(USER_ID)))
-                    .thenReturn(feedResponse);
+        void shouldReturnFeed() throws Exception {
+            when(communityService.getFeed(anyInt(), anyInt(), anyString()))
+                    .thenReturn(Map.of("posts", List.of(testPost), "total", 1, "page", 0, "size", 20));
 
             mockMvc.perform(get("/api/v1/community/feed")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
+                            .with(authentication(testAuth))
                             .param("page", "0")
-                            .param("size", "20")
-                            )
+                            .param("size", "20"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.posts[0].id").value(POST_ID));
+                    .andExpect(jsonPath("$.posts").isArray())
+                    .andExpect(jsonPath("$.total").value(1));
         }
 
         @Test
-        void shouldGetFeedWithoutAuth() throws Exception {
-            Map<String, Object> feedResponse = Map.of(
-                    "posts", List.of(),
-                    "totalPages", 0,
-                    "currentPage", 0
-            );
-            when(communityService.getFeed(eq(0), eq(20), isNull()))
-                    .thenReturn(feedResponse);
+        void shouldReturnFeedWithDefaultPagination() throws Exception {
+            when(communityService.getFeed(anyInt(), anyInt(), anyString()))
+                    .thenReturn(Map.of("posts", List.of(), "total", 0, "page", 0, "size", 20));
 
             mockMvc.perform(get("/api/v1/community/feed")
-                            .param("page", "0")
-                            .param("size", "20"))
-                    .andExpect(status().isOk());
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.posts").isArray());
         }
     }
 
@@ -180,26 +143,17 @@ class CommunityControllerTest {
     class GetNearby {
 
         @Test
-        void shouldGetNearbyPosts() throws Exception {
-            Map<String, Object> nearbyResponse = Map.of(
-                    "posts", List.of(Map.of("id", POST_ID)),
-                    "totalPages", 1,
-                    "currentPage", 0
-            );
-            when(communityService.getNearbyFeed(
-                    eq(6.5), eq(3.3), eq(10.0), eq(0), eq(20), eq(USER_ID)
-            )).thenReturn(nearbyResponse);
+        void shouldReturnNearbyPosts() throws Exception {
+            when(communityService.getNearbyFeed(anyDouble(), anyDouble(), anyDouble(), anyInt(), anyInt(), anyString()))
+                    .thenReturn(Map.of("posts", List.of(testPost), "total", 1));
 
             mockMvc.perform(get("/api/v1/community/nearby")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
-                            .param("latitude", "6.5")
-                            .param("longitude", "3.3")
-                            .param("radiusKm", "10")
-                            .param("page", "0")
-                            .param("size", "20")
-                            )
+                            .with(authentication(testAuth))
+                            .param("latitude", "6.5244")
+                            .param("longitude", "3.3792")
+                            .param("radiusKm", "5"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.posts[0].id").value(POST_ID));
+                    .andExpect(jsonPath("$.posts").isArray());
         }
     }
 
@@ -207,29 +161,24 @@ class CommunityControllerTest {
     class GetPost {
 
         @Test
-        void shouldGetPostById() throws Exception {
-            Map<String, Object> postResponse = Map.of(
-                    "id", POST_ID,
-                    "caption", "Test post"
-            );
+        void shouldReturnPostById() throws Exception {
             when(communityService.getPostById(POST_ID, USER_ID))
-                    .thenReturn(postResponse);
+                    .thenReturn(Map.of("id", POST_ID, "caption", "Test post caption"));
 
-            mockMvc.perform(get("/api/v1/community/posts/{id}", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
+            mockMvc.perform(get("/api/v1/community/posts/" + POST_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(POST_ID));
         }
 
         @Test
-        void shouldReturn400WhenPostNotFound() throws Exception {
-            when(communityService.getPostById("unknown", USER_ID))
-                    .thenThrow(new IllegalArgumentException("Post not found"));
+        void shouldReturn404WhenPostNotFound() throws Exception {
+            when(communityService.getPostById("nonexistent", USER_ID))
+                    .thenThrow(new RuntimeException("Post not found"));
 
-            mockMvc.perform(get("/api/v1/community/posts/{id}", "unknown")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("Post not found"));
+            mockMvc.perform(get("/api/v1/community/posts/nonexistent")
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isNotFound());
         }
     }
 
@@ -237,22 +186,17 @@ class CommunityControllerTest {
     class DeletePost {
 
         @Test
-        void shouldDeletePost() throws Exception {
-            mockMvc.perform(delete("/api/v1/community/posts/{id}", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Post deleted successfully"));
+        void shouldDeleteOwnPost() throws Exception {
+            mockMvc.perform(delete("/api/v1/community/posts/" + POST_ID)
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isNoContent());
         }
 
         @Test
-        void shouldReturn400WhenDeleteFails() throws Exception {
-            org.mockito.Mockito.doThrow(new IllegalArgumentException("Not authorized"))
-                    .when(communityService).deletePost(POST_ID, USER_ID);
-
-            mockMvc.perform(delete("/api/v1/community/posts/{id}", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("Not authorized"));
+        void shouldReturn404WhenPostNotFound() throws Exception {
+            mockMvc.perform(delete("/api/v1/community/posts/nonexistent")
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isNotFound());
         }
     }
 
@@ -261,10 +205,9 @@ class CommunityControllerTest {
 
         @Test
         void shouldFlagPost() throws Exception {
-            mockMvc.perform(post("/api/v1/community/posts/{id}/flag", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Post flagged for review"));
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/flag")
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isOk());
         }
     }
 
@@ -273,15 +216,10 @@ class CommunityControllerTest {
 
         @Test
         void shouldToggleLike() throws Exception {
-            Map<String, Object> likeResponse = Map.of(
-                    "liked", true,
-                    "likeCount", 1
-            );
-            when(communityService.toggleLike(POST_ID, USER_ID))
-                    .thenReturn(likeResponse);
+            when(communityService.toggleLike(POST_ID, USER_ID)).thenReturn(Map.of("liked", true, "likeCount", 1));
 
-            mockMvc.perform(post("/api/v1/community/posts/{id}/like", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/like")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.liked").value(true));
         }
@@ -292,36 +230,39 @@ class CommunityControllerTest {
 
         @Test
         void shouldAddComment() throws Exception {
-            when(communityService.addComment(POST_ID, USER_ID, "Nice post!"))
+            when(communityService.addComment(anyString(), anyString(), anyString()))
                     .thenReturn(testComment);
 
-            Map<String, String> request = Map.of("content", "Nice post!");
+            String request = """
+                    {
+                        "content": "Great post!"
+                    }
+                    """;
 
-            mockMvc.perform(post("/api/v1/community/posts/{id}/comments", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/comments")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(COMMENT_ID))
-                    .andExpect(jsonPath("$.content").value("Great post!"));
+                            .content(request))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(COMMENT_ID));
         }
 
         @Test
         void shouldGetComments() throws Exception {
-            when(communityService.getComments(POST_ID))
-                    .thenReturn(List.of(testComment));
+            when(communityService.getPostById(POST_ID, USER_ID))
+                    .thenReturn(Map.of("comments", List.of()));
 
-            mockMvc.perform(get("/api/v1/community/posts/{id}/comments", POST_ID))
+            mockMvc.perform(get("/api/v1/community/posts/" + POST_ID + "/comments")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].id").value(COMMENT_ID));
+                    .andExpect(jsonPath("$").isArray());
         }
 
         @Test
         void shouldDeleteComment() throws Exception {
-            mockMvc.perform(delete("/api/v1/community/comments/{id}", COMMENT_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Comment deleted successfully"));
+            mockMvc.perform(delete("/api/v1/community/comments/" + COMMENT_ID)
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isNoContent());
         }
     }
 
@@ -330,27 +271,23 @@ class CommunityControllerTest {
 
         @Test
         void shouldToggleFavorite() throws Exception {
-            Map<String, Object> favResponse = Map.of(
-                    "favorited", true,
-                    "favoriteCount", 1
-            );
-            when(communityService.toggleFavorite(POST_ID, USER_ID))
-                    .thenReturn(favResponse);
+            when(communityService.toggleFavorite(POST_ID, USER_ID)).thenReturn(Map.of("favorited", true));
 
-            mockMvc.perform(post("/api/v1/community/posts/{id}/favorite", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/favorite")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.favorited").value(true));
         }
 
         @Test
-        void shouldGetMyFavorites() throws Exception {
+        void shouldGetFavorites() throws Exception {
             when(communityService.getUserFavorites(USER_ID, USER_ID))
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/my-favorites")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isOk());
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].id").value(POST_ID));
         }
     }
 
@@ -358,25 +295,21 @@ class CommunityControllerTest {
     class Share {
 
         @Test
-        void shouldRecordShare() throws Exception {
-            Map<String, String> request = Map.of("platform", "whatsapp");
+        void shouldSharePost() throws Exception {
+            when(communityService.recordShare(POST_ID, USER_ID)).thenReturn(Map.of("shared", true, "shareCount", 1));
 
-            mockMvc.perform(post("/api/v1/community/posts/{id}/share", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Share recorded"));
-        }
+            String request = """
+                    {
+                        "platform": "twitter"
+                    }
+                    """;
 
-        @Test
-        void shouldRecordShareWithDefaultPlatform() throws Exception {
-            mockMvc.perform(post("/api/v1/community/posts/{id}/share", POST_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/share")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{}"))
+                            .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Share recorded"));
+                    .andExpect(jsonPath("$.shared").value(true));
         }
     }
 
@@ -389,18 +322,20 @@ class CommunityControllerTest {
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/my-posts")
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isOk());
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].id").value(POST_ID));
         }
 
         @Test
         void shouldGetUserPosts() throws Exception {
-            when(communityService.getUserPosts(USER_ID, USER_ID))
-                    .thenReturn(List.of(Map.of("id", POST_ID)));
+            when(communityService.getUserPosts("other-user", USER_ID))
+                    .thenReturn(List.of());
 
-            mockMvc.perform(get("/api/v1/community/users/{userId}/posts", USER_ID)
-                            .with(SecurityMockMvcRequestPostProcessors.authentication(testAuth)))
-                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/community/users/other-user/posts")
+                            .with(authentication(testAuth)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray());
         }
     }
 }

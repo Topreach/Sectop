@@ -1,19 +1,15 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
 import com.dangeremergence.model.RadioBroadcast;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.RadioBroadcastService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -24,7 +20,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -32,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(value = RadioController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class RadioControllerTest {
 
     @Autowired
@@ -40,15 +35,6 @@ class RadioControllerTest {
 
     @MockBean
     private RadioBroadcastService radioBroadcastService;
-
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private Authentication testAuth;
     private Authentication coordinatorAuth;
@@ -58,13 +44,6 @@ class RadioControllerTest {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
         coordinatorAuth = new UsernamePasswordAuthenticationToken("coordinator-123", null,
                 List.of(new SimpleGrantedAuthority("coordinator")));
-
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
     }
 
     private RadioBroadcast createSampleBroadcast() {
@@ -73,8 +52,10 @@ class RadioControllerTest {
         broadcast.setTitle("Emergency Alert");
         broadcast.setMessage("Flood warning in Lagos");
         broadcast.setLanguage("en");
-        broadcast.setSeverity(RadioBroadcast.BroadcastSeverity.warning);
-        broadcast.setBroadcastType(RadioBroadcast.BroadcastType.public_safety);
+        broadcast.setSeverity(RadioBroadcast.BroadcastSeverity.critical);
+        broadcast.setTargetState("Lagos");
+        broadcast.setTargetLga("Ikeja");
+        broadcast.setActive(true);
         return broadcast;
     }
 
@@ -86,8 +67,8 @@ class RadioControllerTest {
         @DisplayName("should create a radio broadcast")
         void shouldCreateRadioBroadcast() throws Exception {
             RadioBroadcast broadcast = createSampleBroadcast();
-            when(radioBroadcastService.createRadioBroadcast(anyString(), anyString(), anyString(),
-                    anyString(), anyString(), any(), anyString(), anyString(), anyString(), anyBoolean(), anyString()))
+            when(radioBroadcastService.createBroadcast(anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyString(), anyString(), anyString(), anyString()))
                     .thenReturn(broadcast);
 
             String request = """
@@ -95,9 +76,9 @@ class RadioControllerTest {
                         "title": "Emergency Alert",
                         "message": "Flood warning in Lagos",
                         "language": "en",
-                        "severity": "high",
-                        "broadcastType": "emergency",
-                        "createdById": "user_001"
+                        "severity": "critical",
+                        "targetState": "Lagos",
+                        "targetLga": "Ikeja"
                     }
                     """;
 
@@ -105,9 +86,25 @@ class RadioControllerTest {
                             .with(authentication(coordinatorAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isOk())
+                    .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").value("radio_001"))
                     .andExpect(jsonPath("$.title").value("Emergency Alert"));
+        }
+
+        @Test
+        @DisplayName("should return 400 when required fields are missing")
+        void shouldReturn400WhenFieldsMissing() throws Exception {
+            String request = """
+                    {
+                        "title": "Emergency Alert"
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/radio/broadcast")
+                            .with(authentication(coordinatorAuth))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(request))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -118,12 +115,16 @@ class RadioControllerTest {
         @Test
         @DisplayName("should return broadcast history")
         void shouldReturnBroadcastHistory() throws Exception {
-            when(radioBroadcastService.getBroadcastHistory()).thenReturn(List.of(createSampleBroadcast()));
+            when(radioBroadcastService.getAllBroadcasts(anyInt(), anyInt()))
+                    .thenReturn(Map.of("broadcasts", List.of(createSampleBroadcast()), "total", 1));
 
             mockMvc.perform(get("/api/v1/radio/broadcasts")
-                            .with(authentication(testAuth)))
+                            .with(authentication(testAuth))
+                            .param("page", "0")
+                            .param("size", "20"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].id").value("radio_001"));
+                    .andExpect(jsonPath("$.broadcasts").isArray())
+                    .andExpect(jsonPath("$.total").isNumber());
         }
     }
 
@@ -134,10 +135,11 @@ class RadioControllerTest {
         @Test
         @DisplayName("should return broadcast by ID")
         void shouldReturnBroadcastById() throws Exception {
-            when(radioBroadcastService.getBroadcastById("radio_001")).thenReturn(Optional.of(createSampleBroadcast()));
+            when(radioBroadcastService.getBroadcastById("radio_001"))
+                    .thenReturn(Optional.of(createSampleBroadcast()));
 
             mockMvc.perform(get("/api/v1/radio/broadcasts/radio_001")
-                            .with(authentication(coordinatorAuth)))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value("radio_001"));
         }
@@ -148,7 +150,7 @@ class RadioControllerTest {
             when(radioBroadcastService.getBroadcastById("nonexistent")).thenReturn(Optional.empty());
 
             mockMvc.perform(get("/api/v1/radio/broadcasts/nonexistent")
-                            .with(authentication(coordinatorAuth)))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isNotFound());
         }
     }
@@ -160,8 +162,8 @@ class RadioControllerTest {
         @Test
         @DisplayName("should retry a failed broadcast")
         void shouldRetryBroadcast() throws Exception {
-            RadioBroadcast broadcast = createSampleBroadcast();
-            when(radioBroadcastService.retryBroadcast("radio_001")).thenReturn(broadcast);
+            when(radioBroadcastService.retryBroadcast("radio_001"))
+                    .thenReturn(createSampleBroadcast());
 
             mockMvc.perform(post("/api/v1/radio/broadcasts/radio_001/retry")
                             .with(authentication(coordinatorAuth)))

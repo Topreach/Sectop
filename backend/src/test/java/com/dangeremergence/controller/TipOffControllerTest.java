@@ -1,19 +1,15 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
 import com.dangeremergence.model.TipOff;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.TipOffService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,14 +22,13 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = TipOffController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class TipOffControllerTest {
 
     @Autowired
@@ -45,15 +40,6 @@ class TipOffControllerTest {
     @MockBean
     private TipOffService tipOffService;
 
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private TipOff testTipOff;
     private static final String TIP_ID = "tip-123";
 
@@ -64,12 +50,6 @@ class TipOffControllerTest {
         coordinatorAuth = new UsernamePasswordAuthenticationToken("coordinator-123", null,
                 List.of(new SimpleGrantedAuthority("coordinator")));
 
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
         testTipOff = new TipOff();
         testTipOff.setId(TIP_ID);
         testTipOff.setTipType(TipOff.TipType.suspicious_person);

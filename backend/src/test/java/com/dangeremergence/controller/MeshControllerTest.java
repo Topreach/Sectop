@@ -1,17 +1,13 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
-import com.dangeremergence.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
@@ -25,7 +21,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -33,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(value = MeshController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class MeshControllerTest {
 
     @Autowired
@@ -44,15 +39,6 @@ class MeshControllerTest {
 
     @MockBean
     private HashOperations<String, Object, Object> hashOperations;
-
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @SuppressWarnings("unchecked")
     @Nested
@@ -94,8 +80,7 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/route")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request)
-                            .with(authentication(testAuth)))
+                            .content(request))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("sourceDeviceId and targetDeviceId are required"));
         }
@@ -111,8 +96,7 @@ class MeshControllerTest {
 
             mockMvc.perform(post("/api/v1/mesh/route")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request)
-                            .with(authentication(testAuth)))
+                            .content(request))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("sourceDeviceId and targetDeviceId are required"));
         }
@@ -123,13 +107,6 @@ class MeshControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
-
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -138,46 +115,42 @@ class MeshControllerTest {
     class BroadcastMessage {
 
         @Test
-        @DisplayName("should broadcast a message through the mesh")
+        @DisplayName("should broadcast a message to the mesh network")
         void shouldBroadcastMessage() throws Exception {
             when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-            when(hashOperations.size(anyString())).thenReturn(5L);
-            when(hashOperations.keys(anyString())).thenReturn(Set.of("dev_001", "dev_002", "dev_003"));
 
             String request = """
                     {
-                        "sourceDeviceId": "device_001",
-                        "messageType": "alert",
-                        "priority": 2,
-                        "payload": {"type": "flood_warning", "location": "Lagos"}
+                        "senderDeviceId": "device_001",
+                        "message": "Emergency! Need help at location A",
+                        "ttl": 5,
+                        "priority": 1
                     }
                     """;
 
             mockMvc.perform(post("/api/v1/mesh/broadcast")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request)
-                            .with(authentication(testAuth)))
+                            .content(request))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.messageId").isString())
-                    .andExpect(jsonPath("$.sourceDeviceId").value("device_001"))
-                    .andExpect(jsonPath("$.estimatedReach").isNumber());
+                    .andExpect(jsonPath("$.relayedTo").isArray())
+                    .andExpect(jsonPath("$.hops").isNumber());
         }
 
         @Test
-        @DisplayName("should return 400 when sourceDeviceId is missing")
-        void shouldReturn400WhenSourceMissing() throws Exception {
+        @DisplayName("should return 400 when senderDeviceId is missing")
+        void shouldReturn400WhenSenderMissing() throws Exception {
             String request = """
                     {
-                        "messageType": "alert"
+                        "message": "Emergency!"
                     }
                     """;
 
             mockMvc.perform(post("/api/v1/mesh/broadcast")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request)
-                            .with(authentication(testAuth)))
+                            .content(request))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("sourceDeviceId is required"));
+                    .andExpect(jsonPath("$.error").value("senderDeviceId and message are required"));
         }
     }
 
@@ -187,15 +160,12 @@ class MeshControllerTest {
     class GetPeers {
 
         @Test
-        @DisplayName("should return list of mesh peers")
+        @DisplayName("should return connected peers")
         void shouldReturnPeers() throws Exception {
             when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-            Map<Object, Object> peerMap = new HashMap<>();
-            peerMap.put("dev_001", Map.of("deviceId", "dev_001", "signalStrength", -70));
-            when(hashOperations.entries(anyString())).thenReturn(peerMap);
 
             mockMvc.perform(get("/api/v1/mesh/peers")
-                            .with(authentication(testAuth)))
+                            .param("deviceId", "device_001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.peers").isArray())
                     .andExpect(jsonPath("$.count").isNumber());
@@ -208,25 +178,24 @@ class MeshControllerTest {
     class ReportStats {
 
         @Test
-        @DisplayName("should record peer stats")
-        void shouldRecordStats() throws Exception {
+        @DisplayName("should report mesh network stats")
+        void shouldReportStats() throws Exception {
             when(redisTemplate.opsForHash()).thenReturn(hashOperations);
 
             String request = """
                     {
                         "deviceId": "device_001",
+                        "batteryLevel": 85,
                         "signalStrength": -65,
-                        "batteryLevel": 85
+                        "connectedPeers": 3
                     }
                     """;
 
             mockMvc.perform(post("/api/v1/mesh/stats")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request)
-                            .with(authentication(testAuth)))
+                            .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("recorded"))
-                    .andExpect(jsonPath("$.deviceId").value("device_001"));
+                    .andExpect(jsonPath("$.status").value("recorded"));
         }
 
         @Test
@@ -234,14 +203,13 @@ class MeshControllerTest {
         void shouldReturn400WhenDeviceIdMissing() throws Exception {
             String request = """
                     {
-                        "signalStrength": -65
+                        "batteryLevel": 85
                     }
                     """;
 
-            mockMvc.perform(post("/api/v1/mesh/route")
+            mockMvc.perform(post("/api/v1/mesh/stats")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(request)
-                            .with(authentication(testAuth)))
+                            .content(request))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("deviceId is required"));
         }

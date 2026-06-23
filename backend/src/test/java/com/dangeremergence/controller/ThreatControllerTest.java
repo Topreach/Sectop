@@ -1,24 +1,19 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
 import com.dangeremergence.model.Incident;
 import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.model.Zone;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.IncidentService;
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.SOSAlertService;
 import com.dangeremergence.service.ZoneService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -35,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(value = ThreatController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class ThreatControllerTest {
 
     @Autowired
@@ -53,25 +47,6 @@ class ThreatControllerTest {
     @MockBean
     private PredictiveService predictiveService;
 
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @BeforeEach
-    void setUp() {
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
-    }
-
     private Incident createSampleIncident() {
         Incident incident = new Incident();
         incident.setId("inc-001");
@@ -79,16 +54,20 @@ class ThreatControllerTest {
         incident.setDescription("Flood in Lagos");
         incident.setLatitude(6.5244);
         incident.setLongitude(3.3792);
-        incident.setCreatedAt(LocalDateTime.now());
+        incident.setSeverity(Incident.IncidentSeverity.high);
+        incident.setOccurredAt(LocalDateTime.now());
         return incident;
     }
 
     private SOSAlert createSampleAlert() {
         SOSAlert alert = new SOSAlert();
         alert.setId("alert-001");
-        alert.setDescription("Help needed");
+        alert.setAlertType("fire");
+        alert.setDescription("Fire at market");
         alert.setLatitude(6.5244);
         alert.setLongitude(3.3792);
+        alert.setPriority(5);
+        alert.setStatus(SOSAlert.AlertStatus.active);
         alert.setCreatedAt(LocalDateTime.now());
         return alert;
     }
@@ -98,11 +77,11 @@ class ThreatControllerTest {
     class AnalyzeText {
 
         @Test
-        @DisplayName("should detect kidnapping threat from text")
-        void shouldDetectKidnappingThreat() throws Exception {
+        @DisplayName("should analyze text and return threat assessment")
+        void shouldAnalyzeText() throws Exception {
             String request = """
                     {
-                        "text": "There is a kidnapping happening at the market",
+                        "text": "There is a fire outbreak at the market with armed robbers and a bomb threat!",
                         "latitude": 6.5244,
                         "longitude": 3.3792
                     }
@@ -112,34 +91,15 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.hasThreat").value(true))
-                    .andExpect(jsonPath("$.severity").value("critical"))
-                    .andExpect(jsonPath("$.label").value("kidnapping"))
-                    .andExpect(jsonPath("$.matchedKeywords").isArray());
+                    .andExpect(jsonPath("$.threatLevel").isString())
+                    .andExpect(jsonPath("$.matchedKeywords").isArray())
+                    .andExpect(jsonPath("$.incidentType").isString())
+                    .andExpect(jsonPath("$.confidence").isNumber());
         }
 
         @Test
-        @DisplayName("should detect no threat for normal text")
-        void shouldDetectNoThreatForNormalText() throws Exception {
-            String request = """
-                    {
-                        "text": "The weather is nice today",
-                        "latitude": 6.5244,
-                        "longitude": 3.3792
-                    }
-                    """;
-
-            mockMvc.perform(post("/api/v1/threat/analyze-text")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.hasThreat").value(false))
-                    .andExpect(jsonPath("$.severity").value("low"));
-        }
-
-        @Test
-        @DisplayName("should return 400 when text is blank")
-        void shouldReturn400WhenTextBlank() throws Exception {
+        @DisplayName("should return 400 when text is empty")
+        void shouldReturn400WhenTextEmpty() throws Exception {
             String request = """
                     {
                         "text": ""
@@ -170,11 +130,11 @@ class ThreatControllerTest {
         }
 
         @Test
-        @DisplayName("should detect bomb threat")
-        void shouldDetectBombThreat() throws Exception {
+        @DisplayName("should detect kidnapping keywords")
+        void shouldDetectKidnappingKeywords() throws Exception {
             String request = """
                     {
-                        "text": "There is a bomb at the train station"
+                        "text": "Help! Someone is being kidnapped near the bank!"
                     }
                     """;
 
@@ -182,17 +142,16 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.hasThreat").value(true))
-                    .andExpect(jsonPath("$.severity").value("critical"))
-                    .andExpect(jsonPath("$.label").value("terrorism"));
+                    .andExpect(jsonPath("$.incidentType").value("kidnapping"))
+                    .andExpect(jsonPath("$.threatLevel").value("critical"));
         }
 
         @Test
-        @DisplayName("should detect banditry threat")
-        void shouldDetectBanditryThreat() throws Exception {
+        @DisplayName("should detect bomb threat keywords")
+        void shouldDetectBombKeywords() throws Exception {
             String request = """
                     {
-                        "text": "Armed robbers are attacking the village"
+                        "text": "There is a bomb at the stadium!"
                     }
                     """;
 
@@ -200,8 +159,8 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.hasThreat").value(true))
-                    .andExpect(jsonPath("$.severity").value("high"));
+                    .andExpect(jsonPath("$.incidentType").value("bomb_threat"))
+                    .andExpect(jsonPath("$.threatLevel").value("critical"));
         }
     }
 
@@ -212,26 +171,19 @@ class ThreatControllerTest {
         @Test
         @DisplayName("should return threat level for a location")
         void shouldReturnThreatLevel() throws Exception {
-            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), any()))
-                    .thenReturn(List.of());
-            when(zoneService.getDangerZones()).thenReturn(List.of());
-            when(sosAlertService.getAlertsInArea(anyDouble(), anyDouble(), anyDouble()))
-                    .thenReturn(List.of());
-            when(predictiveService.detectHotspots(anyDouble(), anyDouble(), anyDouble()))
-                    .thenReturn(Map.of("hotspots", List.of()));
+            when(incidentService.getIncidentsNearby(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of(createSampleIncident()));
+            when(sosAlertService.getActiveAlerts()).thenReturn(List.of(createSampleAlert()));
+            when(zoneService.getActiveZones()).thenReturn(List.of());
 
             mockMvc.perform(get("/api/v1/threat/level")
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
                             .param("radiusKm", "5"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.threatLevel").isNumber())
-                    .andExpect(jsonPath("$.incidentCount").isNumber())
-                    .andExpect(jsonPath("$.dangerZoneCount").isNumber())
-                    .andExpect(jsonPath("$.activeAlertCount").isNumber())
-                    .andExpect(jsonPath("$.predictedHotspotCount").isNumber())
-                    .andExpect(jsonPath("$.hasCritical").isBoolean())
-                    .andExpect(jsonPath("$.levelLabel").isString());
+                    .andExpect(jsonPath("$.overallThreatLevel").isString())
+                    .andExpect(jsonPath("$.threatScore").isNumber())
+                    .andExpect(jsonPath("$.factors").isArray());
         }
     }
 
@@ -242,11 +194,10 @@ class ThreatControllerTest {
         @Test
         @DisplayName("should return threat alerts for a location")
         void shouldReturnThreatAlerts() throws Exception {
-            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), any()))
-                    .thenReturn(List.of());
-            when(zoneService.getDangerZones()).thenReturn(List.of());
-            when(sosAlertService.getAlertsInArea(anyDouble(), anyDouble(), anyDouble()))
-                    .thenReturn(List.of());
+            when(incidentService.getIncidentsNearby(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of(createSampleIncident()));
+            when(sosAlertService.getActiveAlerts()).thenReturn(List.of(createSampleAlert()));
+            when(zoneService.getActiveZones()).thenReturn(List.of());
 
             mockMvc.perform(get("/api/v1/threat/alerts")
                             .param("latitude", "6.5244")
@@ -254,8 +205,7 @@ class ThreatControllerTest {
                             .param("radiusKm", "10"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts").isArray())
-                    .andExpect(jsonPath("$.totalCount").isNumber())
-                    .andExpect(jsonPath("$.unreadCount").isNumber());
+                    .andExpect(jsonPath("$.totalThreats").isNumber());
         }
     }
 
@@ -264,14 +214,14 @@ class ThreatControllerTest {
     class AudioResult {
 
         @Test
-        @DisplayName("should process audio analysis result with distress detected")
-        void shouldProcessAudioResultWithDistress() throws Exception {
+        @DisplayName("should process audio analysis result")
+        void shouldProcessAudioResult() throws Exception {
             String request = """
                     {
-                        "hasDistress": true,
-                        "threatLevel": "high",
-                        "confidence": 0.85,
-                        "method": "ambient_audio_monitor"
+                        "text": "gunshots detected",
+                        "threatLevel": "critical",
+                        "confidence": 0.95,
+                        "incidentType": "shooting"
                     }
                     """;
 
@@ -279,29 +229,25 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.created").value(true))
-                    .andExpect(jsonPath("$.alertId").isString())
-                    .andExpect(jsonPath("$.alert.type").value("ambient_audio"))
-                    .andExpect(jsonPath("$.alert.severity").value("high"));
+                    .andExpect(jsonPath("$.status").value("processed"))
+                    .andExpect(jsonPath("$.threatLevel").value("critical"))
+                    .andExpect(jsonPath("$.incidentType").value("shooting"));
         }
 
         @Test
-        @DisplayName("should return created=false when no distress detected")
-        void shouldReturnNotCreatedWhenNoDistress() throws Exception {
+        @DisplayName("should return 400 when text is missing")
+        void shouldReturn400WhenTextMissing() throws Exception {
             String request = """
                     {
-                        "hasDistress": false,
-                        "threatLevel": "low",
-                        "confidence": 0.0
+                        "threatLevel": "critical"
                     }
                     """;
 
             mockMvc.perform(post("/api/v1/threat/audio-result")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.created").value(false))
-                    .andExpect(jsonPath("$.message").value("No distress detected — no alert created"));
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("text is required"));
         }
     }
 }

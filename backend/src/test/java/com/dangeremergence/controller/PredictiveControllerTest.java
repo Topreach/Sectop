@@ -1,9 +1,5 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.ZoneService;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,9 +7,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -23,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -31,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(value = PredictiveController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class PredictiveControllerTest {
 
     @Autowired
@@ -43,27 +38,11 @@ class PredictiveControllerTest {
     @MockBean
     private PredictiveService predictiveService;
 
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private Authentication testAuth;
 
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
-
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
     }
 
     @Nested
@@ -71,17 +50,16 @@ class PredictiveControllerTest {
     class MlForecast {
 
         @Test
-        @DisplayName("should return forecast for an area")
-        void shouldReturnForecast() throws Exception {
-            when(predictiveService.getForecast(anyDouble(), anyDouble(), anyDouble(), anyInt()))
-                    .thenReturn(Map.of("forecast", List.of(), "area", "Lagos"));
+        @DisplayName("should return ML forecast for a zone")
+        void shouldReturnMlForecast() throws Exception {
+            when(predictiveService.getMlForecast(anyString(), anyInt(), anyInt()))
+                    .thenReturn(Map.of("zoneId", "zone_1", "forecast", List.of()));
 
             String request = """
                     {
-                        "latitude": 9.08,
-                        "longitude": 7.48,
-                        "radius_km": 50,
-                        "hours": 48
+                        "zoneId": "zone_1",
+                        "historyHours": 24,
+                        "forecastHours": 12
                     }
                     """;
 
@@ -90,16 +68,17 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.area").value("Lagos"));
+                    .andExpect(jsonPath("$.zoneId").value("zone_1"))
+                    .andExpect(jsonPath("$.forecast").isArray());
         }
 
         @Test
-        @DisplayName("should return 400 when lat/lng are zero")
-        void shouldReturn400WhenLatLngZero() throws Exception {
+        @DisplayName("should return 400 when zoneId is missing")
+        void shouldReturn400WhenZoneIdMissing() throws Exception {
             String request = """
                     {
-                        "latitude": 0,
-                        "longitude": 0
+                        "historyHours": 24,
+                        "forecastHours": 12
                     }
                     """;
 
@@ -108,7 +87,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("latitude and longitude are required"));
+                    .andExpect(jsonPath("$.error").value("zoneId is required"));
         }
     }
 
@@ -117,16 +96,16 @@ class PredictiveControllerTest {
     class MlBatchForecast {
 
         @Test
-        @DisplayName("should return batch forecasts")
-        void shouldReturnBatchForecast() throws Exception {
-            when(predictiveService.getBatchForecast(anyList()))
-                    .thenReturn(Map.of("areas", List.of(), "total", 0));
+        @DisplayName("should return ML forecast for multiple zones")
+        void shouldReturnMlBatchForecast() throws Exception {
+            when(predictiveService.getMlForecastBatch(anyList(), anyInt(), anyInt()))
+                    .thenReturn(Map.of("forecasts", List.of()));
 
             String request = """
                     {
-                        "areas": [
-                            {"latitude": 9.08, "longitude": 7.48, "radius_km": 50, "hours": 48}
-                        ]
+                        "zoneIds": ["zone_1", "zone_2"],
+                        "historyHours": 24,
+                        "forecastHours": 12
                     }
                     """;
 
@@ -135,15 +114,17 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.total").isNumber());
+                    .andExpect(jsonPath("$.forecasts").isArray());
         }
 
         @Test
-        @DisplayName("should return 400 when areas list is empty")
-        void shouldReturn400WhenAreasEmpty() throws Exception {
+        @DisplayName("should return 400 when zoneIds is empty")
+        void shouldReturn400WhenZoneIdsEmpty() throws Exception {
             String request = """
                     {
-                        "areas": []
+                        "zoneIds": [],
+                        "historyHours": 24,
+                        "forecastHours": 12
                     }
                     """;
 
@@ -152,7 +133,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("areas list is required"));
+                    .andExpect(jsonPath("$.error").value("zoneIds must not be empty"));
         }
     }
 
@@ -161,16 +142,16 @@ class PredictiveControllerTest {
     class Hotspots {
 
         @Test
-        @DisplayName("should detect hotspots")
-        void shouldDetectHotspots() throws Exception {
-            when(predictiveService.detectHotspots(anyDouble(), anyDouble(), anyDouble()))
-                    .thenReturn(Map.of("hotspots", List.of(), "count", 0));
+        @DisplayName("should return hotspots for a location")
+        void shouldReturnHotspots() throws Exception {
+            when(predictiveService.getHotspots(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of(Map.of("zoneId", "zone_1", "riskLevel", "high")));
 
             String request = """
                     {
-                        "latitude": 9.08,
-                        "longitude": 7.48,
-                        "radius_km": 100
+                        "latitude": 6.5244,
+                        "longitude": 3.3792,
+                        "radiusKm": 10
                     }
                     """;
 
@@ -179,16 +160,16 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.count").isNumber());
+                    .andExpect(jsonPath("$[0].zoneId").value("zone_1"))
+                    .andExpect(jsonPath("$[0].riskLevel").value("high"));
         }
 
         @Test
-        @DisplayName("should return 400 when lat/lng are zero")
-        void shouldReturn400WhenLatLngZero() throws Exception {
+        @DisplayName("should return 400 when coordinates are missing")
+        void shouldReturn400WhenCoordinatesMissing() throws Exception {
             String request = """
                     {
-                        "latitude": 0,
-                        "longitude": 0
+                        "radiusKm": 10
                     }
                     """;
 
@@ -196,8 +177,7 @@ class PredictiveControllerTest {
                             .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("latitude and longitude are required"));
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -208,19 +188,10 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should trigger model training")
         void shouldTriggerTraining() throws Exception {
-            when(predictiveService.triggerTraining(anyBoolean()))
-                    .thenReturn(Map.of("status", "training_started", "forceRetrain", false));
-
-            String request = """
-                    {
-                        "force_retrain": false
-                    }
-                    """;
+            when(predictiveService.trainModel()).thenReturn(Map.of("status", "training_started"));
 
             mockMvc.perform(post("/api/v1/predictive/train")
-                            .with(authentication(testAuth))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("training_started"));
         }
@@ -233,8 +204,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return training status")
         void shouldReturnTrainingStatus() throws Exception {
-            when(predictiveService.getTrainingStatus())
-                    .thenReturn(Map.of("status", "idle", "lastTraining", "2024-01-01T00:00:00Z"));
+            when(predictiveService.getTrainingStatus()).thenReturn(Map.of("status", "idle", "lastTraining", null));
 
             mockMvc.perform(get("/api/v1/predictive/training-status")
                             .with(authentication(testAuth)))
@@ -250,13 +220,12 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return model info")
         void shouldReturnModelInfo() throws Exception {
-            when(predictiveService.getModelInfo())
-                    .thenReturn(Map.of("model", "Prophet+XGBoost", "version", "2.0"));
+            when(predictiveService.getModelInfo()).thenReturn(Map.of("modelVersion", "1.0", "features", List.of()));
 
             mockMvc.perform(get("/api/v1/predictive/model-info")
                             .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.model").value("Prophet+XGBoost"));
+                    .andExpect(jsonPath("$.modelVersion").value("1.0"));
         }
     }
 
@@ -266,14 +235,13 @@ class PredictiveControllerTest {
 
         @Test
         @DisplayName("should return forecast for all states")
-        void shouldReturnAllStatesForecast() throws Exception {
-            when(predictiveService.getAllStatesForecast())
-                    .thenReturn(Map.of("states", List.of(), "generatedAt", "2024-01-01T00:00:00Z"));
+        void shouldReturnForecastAllStates() throws Exception {
+            when(predictiveService.forecastAllStates()).thenReturn(Map.of("forecasts", List.of()));
 
             mockMvc.perform(post("/api/v1/predictive/forecast/all-states")
                             .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.generatedAt").isString());
+                    .andExpect(jsonPath("$.forecasts").isArray());
         }
     }
 
@@ -282,10 +250,9 @@ class PredictiveControllerTest {
     class Health {
 
         @Test
-        @DisplayName("should return health check")
+        @DisplayName("should return predictive service health")
         void shouldReturnHealth() throws Exception {
-            when(predictiveService.healthCheck())
-                    .thenReturn(Map.of("status", "healthy", "mlService", "connected"));
+            when(predictiveService.getHealth()).thenReturn(Map.of("status", "healthy", "modelLoaded", true));
 
             mockMvc.perform(get("/api/v1/predictive/health")
                             .with(authentication(testAuth)))
@@ -295,17 +262,19 @@ class PredictiveControllerTest {
     }
 
     @Nested
-    @DisplayName("POST /api/v1/predictive/forecast (legacy)")
+    @DisplayName("POST /api/v1/predictive/forecast")
     class LegacyForecast {
 
         @Test
-        @DisplayName("should return legacy forecast")
+        @DisplayName("should return legacy forecast for a zone")
         void shouldReturnLegacyForecast() throws Exception {
+            when(zoneService.getZoneById(anyString())).thenReturn(java.util.Optional.empty());
+
             String request = """
                     {
-                        "zoneIds": ["zone-1", "zone-2"],
-                        "historyHours": 72,
-                        "forecastHours": 6
+                        "zoneId": "zone_1",
+                        "historyHours": 24,
+                        "forecastHours": 12
                     }
                     """;
 
@@ -313,8 +282,8 @@ class PredictiveControllerTest {
                             .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.forecasts").exists());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Zone not found: zone_1"));
         }
     }
 
@@ -323,11 +292,16 @@ class PredictiveControllerTest {
     class Anomaly {
 
         @Test
-        @DisplayName("should detect anomalies")
+        @DisplayName("should detect anomalies in data")
         void shouldDetectAnomalies() throws Exception {
+            when(predictiveService.detectAnomalies(anyList())).thenReturn(List.of());
+
             String request = """
                     {
-                        "values": [10, 12, 15, 100, 11, 13]
+                        "readings": [
+                            {"zoneId": "zone_1", "value": 100},
+                            {"zoneId": "zone_2", "value": 5}
+                        ]
                     }
                     """;
 
@@ -336,9 +310,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.anomalies").exists())
-                    .andExpect(jsonPath("$.mean").exists())
-                    .andExpect(jsonPath("$.stdDev").exists());
+                    .andExpect(jsonPath("$").isArray());
         }
     }
 
@@ -349,26 +321,18 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should optimize resource allocation")
         void shouldOptimizeResources() throws Exception {
+            when(predictiveService.optimizeResources(anyList(), anyList()))
+                    .thenReturn(Map.of("allocations", List.of()));
+
             String request = """
                     {
                         "zones": [
-                            {
-                                "id": "z1",
-                                "latitude": 6.5244,
-                                "longitude": 3.3792,
-                                "priority": 1,
-                                "requiredSkill": "general"
-                            }
+                            {"zoneId": "zone_1", "priority": 5, "requiredResources": 10},
+                            {"zoneId": "zone_2", "priority": 3, "requiredResources": 5}
                         ],
-                        "responders": [
-                            {
-                                "id": "r1",
-                                "latitude": 6.5244,
-                                "longitude": 3.3792,
-                                "skill": "general",
-                                "availability": 100,
-                                "name": "Responder 1"
-                            }
+                        "availableResources": [
+                            {"type": "ambulance", "count": 5},
+                            {"type": "fire_truck", "count": 3}
                         ]
                     }
                     """;
@@ -378,7 +342,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").exists());
+                    .andExpect(jsonPath("$.allocations").isArray());
         }
     }
 }

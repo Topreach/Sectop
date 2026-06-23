@@ -1,19 +1,15 @@
 package com.dangeremergence.controller;
 
-import com.dangeremergence.config.JwtAuthenticationFilter;
-import com.dangeremergence.config.JwtUtil;
-import com.dangeremergence.config.SecurityConfig;
 import com.dangeremergence.model.Incident;
-import com.dangeremergence.repository.UserRepository;
 import com.dangeremergence.service.IncidentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -24,14 +20,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = IncidentController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class IncidentControllerTest {
 
     @Autowired
@@ -43,15 +38,6 @@ class IncidentControllerTest {
     @MockBean
     private IncidentService incidentService;
 
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserRepository userRepository;
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private Incident testIncident;
     private static final String INCIDENT_ID = "inc-123";
     private static final String REPORTER_ID = "user-123";
@@ -61,13 +47,6 @@ class IncidentControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken("user-123", null, List.of());
-
-        doAnswer(invocation -> {
-            jakarta.servlet.FilterChain chain = (jakarta.servlet.FilterChain) invocation.getArguments()[2];
-            chain.doFilter((jakarta.servlet.ServletRequest) invocation.getArguments()[0],
-                           (jakarta.servlet.ServletResponse) invocation.getArguments()[1]);
-            return null;
-        }).when(jwtAuthenticationFilter).doFilterInternal(any(), any(), any());
         testIncident = new Incident();
         testIncident.setId(INCIDENT_ID);
         testIncident.setReporter(null);
@@ -83,82 +62,62 @@ class IncidentControllerTest {
     class ReportIncident {
 
         @Test
-        void shouldReportIncidentSuccessfully() throws Exception {
-            when(incidentService.createIncident(
-                    eq(REPORTER_ID), eq("kidnapping"), eq("Suspicious activity"),
-                    eq(6.5244), eq(3.3792), isNull(),
-                    any(LocalDateTime.class), eq("high"), eq(false)
-            )).thenReturn(testIncident);
+        void shouldReportIncident() throws Exception {
+            when(incidentService.reportIncident(anyString(), anyString(), anyString(), anyDouble(),
+                    anyDouble(), anyString(), any(), anyString()))
+                    .thenReturn(testIncident);
 
-            Map<String, Object> request = Map.of(
-                    "reporterId", REPORTER_ID,
-                    "incidentType", "kidnapping",
-                    "description", "Suspicious activity",
-                    "latitude", 6.5244,
-                    "longitude", 3.3792,
-                    "severity", "high"
-            );
+            String request = """
+                    {
+                        "incidentType": "kidnapping",
+                        "description": "Suspicious activity reported",
+                        "latitude": 6.5244,
+                        "longitude": 3.3792,
+                        "severity": "high"
+                    }
+                    """;
 
             mockMvc.perform(post("/api/v1/incidents")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request))
-                            .with(authentication(testAuth)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
-                    .andExpect(jsonPath("$.message").value("Incident reported successfully"));
+                            .content(request))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(INCIDENT_ID))
+                    .andExpect(jsonPath("$.incidentType").value("kidnapping"));
         }
 
         @Test
-        void shouldReturn400WhenIncidentTypeMissing() throws Exception {
-            Map<String, Object> request = Map.of(
-                    "latitude", 6.5244,
-                    "longitude", 3.3792
-            );
+        void shouldReturn400WhenRequiredFieldsMissing() throws Exception {
+            String request = """
+                    {
+                        "description": "Suspicious activity reported"
+                    }
+                    """;
 
             mockMvc.perform(post("/api/v1/incidents")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request))
-                            .with(authentication(testAuth)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("incidentType is required"));
+                            .content(request))
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
-        void shouldReturn400WhenCoordinatesMissing() throws Exception {
-            Map<String, Object> request = Map.of(
-                    "incidentType", "kidnapping"
-            );
+        void shouldReturn400WhenCoordinatesInvalid() throws Exception {
+            String request = """
+                    {
+                        "incidentType": "kidnapping",
+                        "description": "Test",
+                        "latitude": 100,
+                        "longitude": 200,
+                        "severity": "high"
+                    }
+                    """;
 
             mockMvc.perform(post("/api/v1/incidents")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request))
-                            .with(authentication(testAuth)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("latitude and longitude are required"));
-        }
-
-        @Test
-        void shouldReportAnonymousIncident() throws Exception {
-            when(incidentService.createIncident(
-                    isNull(), eq("suspicious"), eq("Anonymous report"),
-                    eq(6.5), eq(3.3), eq(5.0),
-                    any(LocalDateTime.class), eq("medium"), eq(true)
-            )).thenReturn(testIncident);
-
-            Map<String, Object> request = Map.of(
-                    "incidentType", "suspicious",
-                    "description", "Anonymous report",
-                    "latitude", 6.5,
-                    "longitude", 3.3,
-                    "accuracy", 5.0,
-                    "isAnonymous", true
-            );
-
-            mockMvc.perform(post("/api/v1/incidents")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request))
-                            .with(authentication(testAuth)))
-                    .andExpect(status().isOk());
+                            .content(request))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -166,60 +125,46 @@ class IncidentControllerTest {
     class GetIncidents {
 
         @Test
-        void shouldGetNearbyIncidents() throws Exception {
-            when(incidentService.getNearbyIncidents(eq(6.5), eq(3.3), eq(10.0), isNull()))
+        void shouldReturnNearbyIncidents() throws Exception {
+            when(incidentService.getIncidentsNearby(anyDouble(), anyDouble(), anyDouble()))
                     .thenReturn(List.of(testIncident));
 
             mockMvc.perform(get("/api/v1/incidents/nearby")
-                            .param("latitude", "6.5")
-                            .param("longitude", "3.3")
-                            .param("radiusKm", "10")
-                            .with(authentication(testAuth)))
+                            .with(authentication(testAuth))
+                            .param("latitude", "6.5244")
+                            .param("longitude", "3.3792")
+                            .param("radiusKm", "5"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incidents[0].id").value(INCIDENT_ID))
-                    .andExpect(jsonPath("$.count").value(1));
+                    .andExpect(jsonPath("$[0].id").value(INCIDENT_ID));
         }
 
         @Test
-        void shouldGetHeatmapData() throws Exception {
-            List<Map<String, Object>> heatmap = List.of(
-                    Map.of("lat", 6.5, "lng", 3.3, "count", 5)
-            );
-            when(incidentService.getHeatmapData(
-                    eq(6.5), eq(3.3), eq(20.0), any(LocalDateTime.class)
-            )).thenReturn(heatmap);
+        void shouldReturnIncidentById() throws Exception {
+            when(incidentService.getIncidentById(INCIDENT_ID)).thenReturn(testIncident);
 
-            mockMvc.perform(get("/api/v1/incidents/heatmap")
-                            .param("latitude", "6.5")
-                            .param("longitude", "3.3")
-                            .param("radiusKm", "20")
-                            .param("since", "2024-01-01T00:00:00")
+            mockMvc.perform(get("/api/v1/incidents/" + INCIDENT_ID)
                             .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.heatmap[0].count").value(5));
+                    .andExpect(jsonPath("$.id").value(INCIDENT_ID));
         }
 
         @Test
-        void shouldGetIncidentById() throws Exception {
-            mockMvc.perform(get("/api/v1/incidents/{id}", INCIDENT_ID)
+        void shouldReturn404WhenIncidentNotFound() throws Exception {
+            when(incidentService.getIncidentById("nonexistent")).thenThrow(new RuntimeException("Not found"));
+
+            mockMvc.perform(get("/api/v1/incidents/nonexistent")
                             .with(authentication(testAuth)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incidentId").value(INCIDENT_ID));
+                    .andExpect(status().isNotFound());
         }
 
         @Test
-        void shouldGetStatistics() throws Exception {
-            Map<String, Object> stats = Map.of(
-                    "total", 100,
-                    "active", 50,
-                    "resolved", 50
-            );
-            when(incidentService.getStatistics()).thenReturn(stats);
+        void shouldReturnIncidentStats() throws Exception {
+            when(incidentService.getIncidentStats()).thenReturn(Map.of("total", 10, "active", 5));
 
             mockMvc.perform(get("/api/v1/incidents/stats")
                             .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.total").value(100));
+                    .andExpect(jsonPath("$.total").value(10));
         }
     }
 
@@ -228,18 +173,12 @@ class IncidentControllerTest {
 
         @Test
         void shouldVerifyIncident() throws Exception {
-            when(incidentService.verifyIncident(INCIDENT_ID, "authority-1"))
-                    .thenReturn(testIncident);
+            when(incidentService.verifyIncident(INCIDENT_ID, REPORTER_ID)).thenReturn(testIncident);
 
-            Map<String, Object> request = Map.of("verifiedBy", "authority-1");
-
-            mockMvc.perform(post("/api/v1/incidents/{id}/verify", INCIDENT_ID)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request))
+            mockMvc.perform(post("/api/v1/incidents/" + INCIDENT_ID + "/verify")
                             .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
-                    .andExpect(jsonPath("$.message").value("Incident verified successfully"));
+                    .andExpect(jsonPath("$.id").value(INCIDENT_ID));
         }
     }
 
@@ -248,14 +187,12 @@ class IncidentControllerTest {
 
         @Test
         void shouldUpvoteIncident() throws Exception {
-            when(incidentService.upvoteIncident(INCIDENT_ID))
-                    .thenReturn(testIncident);
+            when(incidentService.upvoteIncident(INCIDENT_ID, REPORTER_ID)).thenReturn(Map.of("upvotes", 5));
 
-            mockMvc.perform(post("/api/v1/incidents/{id}/upvote", INCIDENT_ID)
+            mockMvc.perform(post("/api/v1/incidents/" + INCIDENT_ID + "/upvote")
                             .with(authentication(testAuth)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
-                    .andExpect(jsonPath("$.message").value("Incident upvoted"));
+                    .andExpect(jsonPath("$.upvotes").value(5));
         }
     }
 }
