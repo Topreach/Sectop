@@ -276,10 +276,11 @@ class SOSService extends ChangeNotifier {
       // STEP 4: If LoRa gateway available, use that too
       unawaited(_tryLoRaSend(alert));
 
-      // STEP 5: SMS Fallback for critical alerts
-      if (priority >= AppConstants.priorityCritical) {
-        unawaited(_trySmsSend(alert));
-      }
+      // STEP 5: Emergency contacts are notified via in-app push notification
+      // (FCM). The backend CovertAlertService resolves the user's emergency
+      // contacts from the User.emergencyContacts field and sends discreet
+      // push notifications to each contact's device. No SMS fallback needed.
+      // Contacts are managed in the Emergency Contacts screen.
 
       // STEP 6: Start location tracking for dynamic updates
       _startLocationTracking(alert.id);
@@ -387,25 +388,7 @@ class SOSService extends ChangeNotifier {
       await _meshManager.sendViaLoRa(alert.toMap());
     } catch (e) {
       debugPrint('LoRa SOS send failed: $e');
-    }
-  }
-
-  /// SMS Fallback - Sends a pre-formatted distress message to emergency contacts.
-  Future<void> _trySmsSend(SOSAlert alert) async {
-    try {
-      // In a production app, we would use a package like 'telephony' to send
-      // the SMS in the background without user interaction (on Android).
-      final message = 'EMERGENCY: SOS Alert from ${alert.userId}. '
-          'Type: ${alert.alertType}. '
-          'Loc: https://maps.google.com/?q=${alert.latitude},${alert.longitude}';
-
-      debugPrint('SOSService: SMS Fallback Triggered: $message');
-
-      // If we had the 'telephony' package:
-      // Telephony.instance.sendSms(to: contacts, message: message);
-    } catch (e) {
-      debugPrint('SMS Fallback failed: $e');
-    }
+    /// Start periodic location tracking for active SOS.
   }
 
   /// Start periodic location tracking for active SOS.

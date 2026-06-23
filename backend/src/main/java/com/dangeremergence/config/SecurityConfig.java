@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/threat/**").permitAll() // Public threat awareness (critical safety feature)
                 .requestMatchers("/api/v1/tips").permitAll() // Anonymous tip submission
                 .requestMatchers("/api/v1/tips/**").permitAll() // Public tip access
+                .requestMatchers("/api/v1/monetization/**").authenticated()
                 .requestMatchers("/api/v1/routes/**").authenticated()
                 .requestMatchers("/api/v1/broadcasts/active").authenticated()
                 .requestMatchers("/api/v1/broadcasts/count").authenticated()

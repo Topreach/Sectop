@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import '../../../shared/services/evidence_service.dart';
 import '../../../shared/widgets/global_location_picker.dart';
 import '../../incidents/services/incident_service.dart';
 import '../../maps/services/map_service.dart';
+import '../../monetization/widgets/feature_gate.dart';
 
 class IncidentReportScreen extends StatefulWidget {
   const IncidentReportScreen({Key? key}) : super(key: key);
@@ -21,7 +23,7 @@ class IncidentReportScreen extends StatefulWidget {
   State<IncidentReportScreen> createState() => _IncidentReportScreenState();
 }
 
-class _IncidentReportScreenState extends State<IncidentReportScreen> {
+class _IncidentReportScreenState extends State<IncidentReportScreen> with FeatureGateMixin {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _uuid = const Uuid();
@@ -159,6 +161,10 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
       return;
     }
 
+    // Check feature access — threat analysis costs 1 point
+    final hasAccess = await checkFeatureAccess('threat_analysis', 'Threat Analysis');
+    if (!hasAccess) return;
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -175,6 +181,8 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
 
       if (result != null) {
         // Successfully submitted to backend
+        // Spend points for threat analysis (1 pt)
+        unawaited(spendPointsForFeature('threat_analysis'));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

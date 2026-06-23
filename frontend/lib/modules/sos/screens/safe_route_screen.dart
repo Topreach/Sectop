@@ -9,6 +9,7 @@ import '../../../core/themes.dart';
 import '../../../shared/services/backend_api.dart';
 import '../../../shared/services/offline_storage.dart';
 import '../../../shared/widgets/global_location_picker.dart';
+import '../../monetization/widgets/feature_gate.dart';
 
 /// Screen to plan a safe route avoiding danger zones.
 /// Users select start and destination locations by place name (state/town)
@@ -21,7 +22,7 @@ class SafeRouteScreen extends StatefulWidget {
   State<SafeRouteScreen> createState() => _SafeRouteScreenState();
 }
 
-class _SafeRouteScreenState extends State<SafeRouteScreen> {
+class _SafeRouteScreenState extends State<SafeRouteScreen> with FeatureGateMixin {
   final BackendApi _api = BackendApi();
 
   // WebSocket/STOMP for fast route planning
@@ -204,26 +205,30 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
       _routeResult = null;
     });
   }
+Future<void> _planRoute() async {
+  if (_fromLat == null || _fromLng == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a starting location')),
+    );
+    return;
+  }
+  if (_toLat == null || _toLng == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a destination location')),
+    );
+    return;
+  }
 
-  Future<void> _planRoute() async {
-    if (_fromLat == null || _fromLng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a starting location')),
-      );
-      return;
-    }
-    if (_toLat == null || _toLng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a destination location')),
-      );
-      return;
-    }
+  // Check feature access — route planning costs 2 points
+  final hasAccess = await checkFeatureAccess('route_plan', 'Route Planning');
+  if (!hasAccess) return;
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  setState(() {
+    _isLoading = true;
+    _error = null;
+  });
 
+  final routeData = <String, dynamic>{
     final routeData = <String, dynamic>{
       'userId': '', // Will be populated from auth
       'fromLat': _fromLat,
@@ -255,6 +260,8 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
           _isLoading = false;
         });
       }
+      // Spend points for route planning (2 pts)
+      unawaited(spendPointsForFeature('route_plan'));
       // Cache the successful route result locally for offline fallback
       try {
         final storage = OfflineStorageService();

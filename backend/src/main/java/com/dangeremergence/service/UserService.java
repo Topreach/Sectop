@@ -98,6 +98,42 @@ public class UserService {
         return userRepository.findByIds(ids);
     }
 
+    /**
+     * Check which phone numbers belong to registered users.
+     * Used by the frontend Emergency Contacts screen to detect which
+     * device contacts are already using the application.
+     * Returns a map of phone -> user info (id, name) for matched numbers.
+     */
+    public Map<String, Map<String, String>> checkUsersByPhone(List<String> phoneNumbers) {
+        Map<String, Map<String, String>> result = new java.util.HashMap<>();
+        for (String phone : phoneNumbers) {
+            if (phone == null || phone.isBlank()) continue;
+            // Try exact match first
+            Optional<User> userOpt = userRepository.findByPhone(phone);
+            if (userOpt.isPresent() && userOpt.get().isActive()) {
+                User user = userOpt.get();
+                Map<String, String> info = new java.util.HashMap<>();
+                info.put("id", user.getId());
+                info.put("name", user.getName());
+                result.put(phone, info);
+            } else {
+                // Try with country code normalization (remove +, spaces, etc.)
+                String normalized = phone.replaceAll("[^0-9]", "");
+                if (!normalized.equals(phone)) {
+                    userOpt = userRepository.findByPhone(normalized);
+                    if (userOpt.isPresent() && userOpt.get().isActive()) {
+                        User user = userOpt.get();
+                        Map<String, String> info = new java.util.HashMap<>();
+                        info.put("id", user.getId());
+                        info.put("name", user.getName());
+                        result.put(phone, info);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     // -----------------------------------------------------------------------
     // Update
     // -----------------------------------------------------------------------

@@ -34,6 +34,7 @@ import '../modules/community/screens/user_posts_screen.dart';
 import '../modules/community/screens/user_profile_screen.dart';
 import '../modules/community/screens/favorites_screen.dart';
 import '../modules/community/screens/community_notifications_screen.dart';
+import '../modules/monetization/screens/monetization_screen.dart';
 
 /// Route names for the Danger Emergence System.
 class AppRoutes {
@@ -77,6 +78,9 @@ class AppRoutes {
   static const String deleteAccount = '/delete-account';
   static const String privacyPolicy = '/privacy-policy';
   static const String howToUse = '/how-to-use';
+
+  // Monetization routes
+  static const String monetization = '/monetization';
 
   /// Generate the route generator for MaterialApp.
   static Route<dynamic>? generateRoute(RouteSettings settings) {
@@ -257,6 +261,11 @@ class AppRoutes {
       case howToUse:
         return MaterialPageRoute(
           builder: (_) => const HowToUseScreen(),
+          settings: settings,
+        );
+      case AppRoutes.monetization:
+        return MaterialPageRoute(
+          builder: (_) => const MonetizationScreen(),
           settings: settings,
         );
       default:

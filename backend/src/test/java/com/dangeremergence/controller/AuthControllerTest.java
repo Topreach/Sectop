@@ -508,4 +508,59 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.emergencyMode").value(true));
         }
     }
+
+    @Nested
+    class CheckUsersByPhone {
+
+        @Test
+        void shouldReturnMatchedUsers() throws Exception {
+            User matchedUser = new User();
+            matchedUser.setId("user-456");
+            matchedUser.setName("Matched User");
+            matchedUser.setPhone("+2348012345678");
+            matchedUser.setActive(true);
+
+            when(userService.checkUsersByPhone(anyList()))
+                    .thenReturn(Map.of(
+                            "+2348012345678", Map.of("id", "user-456", "name", "Matched User")
+                    ));
+
+            Map<String, Object> request = Map.of(
+                    "phones", List.of("+2348012345678", "+2348098765432")
+            );
+
+            mockMvc.perform(post("/api/v1/auth/check-users")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.results.['+2348012345678'].id").value("user-456"))
+                    .andExpect(jsonPath("$.results.['+2348012345678'].name").value("Matched User"))
+                    .andExpect(jsonPath("$.results.['+2348098765432']").doesNotExist());
+        }
+
+        @Test
+        void shouldReturnBadRequestWhenPhonesMissing() throws Exception {
+            mockMvc.perform(post("/api/v1/auth/check-users")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of())))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("phones list is required"));
+        }
+
+        @Test
+        void shouldReturnEmptyResultsWhenNoMatches() throws Exception {
+            when(userService.checkUsersByPhone(anyList()))
+                    .thenReturn(Map.of());
+
+            Map<String, Object> request = Map.of(
+                    "phones", List.of("+2348098765432")
+            );
+
+            mockMvc.perform(post("/api/v1/auth/check-users")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.results").isEmpty());
+        }
+    }
 }

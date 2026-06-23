@@ -19,6 +19,8 @@ import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
 import '../../ai/widgets/threat_awareness_card.dart';
 import '../../ai/services/threat_awareness_service.dart';
+import '../../monetization/widgets/points_balance_widget.dart';
+import '../../monetization/services/monetization_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -497,6 +499,12 @@ String _formatAlertTime(DateTime time) {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Points balance badge
+          PointsBalanceWidget(
+            compact: true,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.monetization),
+          ),
+          const SizedBox(width: 4),
           // Sync status indicator
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -2125,161 +2133,9 @@ class _ProfileView extends StatelessWidget {
   }
 
   void _showEmergencyContactsDialog(BuildContext context) {
-    final storage = OfflineStorageService();
-    List<Map<String, String>> contacts = [];
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            // Load existing contacts
-            storage.getSetting('emergency_contacts').then((value) {
-              if (value != null && value is String) {
-                final decoded = json.decode(value) as List;
-                contacts = decoded.map((e) => Map<String, String>.from(e)).toList();
-              }
-            });
-
-            return AlertDialog(
-              title: Text('Emergency Contacts'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: contacts.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'No emergency contacts added yet.',
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: contacts.length,
-                        itemBuilder: (context, index) {
-                          final contact = contacts[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppTheme.primaryColor,
-                              child: const Icon(Icons.person, color: Colors.white, size: 20),
-                            ),
-                            title: Text(contact['name'] ?? ''),
-                            subtitle: Text(contact['phone'] ?? ''),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit, size: 18),
-                                  onPressed: () {
-                                    _showAddEditContactDialog(
-                                      context,
-                                      (updatedContact) {
-                                        contacts[index] = updatedContact;
-                                        _saveContacts(storage, contacts);
-                                        setDialogState(() {});
-                                      },
-                                      initialData: contact,
-                                    );
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                                  onPressed: () {
-                                    contacts.removeAt(index);
-                                    _saveContacts(storage, contacts);
-                                    setDialogState(() {});
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('CLOSE'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _showAddEditContactDialog(
-                      context,
-                      (newContact) {
-                        contacts.add(newContact);
-                        _saveContacts(storage, contacts);
-                        setDialogState(() {});
-                      },
-                    );
-                  },
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text('Add Contact'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showAddEditContactDialog(
-    BuildContext context,
-    void Function(Map<String, String>) onSave, {
-    Map<String, String>? initialData,
-  }) {
-    final nameController = TextEditingController(text: initialData?['name'] ?? '');
-    final phoneController = TextEditingController(text: initialData?['phone'] ?? '');
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(initialData != null ? 'Edit Contact' : 'Add Contact'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: const Icon(Icons.person_outline),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: const Icon(Icons.phone_outlined),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('CANCEL'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                onSave({
-                  'name': nameController.text.trim(),
-                  'phone': phoneController.text.trim(),
-                });
-                Navigator.pop(context);
-              },
-              child: Text('SAVE'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _saveContacts(OfflineStorageService storage, List<Map<String, String>> contacts) {
-    storage.saveSetting('emergency_contacts', json.encode(contacts));
+    // Navigate to the full Emergency Contacts screen which has the enhanced
+    // device contact picker, in-app user detection, and app sharing features.
+    Navigator.of(context).pushNamed(AppRoutes.emergencyContacts);
   }
 }
 

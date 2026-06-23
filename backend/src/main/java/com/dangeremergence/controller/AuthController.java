@@ -338,6 +338,29 @@ public class AuthController {
         return ResponseEntity.ok(responders);
     }
 
+    /**
+     * Check which phone numbers belong to registered users of the application.
+     * Used by the frontend Emergency Contacts screen to detect which device
+     * contacts are already using Sectop, so the user can see them and share
+     * the app with non-users.
+     * <p>
+     * Request body: { "phones": ["+2348012345678", "+2348098765432", ...] }
+     * Response: { "results": { "+2348012345678": { "id": "user-123", "name": "John" }, ... } }
+     */
+    @PostMapping("/check-users")
+    public ResponseEntity<?> checkUsersByPhone(@RequestBody Map<String, List<String>> body) {
+        List<String> phones = body.get("phones");
+        if (phones == null || phones.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "phones list is required"));
+        }
+        // Limit to reasonable batch size
+        if (phones.size() > 100) {
+            phones = phones.subList(0, 100);
+        }
+        Map<String, Map<String, String>> results = userService.checkUsersByPhone(phones);
+        return ResponseEntity.ok(Map.of("results", results));
+    }
+
     // -----------------------------------------------------------------------
     // Request DTOs
     // -----------------------------------------------------------------------

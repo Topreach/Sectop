@@ -621,6 +621,17 @@ class BackendApi {
     });
   }
 
+  /// Check which phone numbers belong to registered app users.
+  /// Used by the Emergency Contacts screen to detect which device contacts
+  /// are already using the application.
+  /// [phones] is a list of phone number strings.
+  /// Returns a map of phone -> { id, name } for matched users.
+  Future<Map<String, dynamic>> checkUsersByPhone(List<String> phones) async {
+    return post('/auth/check-users', body: {
+      'phones': phones,
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Incidents (Kidnapper/Danger Location Detection)
   // ---------------------------------------------------------------------------

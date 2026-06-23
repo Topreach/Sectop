@@ -82,6 +82,15 @@ dependencies:
   # External Links
   url_launcher: ^6.2.2
 
+  # Device Contacts (for Emergency Contact picker)
+  flutter_contacts: ^1.1.7
+
+  # Share (for app sharing to non-users)
+  share_plus: ^7.2.2
+
+  # Monetization - Ads
+  google_mobile_ads: ^5.2.0
+
   # Digital Twin - AR Capabilities
   # arkit_plugin: ^0.7.0   # Uncomment for iOS AR
   # arcore_plugin: ^0.4.0  # Uncomment for Android AR
