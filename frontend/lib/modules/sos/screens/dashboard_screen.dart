@@ -84,6 +84,8 @@ class _DashboardHome extends StatefulWidget {
 }
 
 class _DashboardHomeState extends State<_DashboardHome> {
+  int _unreadMessageCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -94,7 +96,25 @@ class _DashboardHomeState extends State<_DashboardHome> {
         if (!mounted) return;
         _showThreatPopup(context, alert);
       };
+      _loadUnreadCount();
     });
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final authService = context.read<AuthService>();
+      final userId = authService.currentUser?.id;
+      if (userId == null) return;
+      final api = context.read<BackendApi>();
+      final data = await api.getUnreadCount(userId);
+      if (mounted) {
+        setState(() {
+          _unreadMessageCount = data['count'] as int? ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('_DashboardHomeState: Failed to load unread count: $e');
+    }
   }
 
   @override
@@ -320,6 +340,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       icon: Icons.inbox_outlined,
                       label: 'Messages',
                       color: Colors.purple,
+                      count: _unreadMessageCount,
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
                     ),
                   ),
@@ -553,12 +574,14 @@ class _QuickActionCard extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final int? count;
 
   const _QuickActionCard({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.count,
   });
 
   @override
@@ -573,7 +596,36 @@ class _QuickActionCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              Icon(icon, size: 32, color: color),
+              Stack(
+                children: [
+                  Icon(icon, size: 32, color: color),
+                  if (count != null && count! > 0)
+                    Positioned(
+                      right: -8,
+                      top: -8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          count! > 99 ? '99+' : '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
               Text(
                 label,
