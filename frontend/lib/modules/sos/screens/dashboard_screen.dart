@@ -705,15 +705,20 @@ class _MapView extends StatefulWidget {
 
 class _MapViewState extends State<_MapView> {
   List<Map<String, dynamic>> _nearbyZones = [];
+  List<Map<String, dynamic>> _activeAlerts = [];
+  List<Map<String, dynamic>> _nearbyIncidents = [];
+  Map<String, dynamic>? _dangerScore;
   bool _isLoadingZones = true;
+  bool _isLoadingDangerScore = false;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
-    _loadNearbyZones();
+    _loadMapData();
   }
 
-  Future<void> _loadNearbyZones() async {
+  Future<void> _loadMapData() async {
     setState(() => _isLoadingZones = true);
     try {
       final mapService = context.read<MapService>();
@@ -721,13 +726,19 @@ class _MapViewState extends State<_MapView> {
           await mapService.getCurrentLocation();
       if (position != null) {
         final api = context.read<BackendApi>();
-        final result = await api.getZonesNearby(
-          position.latitude,
-          position.longitude,
-        );
-        final zones = result['zones'] is List
-            ? List<Map<String, dynamic>>.from(result['zones'])
+        // Load zones, alerts, and incidents in parallel from the internet
+        final results = await Future.wait([
+          api.getZonesNearby(position.latitude, position.longitude),
+          api.getActiveAlerts(),
+        ], eagerError: false);
+
+        final zones = results[0]['zones'] is List
+            ? List<Map<String, dynamic>>.from(results[0]['zones'])
             : <Map<String, dynamic>>[];
+        final alerts = results[1]['alerts'] is List
+            ? List<Map<String, dynamic>>.from(results[1]['alerts'])
+            : <Map<String, dynamic>>[];
+
         // Cache zones locally for offline use
         try {
           final storage = OfflineStorageService();
@@ -735,15 +746,37 @@ class _MapViewState extends State<_MapView> {
             await storage.saveZone(zone);
           }
         } catch (_) {}
+
+        // Load nearby incidents via internet
+        List<Map<String, dynamic>> incidents = [];
+        try {
+          final incidentResult = await api.getNearbyIncidents(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            radiusKm: 50,
+          );
+          if (incidentResult['incidents'] is List) {
+            incidents = List<Map<String, dynamic>>.from(incidentResult['incidents']);
+          }
+        } catch (e) {
+          debugPrint('_MapView: Failed to load incidents: $e');
+        }
+
         setState(() {
           _nearbyZones = zones;
+          _activeAlerts = alerts;
+          _nearbyIncidents = incidents;
           _isLoadingZones = false;
+          _isOffline = false;
         });
+
+        // Load danger score after map data
+        _loadDangerScore(position.latitude, position.longitude);
       } else {
         setState(() => _isLoadingZones = false);
       }
     } catch (e) {
-      debugPrint('_MapView: Server unreachable, loading cached zones: $e');
+      debugPrint('_MapView: Server unreachable, loading cached data: $e');
       // Offline fallback: load nearby zones from local storage
       try {
         final mapService = context.read<MapService>();
@@ -759,6 +792,7 @@ class _MapViewState extends State<_MapView> {
           setState(() {
             _nearbyZones = cachedZones;
             _isLoadingZones = false;
+            _isOffline = true;
           });
           debugPrint('_MapView: Loaded ${cachedZones.length} cached zones');
         } else {
@@ -768,6 +802,44 @@ class _MapViewState extends State<_MapView> {
         debugPrint('_MapView: Cache load also failed: $cacheError');
         setState(() => _isLoadingZones = false);
       }
+    }
+  }
+
+  Future<void> _loadDangerScore(double latitude, double longitude) async {
+    setState(() => _isLoadingDangerScore = true);
+    try {
+      final api = context.read<BackendApi>();
+      final score = await api.getDangerScore(
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: 5,
+      );
+      if (mounted) {
+        setState(() {
+          _dangerScore = score;
+          _isLoadingDangerScore = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('_MapView: Failed to load danger score: $e');
+      if (mounted) setState(() => _isLoadingDangerScore = false);
+    }
+  }
+
+  Color _dangerLevelColor(String level) {
+    switch (level.toLowerCase()) {
+      case 'safe':
+        return Colors.green;
+      case 'low':
+        return Colors.yellow.shade700;
+      case 'medium':
+        return Colors.orange;
+      case 'high':
+        return Colors.deepOrange;
+      case 'critical':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -794,84 +866,292 @@ class _MapViewState extends State<_MapView> {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: center,
-                initialZoom: 14.0,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.dangeremergence.app',
-                ),
-                // Current location marker with user avatar
-                MarkerLayer(
-                  markers: [
-                    if (position != null)
-                      Marker(
-                        point: center,
-                        width: 44,
-                        height: 44,
-                        child: _UserLocationMarker(
-                          authService: context.read<AuthService>(),
-                        ),
-                      ),
-                    // Zone markers
-                    ..._nearbyZones.map((zone) {
-                      final lat = (zone['latitude'] as num?)?.toDouble() ?? 0;
-                      final lng = (zone['longitude'] as num?)?.toDouble() ?? 0;
-                      final type = zone['type'] as String? ?? 'unknown';
-                      final zoneColor = AppTheme.getZoneColor(type);
-                      return Marker(
-                        point: LatLng(lat, lng),
-                        width: 24,
-                        height: 24,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: zoneColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.warning,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Zone summary bar
-          if (_isLoadingZones)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: LinearProgressIndicator(),
-            )
-          else if (_nearbyZones.isNotEmpty)
+          // Offline banner
+          if (_isOffline)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.grey[100],
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: Colors.orange[100],
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber, size: 16, color: Colors.orange[700]),
+                  Icon(Icons.cloud_off, size: 16, color: Colors.orange[800]),
                   const SizedBox(width: 8),
                   Text(
-                    '${'zone(s) nearby'}: ${_nearbyZones.length}',
+                    'Offline — showing cached data',
                     style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
+                      fontSize: 12,
+                      color: Colors.orange[900],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
+          Expanded(
+            child: Stack(
+              children: [
+                FlutterMap(
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 14.0,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.dangeremergence.app',
+                    ),
+                    // Current location marker with user avatar
+                    MarkerLayer(
+                      markers: [
+                        if (position != null)
+                          Marker(
+                            point: center,
+                            width: 44,
+                            height: 44,
+                            child: _UserLocationMarker(
+                              authService: context.read<AuthService>(),
+                            ),
+                          ),
+                        // Zone markers
+                        ..._nearbyZones.map((zone) {
+                          final lat = (zone['latitude'] as num?)?.toDouble() ?? 0;
+                          final lng = (zone['longitude'] as num?)?.toDouble() ?? 0;
+                          final type = zone['type'] as String? ?? 'unknown';
+                          final zoneColor = AppTheme.getZoneColor(type);
+                          return Marker(
+                            point: LatLng(lat, lng),
+                            width: 24,
+                            height: 24,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: zoneColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(
+                                Icons.warning,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                          );
+                        }),
+                        // Alert markers (active SOS alerts from internet)
+                        ..._activeAlerts.map((alert) {
+                          final lat = (alert['latitude'] as num?)?.toDouble() ?? 0;
+                          final lng = (alert['longitude'] as num?)?.toDouble() ?? 0;
+                          final title = alert['title'] as String? ?? 'Active Alert';
+                          return Marker(
+                            point: LatLng(lat, lng),
+                            width: 28,
+                            height: 28,
+                            child: Tooltip(
+                              message: title,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.5),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.sos,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        // Incident markers (from internet API)
+                        ..._nearbyIncidents.map((inc) {
+                          final lat = (inc['latitude'] as num?)?.toDouble() ?? 0;
+                          final lng = (inc['longitude'] as num?)?.toDouble() ?? 0;
+                          final type = inc['type'] as String? ?? 'unknown';
+                          final desc = inc['description'] as String? ?? type;
+                          Color incColor;
+                          switch (type.toLowerCase()) {
+                            case 'kidnapping':
+                              incColor = Colors.deepPurple;
+                              break;
+                            case 'terrorism':
+                            case 'terrorist':
+                              incColor = Colors.red.shade900;
+                              break;
+                            case 'robbery':
+                            case 'armed_robbery':
+                              incColor = Colors.orange.shade800;
+                              break;
+                            case 'assault':
+                              incColor = Colors.pink.shade700;
+                              break;
+                            case 'vandalism':
+                              incColor = Colors.brown;
+                              break;
+                            default:
+                              incColor = Colors.grey.shade700;
+                          }
+                          return Marker(
+                            point: LatLng(lat, lng),
+                            width: 24,
+                            height: 24,
+                            child: Tooltip(
+                              message: desc,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: incColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                ),
+                                child: const Icon(
+                                  Icons.report_problem,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
+                // Danger score card (top-left overlay)
+                if (_dangerScore != null || _isLoadingDangerScore)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: _buildDangerScoreCard(),
+                  ),
+              ],
+            ),
+          ),
+          // Summary bar showing zones, alerts, and incidents
+          if (_isLoadingZones)
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: LinearProgressIndicator(),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: Colors.grey[100],
+              child: Row(
+                children: [
+                  // Zones count
+                  Icon(Icons.warning_amber, size: 16, color: Colors.orange[700]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_nearbyZones.length} zones',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (_activeAlerts.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    Container(width: 1, height: 14, color: Colors.grey[300]),
+                    const SizedBox(width: 12),
+                    Icon(Icons.sos, size: 16, color: Colors.red[700]),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_activeAlerts.length} alerts',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                  if (_nearbyIncidents.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    Container(width: 1, height: 14, color: Colors.grey[300]),
+                    const SizedBox(width: 12),
+                    Icon(Icons.report_problem, size: 16, color: Colors.deepPurple),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_nearbyIncidents.length} incidents',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.deepPurple,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDangerScoreCard() {
+    final score = _dangerScore;
+    final level = (score?['level'] as String?) ?? 'unknown';
+    final scoreValue = (score?['score'] as num?)?.toDouble();
+    final color = _dangerLevelColor(level);
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        constraints: const BoxConstraints(maxWidth: 160),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.shield, size: 14, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  'Danger Score',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            if (_isLoadingDangerScore)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else ...[
+              Text(
+                scoreValue != null ? scoreValue.toStringAsFixed(0) : '--',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                level[0].toUpperCase() + level.substring(1),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
