@@ -115,11 +115,26 @@ class SyncManager extends ChangeNotifier {
         if (uri == null) continue;
 
         final headers = await _authHeaders();
-        final response = await http.post(
-          uri,
-          headers: headers,
-          body: payload,
-        ).timeout(Duration(seconds: AppConstants.apiTimeout));
+
+        // Use GET for sync endpoints (alerts, zones) and POST for create endpoints (messages)
+        http.Response response;
+        if (entityType == 'sos_alerts' || entityType == 'zones') {
+          // Sync endpoints use GET with since parameter
+          final since = _lastSyncTime?.millisecondsSinceEpoch ?? 0;
+          final syncUri = Uri.parse(
+            '${uri.toString()}?since=$since'
+          );
+          response = await http.get(
+            syncUri,
+            headers: headers,
+          ).timeout(Duration(seconds: AppConstants.apiTimeout));
+        } else {
+          response = await http.post(
+            uri,
+            headers: headers,
+            body: payload,
+          ).timeout(Duration(seconds: AppConstants.apiTimeout));
+        }
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
           await _storage.update('sync_log', {
