@@ -29,8 +29,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = BroadcastController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(value = BroadcastController.class)
-@AutoConfigureMockMvc(addFilters = false)
 class BroadcastControllerTest {
 
     @Autowired

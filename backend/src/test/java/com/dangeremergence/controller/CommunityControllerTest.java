@@ -28,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = CommunityController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(value = CommunityController.class)
-@AutoConfigureMockMvc(addFilters = false)
 class CommunityControllerTest {
 
     @Autowired

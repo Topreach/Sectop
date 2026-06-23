@@ -28,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = RadioController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(value = RadioController.class)
-@AutoConfigureMockMvc(addFilters = false)
 class RadioControllerTest {
 
     @Autowired

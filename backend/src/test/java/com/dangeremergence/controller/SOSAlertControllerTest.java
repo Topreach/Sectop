@@ -26,8 +26,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = SOSAlertController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(value = SOSAlertController.class)
-@AutoConfigureMockMvc(addFilters = false)
 class SOSAlertControllerTest {
 
     @Autowired

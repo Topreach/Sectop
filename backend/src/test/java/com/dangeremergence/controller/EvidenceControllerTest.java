@@ -28,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = EvidenceController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(value = EvidenceController.class)
-@AutoConfigureMockMvc(addFilters = false)
 class EvidenceControllerTest {
 
     @Autowired

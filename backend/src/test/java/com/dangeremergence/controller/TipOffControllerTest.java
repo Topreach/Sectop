@@ -28,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = TipOffController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WebMvcTest(value = TipOffController.class)
-@AutoConfigureMockMvc(addFilters = false)
 class TipOffControllerTest {
 
     @Autowired
