@@ -844,7 +844,9 @@ class _InboxViewState extends State<_InboxView> {
   int _unreadCount = 0;
   int _alertCount = 0;
   List<Map<String, dynamic>> _recentMessages = [];
+  List<Map<String, dynamic>> _tips = [];
   bool _isLoading = true;
+  bool _isLoadingTips = true;
 
   @override
   void initState() {
@@ -885,6 +887,34 @@ class _InboxViewState extends State<_InboxView> {
     } catch (e) {
       debugPrint('_InboxView: Failed to load summary: $e');
       setState(() => _isLoading = false);
+    }
+    // Load tips for Updates section
+    await _loadTips();
+  }
+
+  Future<void> _loadTips() async {
+    setState(() => _isLoadingTips = true);
+    try {
+      final api = context.read<BackendApi>();
+      final result = await api.getRecentTips();
+      final rawTips = result['data'];
+      final List<Map<String, dynamic>> tipsList;
+      if (rawTips is List) {
+        tipsList = rawTips.cast<Map<String, dynamic>>().toList();
+      } else {
+        tipsList = [];
+      }
+      if (mounted) {
+        setState(() {
+          _tips = tipsList.take(3).toList();
+          _isLoadingTips = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('_InboxView: Failed to load tips: $e');
+      if (mounted) {
+        setState(() => _isLoadingTips = false);
+      }
     }
   }
 
@@ -981,17 +1011,131 @@ class _InboxViewState extends State<_InboxView> {
                         ),
                       );
                     }),
+const SizedBox(height: 16),
+ElevatedButton.icon(
+  onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
+  icon: const Icon(Icons.open_in_new, size: 18),
+  label: Text('Open Inbox'),
+),
 
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => Navigator.of(context).pushNamed(AppRoutes.inbox),
-                    icon: const Icon(Icons.open_in_new, size: 18),
-                    label: Text('Open Inbox'),
-                  ),
-                ],
+const SizedBox(height: 24),
+
+// Updates section
+Text(
+  'Updates',
+  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+),
+const SizedBox(height: 12),
+
+if (_isLoadingTips)
+  const Center(
+    child: Padding(
+      padding: EdgeInsets.all(16),
+      child: CircularProgressIndicator(),
+    ),
+  )
+else if (_tips.isNotEmpty)
+  ..._tips.map((tip) {
+    final tipType = tip['tipType'] ?? 'other';
+    final description = tip['description'] as String? ?? 'No description';
+    final threatScore = tip['threatScore'] as int? ?? 0;
+    final status = tip['status'] as String? ?? 'pending';
+    final createdAt = tip['createdAt'];
+
+    IconData typeIcon;
+    Color typeColor;
+    switch (tipType.toString()) {
+      case 'planned_attack':
+        typeIcon = Icons.groups;
+        typeColor = Colors.red;
+        break;
+      case 'suspicious_person':
+        typeIcon = Icons.person_search;
+        typeColor = Colors.orange;
+        break;
+      case 'suspicious_vehicle':
+        typeIcon = Icons.directions_car;
+        typeColor = Colors.amber;
+        break;
+      case 'hidden_weapons':
+        typeIcon = Icons.gavel;
+        typeColor = Colors.deepOrange;
+        break;
+      case 'kidnapping_plot':
+        typeIcon = Icons.people_outline;
+        typeColor = Colors.red;
+        break;
+      case 'bombing_plot':
+        typeIcon = Icons.warning;
+        typeColor = Colors.deepPurple;
+        break;
+      default:
+        typeIcon = Icons.tips_and_updates;
+        typeColor = Colors.blue;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: typeColor.withOpacity(0.2),
+          child: Icon(typeIcon, color: typeColor, size: 20),
+        ),
+        title: Text(
+          description,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        subtitle: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: typeColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                tipType.toString().replaceAll('_', ' '),
+                style: TextStyle(fontSize: 11, color: typeColor),
               ),
             ),
+            const SizedBox(width: 8),
+            if (threatScore > 0)
+              Text(
+                'Threat: $threatScore%',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+          ],
+        ),
+      ),
     );
+  })
+else
+  Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.grey[100],
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Center(
+      child: Column(
+        children: [
+          Icon(Icons.update_outlined, size: 40, color: Colors.grey),
+          SizedBox(height: 8),
+          Text(
+            'No updates available',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    ),
+  ),
+],
+),
+),
+);
+}
   }
 }
 
