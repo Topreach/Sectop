@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtAuthenticationFilter;
+import com.dangeremergence.config.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +45,9 @@ class MeshControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtUtil jwtUtil;
 
     @SuppressWarnings("unchecked")
     @Nested

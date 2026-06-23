@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtAuthenticationFilter;
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.Incident;
 import com.dangeremergence.service.IncidentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,6 +43,9 @@ class IncidentControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtUtil jwtUtil;
 
     private Incident testIncident;
     private static final String INCIDENT_ID = "inc-123";

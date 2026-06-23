@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtAuthenticationFilter;
+import com.dangeremergence.config.JwtUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ class PublicControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtUtil jwtUtil;
 
     @Nested
     @DisplayName("GET /api/v1/public/health")

@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtAuthenticationFilter;
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.CommunityComment;
 import com.dangeremergence.model.CommunityPost;
 import com.dangeremergence.service.CommunityService;
@@ -44,6 +45,9 @@ class CommunityControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtUtil jwtUtil;
 
     private CommunityPost testPost;
     private CommunityComment testComment;

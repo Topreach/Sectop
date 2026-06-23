@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtAuthenticationFilter;
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.model.RadioBroadcast;
 import com.dangeremergence.service.RadioBroadcastService;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,9 @@ class RadioControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtUtil jwtUtil;
 
     private Authentication testAuth;
     private Authentication coordinatorAuth;

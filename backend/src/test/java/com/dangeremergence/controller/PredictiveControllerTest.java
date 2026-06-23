@@ -1,6 +1,7 @@
 package com.dangeremergence.controller;
 
 import com.dangeremergence.config.JwtAuthenticationFilter;
+import com.dangeremergence.config.JwtUtil;
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.ZoneService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,9 @@ class PredictiveControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtUtil jwtUtil;
 
     @MockBean
     private PredictiveService predictiveService;
