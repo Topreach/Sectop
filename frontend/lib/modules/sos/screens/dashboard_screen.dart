@@ -13,6 +13,7 @@ import '../../../shared/services/offline_storage.dart';
 import '../../auth/services/auth_service.dart';
 import '../../mesh/services/mesh_manager.dart';
 import '../../maps/services/map_service.dart';
+import '../../../shared/services/global_location_service.dart';
 import '../../../shared/services/hardware_trigger_service.dart';
 import '../services/sos_service.dart';
 import '../widgets/terrorist_location_card.dart';
@@ -125,88 +126,360 @@ class _DashboardHomeState extends State<_DashboardHome> {
     } catch (_) {}
     super.dispose();
   }
+/// Show a popup dialog for critical/high threat alerts.
+/// Resolves the threat location name via internet reverse geocoding
+/// and shows distance/direction from the user's current position.
+void _showThreatPopup(BuildContext context, ThreatAlert alert) {
+  // Resolve location name from coordinates using internet geocoding
+  _resolveThreatLocation(alert).then((locationInfo) {
+    if (!mounted) return;
+    _showThreatDialog(context, alert, locationInfo);
+  });
+}
 
-  /// Show a popup dialog for critical/high threat alerts.
-  void _showThreatPopup(BuildContext context, ThreatAlert alert) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              alert.severity == 'critical'
-                  ? Icons.dangerous
-                  : Icons.warning_amber_rounded,
-              color: alert.severity == 'critical'
-                  ? Colors.red
-                  : Colors.orange,
-              size: 28,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                alert.severity == 'critical'
-                    ? '🚨 CRITICAL ALERT'
-                    : '⚠️ HIGH ALERT',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: alert.severity == 'critical'
-                      ? Colors.red
-                      : Colors.orange,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              alert.title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(alert.description),
-            if (alert.latitude != null && alert.longitude != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Location: ${alert.latitude!.toStringAsFixed(4)}, ${alert.longitude!.toStringAsFixed(4)}',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-            const SizedBox(height: 4),
-            Text(
-              'Confidence: ${(alert.confidence * 100).toInt()}%',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              // Mark as read
-              ThreatAwarenessService().markAsRead(alert.id);
-            },
-            child: const Text('ACKNOWLEDGE'),
+/// Resolve threat coordinates to a human-readable address via internet.
+Future<Map<String, dynamic>?> _resolveThreatLocation(ThreatAlert alert) async {
+  if (alert.latitude == null || alert.longitude == null) return null;
+  try {
+    return await GlobalLocationService.reverseGeocode(
+      alert.latitude!,
+      alert.longitude!,
+    );
+  } catch (e) {
+    debugPrint('_showThreatPopup: Reverse geocode failed: $e');
+    return null;
+  }
+}
+
+/// Calculate distance in km between two coordinates using Haversine formula.
+double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+  const R = 6371.0; // Earth radius in km
+  final dLat = _toRadians(lat2 - lat1);
+  final dLng = _toRadians(lng2 - lng1);
+  final a = _sinSquared(dLat / 2) +
+      _cos(lat1) * _cos(lat2) * _sinSquared(dLng / 2);
+  final c = 2 * _asin(_sqrt(a));
+  return R * c;
+}
+
+double _toRadians(double deg) => deg * 3.141592653589793 / 180.0;
+double _sinSquared(double x) {
+  final s = _sin(x);
+  return s * s;
+}
+double _sin(double x) => x - (x * x * x) / 6 + (x * x * x * x * x) / 120;
+double _cos(double x) => 1 - (x * x) / 2 + (x * x * x * x) / 24;
+double _sqrt(double x) {
+  if (x <= 0) return 0;
+  double z = x / 2;
+  for (int i = 0; i < 10; i++) {
+    z = (z + x / z) / 2;
+  }
+  return z;
+}
+double _asin(double x) {
+  if (x < -1 || x > 1) return x < 0 ? -1.57079632679 : 1.57079632679;
+  return 1.57079632679 - _sqrt(1 - x * x) * (1 + (x * x) / 6);
+}
+
+/// Calculate compass bearing from user to threat.
+String _calculateDirection(double userLat, double userLng, double threatLat, double threatLng) {
+  final dLng = _toRadians(threatLng - userLng);
+  final y = _sin(dLng) * _cos(threatLat);
+  final x = _cos(userLat) * _sin(threatLat) -
+      _sin(userLat) * _cos(threatLat) * _cos(dLng);
+  final bearing = _toDegrees(_atan2(y, x));
+  final normalized = (bearing + 360) % 360;
+  if (normalized >= 337.5 || normalized < 22.5) return 'N';
+  if (normalized >= 22.5 && normalized < 67.5) return 'NE';
+  if (normalized >= 67.5 && normalized < 112.5) return 'E';
+  if (normalized >= 112.5 && normalized < 157.5) return 'SE';
+  if (normalized >= 157.5 && normalized < 202.5) return 'S';
+  if (normalized >= 202.5 && normalized < 247.5) return 'SW';
+  if (normalized >= 247.5 && normalized < 292.5) return 'W';
+  return 'NW';
+}
+
+double _toDegrees(double rad) => rad * 180.0 / 3.141592653589793;
+double _atan2(double y, double x) {
+  if (x > 0) return _atan(y / x);
+  if (x < 0) return y >= 0 ? _atan(y / x) + 3.141592653589793 : _atan(y / x) - 3.141592653589793;
+  return y > 0 ? 3.141592653589793 / 2 : -3.141592653589793 / 2;
+}
+double _atan(double x) {
+  return x - (x * x * x) / 3 + (x * x * x * x * x) / 5 - (x * x * x * x * x * x * x) / 7;
+}
+
+/// Get icon for threat type.
+IconData _threatTypeIcon(String type) {
+  switch (type) {
+    case 'incident': return Icons.warning_amber_rounded;
+    case 'danger_zone': return Icons.gps_fixed;
+    case 'sos_alert': return Icons.notifications_active;
+    case 'message_analysis': return Icons.message;
+    case 'prediction': return Icons.trending_up;
+    default: return Icons.notifications;
+  }
+}
+
+/// Get label for threat type.
+String _threatTypeLabel(String type) {
+  switch (type) {
+    case 'incident': return 'Reported Incident';
+    case 'danger_zone': return 'Danger Zone';
+    case 'sos_alert': return 'SOS Alert';
+    case 'message_analysis': return 'Message Analysis';
+    case 'prediction': return 'AI Prediction';
+    default: return 'Threat Alert';
+  }
+}
+
+/// Show the actual dialog after location resolution.
+void _showThreatDialog(BuildContext context, ThreatAlert alert, Map<String, dynamic>? locationInfo) {
+  // Get user's current position for distance/direction calculation
+  double? distanceKm;
+  String? direction;
+  try {
+    final mapService = MapService();
+    final pos = mapService.currentPosition;
+    if (pos != null && alert.latitude != null && alert.longitude != null) {
+      distanceKm = _calculateDistance(
+        pos.latitude, pos.longitude,
+        alert.latitude!, alert.longitude!,
+      );
+      direction = _calculateDirection(
+        pos.latitude, pos.longitude,
+        alert.latitude!, alert.longitude!,
+      );
+    }
+  } catch (_) {}
+
+  final locationName = locationInfo?['displayName'] as String?;
+  final city = locationInfo?['city'] as String?;
+  final state = locationInfo?['state'] as String?;
+  final country = locationInfo?['country'] as String?;
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            alert.severity == 'critical'
+                ? Icons.dangerous
+                : Icons.warning_amber_rounded,
+            color: alert.severity == 'critical'
+                ? Colors.red
+                : Colors.orange,
+            size: 28,
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ThreatAwarenessService().markAsRead(alert.id);
-              // Navigate to map to see the threat
-              Navigator.of(context).pushNamed(AppRoutes.map);
-            },
-            child: const Text('VIEW ON MAP'),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              alert.severity == 'critical'
+                  ? '🚨 CRITICAL ALERT'
+                  : '⚠️ HIGH ALERT',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: alert.severity == 'critical'
+                    ? Colors.red
+                    : Colors.orange,
+              ),
+            ),
           ),
         ],
       ),
-    );
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Threat type badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: alert.severity == 'critical'
+                  ? Colors.red.withOpacity(0.1)
+                  : Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _threatTypeIcon(alert.type),
+                  size: 14,
+                  color: alert.severity == 'critical' ? Colors.red : Colors.orange,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _threatTypeLabel(alert.type),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: alert.severity == 'critical' ? Colors.red : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Title
+          Text(
+            alert.title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Description
+          Text(
+            alert.description,
+            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+          ),
+          const SizedBox(height: 12),
+          // Location info (resolved via internet reverse geocoding)
+          if (locationName != null) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.15)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: 16, color: Colors.blue[700]),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          locationName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (city != null || state != null || country != null) ...[
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 22),
+                      child: Text(
+                        [
+                          if (city != null) city,
+                          if (state != null) state,
+                          if (country != null) country,
+                        ].join(', '),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else if (alert.latitude != null && alert.longitude != null) ...[
+            // Fallback: show raw coordinates if geocoding failed
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 6),
+                Text(
+                  '${alert.latitude!.toStringAsFixed(4)}, ${alert.longitude!.toStringAsFixed(4)}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ],
+          // Distance and direction from user
+          if (distanceKm != null && direction != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.navigation, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 6),
+                Text(
+                  '${distanceKm < 1 ? '${(distanceKm * 1000).toInt()}m' : '${distanceKm.toStringAsFixed(1)}km'} $direction of you',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          // Confidence
+          Row(
+            children: [
+              Icon(Icons.analytics, size: 16, color: Colors.grey[500]),
+              const SizedBox(width: 6),
+              Text(
+                'Confidence: ${(alert.confidence * 100).toInt()}%',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          // Timestamp
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.access_time, size: 16, color: Colors.grey[500]),
+              const SizedBox(width: 6),
+              Text(
+                _formatAlertTime(alert.timestamp),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            // Mark as read
+            ThreatAwarenessService().markAsRead(alert.id);
+          },
+          child: const Text('ACKNOWLEDGE'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            ThreatAwarenessService().markAsRead(alert.id);
+            // Navigate to map centered on the threat location
+            if (alert.latitude != null && alert.longitude != null) {
+              Navigator.of(context).pushNamed(
+                AppRoutes.map,
+                arguments: {
+                  'centerLat': alert.latitude,
+                  'centerLng': alert.longitude,
+                  'zoom': 16.0,
+                },
+              );
+            } else {
+              Navigator.of(context).pushNamed(AppRoutes.map);
+            }
+          },
+          child: const Text('VIEW ON MAP'),
+        ),
+      ],
+    ),
+  );
+}
+
+String _formatAlertTime(DateTime time) {
+  final now = DateTime.now();
+  final diff = now.difference(time);
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${time.day}/${time.month}/${time.year}';
+}
   }
 
   @override
@@ -526,7 +799,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
               const SizedBox(height: 24),
 
               // Threat Awareness Card — Real-time intelligence monitoring
-              const ThreatAwarenessCard(),
+              ThreatAwarenessCard(
+                onAlertTap: (alert) => _showThreatPopup(context, alert),
+              ),
 
               // Terrorist / Danger Location Finder
               const TerroristLocationCard(),

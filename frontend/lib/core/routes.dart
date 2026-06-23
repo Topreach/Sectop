@@ -111,8 +111,13 @@ class AppRoutes {
           settings: settings,
         );
       case map:
+        final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
-          builder: (_) => const MapScreen(),
+          builder: (_) => MapScreen(
+            initialLat: args?['centerLat'] as double?,
+            initialLng: args?['centerLng'] as double?,
+            initialZoom: args?['zoom'] as double?,
+          ),
           settings: settings,
         );
       case inbox:

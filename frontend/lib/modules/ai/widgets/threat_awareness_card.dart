@@ -13,7 +13,9 @@ import '../services/threat_awareness_service.dart';
 /// - Recent threat alerts feed
 /// - Quick access to map for visual threat view
 class ThreatAwarenessCard extends StatefulWidget {
-  const ThreatAwarenessCard({Key? key}) : super(key: key);
+  final void Function(ThreatAlert alert)? onAlertTap;
+
+  const ThreatAwarenessCard({Key? key, this.onAlertTap}) : super(key: key);
 
   @override
   State<ThreatAwarenessCard> createState() => _ThreatAwarenessCardState();
@@ -355,7 +357,12 @@ class _ThreatAwarenessCardState extends State<ThreatAwarenessCard> {
             ),
           ),
         ),
-        ...alerts.take(3).map((alert) => _AlertTile(alert: alert)),
+        ...alerts.take(3).map((alert) => _AlertTile(
+          alert: alert,
+          onTap: widget.onAlertTap != null
+              ? () => widget.onAlertTap!(alert)
+              : null,
+        )),
       ],
     );
   }
@@ -392,7 +399,12 @@ class _ThreatAwarenessCardState extends State<ThreatAwarenessCard> {
         ),
         ...service.alerts.take(5).map((alert) => _AlertTile(
           alert: alert,
-          onTap: () => service.markAsRead(alert.id),
+          onTap: widget.onAlertTap != null
+              ? () {
+                  service.markAsRead(alert.id);
+                  widget.onAlertTap!(alert);
+                }
+              : () => service.markAsRead(alert.id),
         )),
       ],
     );

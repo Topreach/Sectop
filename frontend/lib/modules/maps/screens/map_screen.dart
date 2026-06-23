@@ -13,7 +13,16 @@ import '../../sos/screens/safe_route_screen.dart';
 import '../services/map_service.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({Key? key}) : super(key: key);
+  final double? initialLat;
+  final double? initialLng;
+  final double? initialZoom;
+
+  const MapScreen({
+    Key? key,
+    this.initialLat,
+    this.initialLng,
+    this.initialZoom,
+  }) : super(key: key);
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -39,6 +48,15 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    // If initial coordinates provided, center map on threat location
+    if (widget.initialLat != null && widget.initialLng != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mapController.move(
+          LatLng(widget.initialLat!, widget.initialLng!),
+          widget.initialZoom ?? 16.0,
+        );
+      });
+    }
     _loadData();
   }
 
