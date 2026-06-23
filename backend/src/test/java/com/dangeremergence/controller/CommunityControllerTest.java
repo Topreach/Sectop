@@ -14,20 +14,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -35,11 +28,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = CommunityController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@WebMvcTest(value = CommunityController.class)
 @AutoConfigureMockMvc
 class CommunityControllerTest {
 
@@ -60,7 +53,6 @@ class CommunityControllerTest {
 
     private CommunityPost testPost;
     private CommunityComment testComment;
-    private Authentication testAuth;
     private static final String POST_ID = "post-123";
     private static final String USER_ID = "user-123";
     private static final String COMMENT_ID = "comment-123";
@@ -84,25 +76,16 @@ class CommunityControllerTest {
         testComment.setContent("Great post!");
         testComment.setCreatedAt(LocalDateTime.now());
 
-        testAuth = new UsernamePasswordAuthenticationToken(
-                USER_ID, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))
-        );
-
         // Make the mocked JwtAuthenticationFilter call filterChain.doFilter()
         // so the request chain continues to the controller.
-        // Also set SecurityContextHolder directly since SecurityAutoConfiguration
-        // is excluded (SecurityContextHolderFilter won't be available).
         doAnswer(invocation -> {
             HttpServletRequest request = invocation.getArgument(0);
             HttpServletResponse response = invocation.getArgument(1);
             FilterChain chain = invocation.getArgument(2);
             try {
-                SecurityContextHolder.getContext().setAuthentication(testAuth);
                 chain.doFilter(request, response);
             } catch (ServletException | IOException e) {
                 throw new RuntimeException(e);
-            } finally {
-                SecurityContextHolder.clearContext();
             }
             return null;
         }).when(jwtAuthenticationFilter).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class), any(FilterChain.class));
@@ -128,7 +111,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(authentication(testAuth))
+                            .with(user(USER_ID).roles("USER"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -144,7 +127,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts")
-                            .with(authentication(testAuth))
+                            .with(user(USER_ID).roles("USER"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest());
@@ -160,7 +143,7 @@ class CommunityControllerTest {
                     .thenReturn(Map.of("posts", List.of(testPost), "total", 1, "page", 0, "size", 20));
 
             mockMvc.perform(get("/api/v1/community/feed")
-                            .with(authentication(testAuth))
+                            .with(user(USER_ID).roles("USER"))
                             .param("page", "0")
                             .param("size", "20"))
                     .andExpect(status().isOk())
@@ -174,7 +157,7 @@ class CommunityControllerTest {
                     .thenReturn(Map.of("posts", List.of(), "total", 0, "page", 0, "size", 20));
 
             mockMvc.perform(get("/api/v1/community/feed")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.posts").isArray());
         }
@@ -189,7 +172,7 @@ class CommunityControllerTest {
                     .thenReturn(Map.of("posts", List.of(testPost), "total", 1));
 
             mockMvc.perform(get("/api/v1/community/nearby")
-                            .with(authentication(testAuth))
+                            .with(user(USER_ID).roles("USER"))
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
                             .param("radiusKm", "5"))
@@ -207,7 +190,7 @@ class CommunityControllerTest {
                     .thenReturn(Map.of("id", POST_ID, "caption", "Test post caption"));
 
             mockMvc.perform(get("/api/v1/community/posts/" + POST_ID)
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(POST_ID));
         }
@@ -218,7 +201,7 @@ class CommunityControllerTest {
                     .thenThrow(new IllegalArgumentException("Post not found"));
 
             mockMvc.perform(get("/api/v1/community/posts/nonexistent")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isBadRequest());
         }
     }
@@ -229,7 +212,7 @@ class CommunityControllerTest {
         @Test
         void shouldDeleteOwnPost() throws Exception {
             mockMvc.perform(delete("/api/v1/community/posts/" + POST_ID)
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Post deleted successfully"));
         }
@@ -240,7 +223,7 @@ class CommunityControllerTest {
                     .when(communityService).deletePost(eq("nonexistent"), anyString());
 
             mockMvc.perform(delete("/api/v1/community/posts/nonexistent")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isBadRequest());
         }
     }
@@ -251,7 +234,7 @@ class CommunityControllerTest {
         @Test
         void shouldFlagPost() throws Exception {
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/flag")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk());
         }
     }
@@ -264,7 +247,7 @@ class CommunityControllerTest {
             when(communityService.toggleLike(POST_ID, USER_ID)).thenReturn(Map.of("liked", true, "likeCount", 1));
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/like")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.liked").value(true));
         }
@@ -285,7 +268,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/comments")
-                            .with(authentication(testAuth))
+                            .with(user(USER_ID).roles("USER"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -298,7 +281,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of());
 
             mockMvc.perform(get("/api/v1/community/posts/" + POST_ID + "/comments")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray());
         }
@@ -306,7 +289,7 @@ class CommunityControllerTest {
         @Test
         void shouldDeleteComment() throws Exception {
             mockMvc.perform(delete("/api/v1/community/comments/" + COMMENT_ID)
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Comment deleted successfully"));
         }
@@ -320,7 +303,7 @@ class CommunityControllerTest {
             when(communityService.toggleFavorite(POST_ID, USER_ID)).thenReturn(Map.of("favorited", true));
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/favorite")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.favorited").value(true));
         }
@@ -331,7 +314,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/my-favorites")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(POST_ID));
         }
@@ -351,7 +334,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/share")
-                            .with(authentication(testAuth))
+                            .with(user(USER_ID).roles("USER"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -368,7 +351,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
             mockMvc.perform(get("/api/v1/community/my-posts")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(POST_ID));
         }
@@ -379,7 +362,7 @@ class CommunityControllerTest {
                     .thenReturn(List.of());
 
             mockMvc.perform(get("/api/v1/community/users/other-user/posts")
-                            .with(authentication(testAuth)))
+                            .with(user(USER_ID).roles("USER")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray());
         }
