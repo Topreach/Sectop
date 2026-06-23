@@ -171,7 +171,7 @@ class ThreatControllerTest {
         @Test
         @DisplayName("should return threat level for a location")
         void shouldReturnThreatLevel() throws Exception {
-            when(incidentService.getIncidentsNearby(anyDouble(), anyDouble(), anyDouble()))
+            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), anyList()))
                     .thenReturn(List.of(createSampleIncident()));
             when(sosAlertService.getActiveAlerts()).thenReturn(List.of(createSampleAlert()));
             when(zoneService.getActiveZones()).thenReturn(List.of());
@@ -194,7 +194,7 @@ class ThreatControllerTest {
         @Test
         @DisplayName("should return threat alerts for a location")
         void shouldReturnThreatAlerts() throws Exception {
-            when(incidentService.getIncidentsNearby(anyDouble(), anyDouble(), anyDouble()))
+            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), anyList()))
                     .thenReturn(List.of(createSampleIncident()));
             when(sosAlertService.getActiveAlerts()).thenReturn(List.of(createSampleAlert()));
             when(zoneService.getActiveZones()).thenReturn(List.of());

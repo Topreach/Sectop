@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -72,7 +73,8 @@ class BroadcastControllerTest {
         @Test
         void shouldCreateBroadcast() throws Exception {
             when(broadcastService.createBroadcast(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyString(), anyString(), anyString()))
+                    anyString(), anyString(), anyString(), anyDouble(), anyDouble(), anyDouble(),
+                    anyString(), any()))
                     .thenReturn(testBroadcast);
 
             String request = """
@@ -116,7 +118,8 @@ class BroadcastControllerTest {
 
         @Test
         void shouldReturnActiveBroadcasts() throws Exception {
-            when(broadcastService.getActiveBroadcasts()).thenReturn(List.of(testBroadcast));
+            when(broadcastService.getActiveBroadcasts(anyString(), anyString()))
+                    .thenReturn(List.of(testBroadcast));
 
             mockMvc.perform(get("/api/v1/broadcasts/active")
                             .with(authentication(testAuth)))
@@ -145,7 +148,7 @@ class BroadcastControllerTest {
 
         @Test
         void shouldReturnBroadcastCount() throws Exception {
-            when(broadcastService.getBroadcastCount()).thenReturn(5L);
+            when(broadcastService.getActiveBroadcastCount()).thenReturn(5L);
 
             mockMvc.perform(get("/api/v1/broadcasts/count")
                             .with(authentication(testAuth)))
@@ -159,12 +162,13 @@ class BroadcastControllerTest {
 
         @Test
         void shouldExpireBroadcast() throws Exception {
-            when(broadcastService.expireBroadcast(BROADCAST_ID)).thenReturn(testBroadcast);
+            doAnswer(invocation -> {
+                return null;
+            }).when(broadcastService).expireBroadcast(BROADCAST_ID);
 
             mockMvc.perform(post("/api/v1/broadcasts/" + BROADCAST_ID + "/expire")
                             .with(authentication(coordinatorAuth)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(BROADCAST_ID));
+                    .andExpect(status().isOk());
         }
     }
 }

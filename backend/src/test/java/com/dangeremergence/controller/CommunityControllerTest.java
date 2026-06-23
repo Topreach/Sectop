@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -73,7 +75,7 @@ class CommunityControllerTest {
         @Test
         void shouldCreatePost() throws Exception {
             when(communityService.createPost(anyString(), anyString(), anyString(), anyString(),
-                    any(), any(), any(), anyString()))
+                    anyDouble(), anyDouble(), anyString(), anyBoolean()))
                     .thenReturn(testPost);
 
             String request = """
@@ -296,7 +298,7 @@ class CommunityControllerTest {
 
         @Test
         void shouldSharePost() throws Exception {
-            when(communityService.recordShare(POST_ID, USER_ID)).thenReturn(Map.of("shared", true, "shareCount", 1));
+            doNothing().when(communityService).recordShare(POST_ID, USER_ID, anyString());
 
             String request = """
                     {
@@ -309,7 +311,7 @@ class CommunityControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.shared").value(true));
+                    .andExpect(jsonPath("$.message").value("Share recorded"));
         }
     }
 

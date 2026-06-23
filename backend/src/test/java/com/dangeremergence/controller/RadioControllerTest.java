@@ -17,6 +17,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -55,7 +56,6 @@ class RadioControllerTest {
         broadcast.setSeverity(RadioBroadcast.BroadcastSeverity.critical);
         broadcast.setTargetState("Lagos");
         broadcast.setTargetLga("Ikeja");
-        broadcast.setActive(true);
         return broadcast;
     }
 
@@ -67,8 +67,8 @@ class RadioControllerTest {
         @DisplayName("should create a radio broadcast")
         void shouldCreateRadioBroadcast() throws Exception {
             RadioBroadcast broadcast = createSampleBroadcast();
-            when(radioBroadcastService.createBroadcast(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyString(), anyString(), anyString(), anyString()))
+            when(radioBroadcastService.createRadioBroadcast(anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyDouble(), anyString(), anyString(), anyString(), anyBoolean(), anyString()))
                     .thenReturn(broadcast);
 
             String request = """
@@ -115,16 +115,15 @@ class RadioControllerTest {
         @Test
         @DisplayName("should return broadcast history")
         void shouldReturnBroadcastHistory() throws Exception {
-            when(radioBroadcastService.getAllBroadcasts(anyInt(), anyInt()))
-                    .thenReturn(Map.of("broadcasts", List.of(createSampleBroadcast()), "total", 1));
+            when(radioBroadcastService.getBroadcastHistory())
+                    .thenReturn(List.of(createSampleBroadcast()));
 
             mockMvc.perform(get("/api/v1/radio/broadcasts")
                             .with(authentication(testAuth))
                             .param("page", "0")
                             .param("size", "20"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.broadcasts").isArray())
-                    .andExpect(jsonPath("$.total").isNumber());
+                    .andExpect(jsonPath("$[0].id").value("radio_001"));
         }
     }
 

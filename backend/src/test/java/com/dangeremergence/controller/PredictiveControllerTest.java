@@ -52,7 +52,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return ML forecast for a zone")
         void shouldReturnMlForecast() throws Exception {
-            when(predictiveService.getMlForecast(anyString(), anyInt(), anyInt()))
+            when(predictiveService.getForecast(anyDouble(), anyDouble(), anyDouble(), anyInt()))
                     .thenReturn(Map.of("zoneId", "zone_1", "forecast", List.of()));
 
             String request = """
@@ -98,7 +98,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return ML forecast for multiple zones")
         void shouldReturnMlBatchForecast() throws Exception {
-            when(predictiveService.getMlForecastBatch(anyList(), anyInt(), anyInt()))
+            when(predictiveService.getBatchForecast(anyList()))
                     .thenReturn(Map.of("forecasts", List.of()));
 
             String request = """
@@ -144,8 +144,8 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return hotspots for a location")
         void shouldReturnHotspots() throws Exception {
-            when(predictiveService.getHotspots(anyDouble(), anyDouble(), anyDouble()))
-                    .thenReturn(List.of(Map.of("zoneId", "zone_1", "riskLevel", "high")));
+            when(predictiveService.detectHotspots(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(Map.of("zoneId", "zone_1", "riskLevel", "high"));
 
             String request = """
                     {
@@ -160,8 +160,8 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].zoneId").value("zone_1"))
-                    .andExpect(jsonPath("$[0].riskLevel").value("high"));
+                    .andExpect(jsonPath("$.zoneId").value("zone_1"))
+                    .andExpect(jsonPath("$.riskLevel").value("high"));
         }
 
         @Test
@@ -188,7 +188,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should trigger model training")
         void shouldTriggerTraining() throws Exception {
-            when(predictiveService.trainModel()).thenReturn(Map.of("status", "training_started"));
+            when(predictiveService.triggerTraining(anyBoolean())).thenReturn(Map.of("status", "training_started"));
 
             mockMvc.perform(post("/api/v1/predictive/train")
                             .with(authentication(testAuth)))
@@ -236,7 +236,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return forecast for all states")
         void shouldReturnForecastAllStates() throws Exception {
-            when(predictiveService.forecastAllStates()).thenReturn(Map.of("forecasts", List.of()));
+            when(predictiveService.getAllStatesForecast()).thenReturn(Map.of("forecasts", List.of()));
 
             mockMvc.perform(post("/api/v1/predictive/forecast/all-states")
                             .with(authentication(testAuth)))
@@ -252,7 +252,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return predictive service health")
         void shouldReturnHealth() throws Exception {
-            when(predictiveService.getHealth()).thenReturn(Map.of("status", "healthy", "modelLoaded", true));
+            when(predictiveService.healthCheck()).thenReturn(Map.of("status", "healthy", "modelLoaded", true));
 
             mockMvc.perform(get("/api/v1/predictive/health")
                             .with(authentication(testAuth)))
@@ -294,8 +294,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should detect anomalies in data")
         void shouldDetectAnomalies() throws Exception {
-            when(predictiveService.detectAnomalies(anyList())).thenReturn(List.of());
-
+            // The controller handles anomaly detection internally, not via PredictiveService
             String request = """
                     {
                         "readings": [
@@ -321,9 +320,7 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should optimize resource allocation")
         void shouldOptimizeResources() throws Exception {
-            when(predictiveService.optimizeResources(anyList(), anyList()))
-                    .thenReturn(Map.of("allocations", List.of()));
-
+            // The controller handles resource optimization internally, not via PredictiveService
             String request = """
                     {
                         "zones": [

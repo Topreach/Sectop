@@ -17,6 +17,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -63,7 +65,7 @@ class EvidenceControllerTest {
         void shouldUploadEvidence() throws Exception {
             Evidence evidence = createSampleEvidence();
             when(evidenceService.storeEvidence(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), any(), anyString(), any(), any())).thenReturn(evidence);
+                    anyString(), anyLong(), anyString(), anyDouble(), anyDouble())).thenReturn(evidence);
 
             String request = """
                     {
