@@ -68,6 +68,7 @@ class _InboxScreenState extends State<InboxScreen>
   Future<void> _loadData() async {
     await Future.wait([_loadMessages(), _loadAlerts(), _loadTips()]);
     _mergeTipsIntoMessages();
+    _mergeAlertsIntoMessages();
   }
 
   /// Merge tip-off items into the messages list so they appear in the Messages tab.
@@ -110,6 +111,59 @@ class _InboxScreenState extends State<InboxScreen>
     if (tipMessages.isNotEmpty) {
       setState(() {
         _messages = [...tipMessages, ..._messages];
+      });
+    }
+  }
+
+  /// Merge SOS alert items into the messages list so they appear in the Messages tab.
+  /// Alert items are converted to message-like entries with SOS metadata.
+  void _mergeAlertsIntoMessages() {
+    if (_alerts.isEmpty) return;
+    final existingIds = _messages.map((m) => m['id'] as String?).toSet();
+    final alertMessages = <Map<String, dynamic>>[];
+    for (final alert in _alerts) {
+      final alertId = alert['id'] as String? ?? alert['_id'] as String?;
+      if (alertId != null && existingIds.contains(alertId)) continue;
+
+      final alertType = alert['alert_type'] as String? ?? alert['type'] as String? ?? 'General Emergency';
+      final description = alert['description'] as String? ?? 'SOS Alert';
+      final priority = alert['priority'] as int? ?? 3;
+      final createdAt = alert['created_at'] ?? alert['createdAt'];
+      final status = alert['status'] as String? ?? 'active';
+      final latitude = alert['latitude'];
+      final longitude = alert['longitude'];
+      final isSilent = alert['is_silent'] ?? alert['isSilent'] ?? false;
+      final isCovert = alert['is_covert'] ?? alert['isCovert'] ?? false;
+
+      // Extract user info
+      String? senderName;
+      if (alert['user'] != null && alert['user'] is Map<String, dynamic>) {
+        final userData = alert['user'] as Map<String, dynamic>;
+        senderName = userData['name'] as String? ?? userData['id'] as String?;
+      } else {
+        senderName = alert['user_name'] as String? ?? alert['user_id'] as String?;
+      }
+
+      alertMessages.add({
+        'id': alertId ?? 'alert_${alertMessages.length}_${DateTime.now().millisecondsSinceEpoch}',
+        'sender_id': senderName ?? 'SOS Alert System',
+        'content': description,
+        'message_type': 'sos_alert',
+        'priority': priority,
+        'status': status,
+        'created_at': createdAt,
+        'read_at': null,
+        'latitude': latitude,
+        'longitude': longitude,
+        '_is_alert': true,
+        '_alert_type': alertType,
+        '_is_silent': isSilent,
+        '_is_covert': isCovert,
+      });
+    }
+    if (alertMessages.isNotEmpty) {
+      setState(() {
+        _messages = [...alertMessages, ..._messages];
       });
     }
   }
@@ -996,15 +1050,20 @@ class _MessagesTabState extends State<_MessagesTab> {
                 final timestamp = widget.formatTimestamp(msg['created_at']);
                 final isTip = msg['_is_tip'] == true;
                 final tipType = msg['_tip_type'] as String? ?? '';
+                final isAlert = msg['_is_alert'] == true;
+                final alertType = msg['_alert_type'] as String? ?? '';
                 final hasEvidence = msg['evidence'] != null ||
                     msg['photo_path'] != null ||
                     msg['video_path'] != null ||
                     msg['audio_path'] != null;
 
-                // Determine icon and color for tip items
+                // Determine icon and color for tip items and SOS alert items
                 IconData leadingIcon;
                 Color leadingColor;
-                if (isTip) {
+                if (isAlert) {
+                  leadingIcon = Icons.sos;
+                  leadingColor = Colors.red;
+                } else if (isTip) {
                   switch (tipType) {
                     case 'planned_attack':
                       leadingIcon = Icons.groups;
@@ -1074,12 +1133,16 @@ class _MessagesTabState extends State<_MessagesTab> {
                   onDismissed: (_) => widget.onDelete(msg['id'] as String),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: isTip
-                          ? leadingColor.withOpacity(0.2)
-                          : (isRead ? Colors.grey[300] : AppTheme.primaryColor),
+                      backgroundColor: isAlert
+                          ? Colors.red.withOpacity(0.2)
+                          : (isTip
+                              ? leadingColor.withOpacity(0.2)
+                              : (isRead ? Colors.grey[300] : AppTheme.primaryColor)),
                       child: Icon(
                         leadingIcon,
-                        color: isTip ? leadingColor : (isRead ? Colors.grey : Colors.white),
+                        color: isAlert
+                            ? Colors.red
+                            : (isTip ? leadingColor : (isRead ? Colors.grey : Colors.white)),
                         size: 20,
                       ),
                     ),
@@ -1087,11 +1150,13 @@ class _MessagesTabState extends State<_MessagesTab> {
                       children: [
                         Expanded(
                           child: Text(
-                            isTip ? 'Tip Off: ${tipType.replaceAll('_', ' ')}' : senderId,
+                            isAlert
+                                ? 'SOS: $alertType'
+                                : (isTip ? 'Tip Off: ${tipType.replaceAll('_', ' ')}' : senderId),
                             style: TextStyle(
                               fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
                               fontSize: 14,
-                              color: isTip ? leadingColor : null,
+                              color: isAlert || isTip ? leadingColor : null,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
