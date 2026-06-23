@@ -66,7 +66,7 @@ class CommunityService {
     final body = {
       'mediaUrl': mediaUrl,
       'mediaType': mediaType,
-      if (caption != null && caption.isNotEmpty) 'caption': caption,
+      'caption': caption ?? '',
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (locationName != null && locationName.isNotEmpty) 'locationName': locationName,

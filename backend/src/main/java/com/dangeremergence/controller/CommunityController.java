@@ -38,7 +38,8 @@ public class CommunityController {
      * Returns the URL/path to the uploaded file.
      */
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadMedia(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> uploadMedia(@RequestParam("file") MultipartFile file,
+                                          Authentication auth) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "No file provided"));
         }
@@ -106,10 +107,6 @@ public class CommunityController {
             String locationName = (String) request.get("locationName");
             boolean isAnonymous = request.get("isAnonymous") != null
                     && Boolean.TRUE.equals(request.get("isAnonymous"));
-
-            if (caption == null || caption.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Caption is required"));
-            }
 
             var post = communityService.createPost(userId, caption, mediaUrl, mediaType,
                     latitude, longitude, locationName, isAnonymous);
