@@ -45,11 +45,14 @@ public interface UserRepository extends JpaRepository<User, String> {
     /**
      * Find active users within a geographic bounding box.
      * Used by FcmPushService to notify nearby users of SOS alerts.
-     * Note: This requires users to have location data stored.
-     * For now, returns all active users with FCM tokens as a fallback.
-     * In production, integrate with a geospatial query or add lat/lng to User entity.
+     * Filters by latitude/longitude bounding box for geo-targeted notifications.
+     * Falls back to returning all active users with FCM tokens if no location data.
      */
-    @Query("SELECT u FROM User u WHERE u.active = true AND u.fcmToken IS NOT NULL AND u.fcmToken <> ''")
+    @Query("SELECT u FROM User u WHERE u.active = true "
+         + "AND u.fcmToken IS NOT NULL AND u.fcmToken <> '' "
+         + "AND (u.latitude IS NULL OR u.longitude IS NULL "
+         + "     OR (u.latitude BETWEEN :minLat AND :maxLat "
+         + "         AND u.longitude BETWEEN :minLng AND :maxLng))")
     List<User> findUsersInArea(
             @Param("minLat") double minLat,
             @Param("maxLat") double maxLat,
@@ -72,7 +75,10 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query("SELECT u FROM User u WHERE u.active = true "
          + "AND u.role IN ('responder', 'guardian', 'coordinator') "
-         + "AND u.fcmToken IS NOT NULL AND u.fcmToken <> ''")
+         + "AND u.fcmToken IS NOT NULL AND u.fcmToken <> '' "
+         + "AND (u.latitude IS NULL OR u.longitude IS NULL "
+         + "     OR (u.latitude BETWEEN :minLat AND :maxLat "
+         + "         AND u.longitude BETWEEN :minLng AND :maxLng))")
     List<User> findVerifiedRespondersInArea(
             @Param("minLat") double minLat,
             @Param("maxLat") double maxLat,

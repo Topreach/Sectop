@@ -54,6 +54,14 @@ public class User {
     @Column(name = "is_active")
     private boolean active = true;
 
+    // User's last known latitude (for geo-fencing and nearby user queries)
+    @Column(name = "latitude")
+    private Double latitude;
+
+    // User's last known longitude (for geo-fencing and nearby user queries)
+    @Column(name = "longitude")
+    private Double longitude;
+
     // FCM push notification token for offline delivery
     @Column(name = "fcm_token", length = 512)
     private String fcmToken;

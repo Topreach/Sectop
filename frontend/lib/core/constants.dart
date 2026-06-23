@@ -51,22 +51,22 @@ class AppConstants {
 
   // API
   // API
-  static const String apiBaseUrl = 'https://sectop.resultscaleai.com/api';
+  static const String apiBaseUrl = 'http://173.249.34.3:8080/api';
   static const String apiVersion = 'v1';
   static const int apiTimeout = 10; // seconds — reduced for instant messaging feel
   static const int apiRetryCount = 1; // reduced — single retry is enough for fast UX
   // WebSocket / STOMP
-  static const String wsBaseUrl = 'wss://sectop.resultscaleai.com/ws';
+  static const String wsBaseUrl = 'ws://173.249.34.3:8080/ws';
 
   // Dedicated Microservice URLs
   // SOS Service (Port 8081) - Dedicated SOS alert processing with guaranteed delivery
-  static const String sosApiBaseUrl = 'https://sectop.resultscaleai.com/api';
-  static const String sosWsBaseUrl = 'wss://sectop.resultscaleai.com/ws-sos';
+  static const String sosApiBaseUrl = 'http://173.249.34.3:8080/api';
+  static const String sosWsBaseUrl = 'ws://173.249.34.3:8080/ws';
   // Messaging Service (Port 8082) - Dedicated messaging with priority queuing
-  static const String msgApiBaseUrl = 'https://sectop.resultscaleai.com/api';
-  static const String msgWsBaseUrl = 'wss://sectop.resultscaleai.com/ws';
+  static const String msgApiBaseUrl = 'http://173.249.34.3:8080/api';
+  static const String msgWsBaseUrl = 'ws://173.249.34.3:8080/ws';
   // Community Service (Port 8083) - Dedicated community media sharing
-  static const String communityApiBaseUrl = 'https://sectop.resultscaleai.com/api';
+  static const String communityApiBaseUrl = 'http://173.249.34.3:8080/api';
 
   // Table names
   static const String tableUsers = 'users';

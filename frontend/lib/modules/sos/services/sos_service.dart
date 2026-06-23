@@ -143,12 +143,11 @@ class SOSService extends ChangeNotifier {
         'id': 'sub-0',
         'destination': '/user/queue/alerts',
       });
-      // NOTE: Backend pushes to /topic/alerts/new but we subscribe to /topic/alerts
-      // This is a known topic mismatch - fix: change destination to /topic/alerts/new
-      debugPrint('SOSService: Subscribing to /topic/alerts (backend pushes to /topic/alerts/new)');
+      // Subscribe to the public alert topic (backend pushes to /topic/alerts/new)
+      debugPrint('SOSService: Subscribing to /topic/alerts/new');
       _sendStompFrame('SUBSCRIBE', {
         'id': 'sub-1',
-        'destination': '/topic/alerts',
+        'destination': '/topic/alerts/new',
       });
     } catch (e) {
       debugPrint('SOSService: WebSocket connection failed: $e');

@@ -295,6 +295,8 @@ public class AuthController {
             if (request.getPublicKey() != null) user.setPublicKey(request.getPublicKey());
             if (request.getRole() != null) user.setRole(request.getRole());
             if (request.getFcmToken() != null) user.setFcmToken(request.getFcmToken());
+            if (request.getLatitude() != null) user.setLatitude(request.getLatitude());
+            if (request.getLongitude() != null) user.setLongitude(request.getLongitude());
 
             User updatedUser = userService.updateUser(user);
             Map<String, Object> response = new HashMap<>();
@@ -307,6 +309,27 @@ public class AuthController {
         Map<String, String> error = new HashMap<>();
         error.put("error", "User not found");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    /**
+     * Dedicated endpoint for FCM token registration.
+     * Called by the mobile app when the device token changes.
+     */
+    @PostMapping("/users/{userId}/fcm-token")
+    public ResponseEntity<?> registerFcmToken(@PathVariable String userId, @RequestBody Map<String, String> body) {
+        String fcmToken = body.get("fcmToken");
+        if (fcmToken == null || fcmToken.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "fcmToken is required"));
+        }
+        Optional<User> userOpt = userService.getUserById(userId);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            user.setFcmToken(fcmToken);
+            userService.updateUser(user);
+            log.info("FCM token registered for user: {}", userId);
+            return ResponseEntity.ok(Map.of("message", "FCM token registered successfully"));
+        }
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found"));
     }
 
     @GetMapping("/responders")
@@ -369,6 +392,8 @@ public class AuthController {
         private String publicKey;
         private User.UserRole role;
         private String fcmToken;
+        private Double latitude;
+        private Double longitude;
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
@@ -384,6 +409,10 @@ public class AuthController {
         public void setRole(User.UserRole role) { this.role = role; }
         public String getFcmToken() { return fcmToken; }
         public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
+        public Double getLatitude() { return latitude; }
+        public void setLatitude(Double latitude) { this.latitude = latitude; }
+        public Double getLongitude() { return longitude; }
+        public void setLongitude(Double longitude) { this.longitude = longitude; }
     }
 
     public static class ForgotPasswordRequest {
