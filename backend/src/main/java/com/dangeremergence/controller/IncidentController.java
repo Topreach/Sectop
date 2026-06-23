@@ -74,6 +74,8 @@ public class IncidentController {
                     "incident", incident,
                     "message", "Incident reported successfully"
             ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to report incident: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));

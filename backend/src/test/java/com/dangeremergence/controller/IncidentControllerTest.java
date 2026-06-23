@@ -140,7 +140,7 @@ class IncidentControllerTest {
 
         @Test
         void shouldReturnNearbyIncidents() throws Exception {
-            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), anyList()))
+            when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), isNull()))
                     .thenReturn(List.of(testIncident));
 
             mockMvc.perform(get("/api/v1/incidents/nearby")
