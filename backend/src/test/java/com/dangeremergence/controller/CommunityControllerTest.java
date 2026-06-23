@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -101,7 +102,7 @@ class CommunityControllerTest {
         @Test
         void shouldCreatePost() throws Exception {
             when(communityService.createPost(anyString(), anyString(), anyString(), anyString(),
-                    anyDouble(), anyDouble(), anyString(), anyBoolean()))
+                    anyDouble(), anyDouble(), nullable(String.class), anyBoolean()))
                     .thenReturn(testPost);
 
             String request = """
