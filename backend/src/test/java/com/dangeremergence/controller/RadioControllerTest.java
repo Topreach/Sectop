@@ -77,7 +77,8 @@ class RadioControllerTest {
         void shouldCreateRadioBroadcast() throws Exception {
             RadioBroadcast broadcast = createSampleBroadcast();
             when(radioBroadcastService.createRadioBroadcast(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyDouble(), anyString(), anyString(), anyString(), anyBoolean(), anyString()))
+                    nullable(String.class), nullable(Double.class), anyString(), anyString(),
+                    nullable(String.class), anyBoolean(), nullable(String.class)))
                     .thenReturn(broadcast);
 
             String request = """

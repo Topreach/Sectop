@@ -215,7 +215,10 @@ class PredictiveControllerTest {
         @Test
         @DisplayName("should return training status")
         void shouldReturnTrainingStatus() throws Exception {
-            when(predictiveService.getTrainingStatus()).thenReturn(Map.of("status", "idle", "lastTraining", null));
+            Map<String, Object> status = new java.util.HashMap<>();
+            status.put("status", "idle");
+            status.put("lastTraining", null);
+            when(predictiveService.getTrainingStatus()).thenReturn(status);
 
             mockMvc.perform(get("/api/v1/predictive/training-status")
                             .with(authentication(testAuth)))

@@ -82,8 +82,9 @@ class BroadcastControllerTest {
         @Test
         void shouldCreateBroadcast() throws Exception {
             when(broadcastService.createBroadcast(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyString(), anyString(), anyDouble(), anyDouble(), anyDouble(),
-                    anyString(), any()))
+                    nullable(String.class), nullable(String.class), nullable(String.class),
+                    nullable(Double.class), nullable(Double.class), nullable(Double.class),
+                    nullable(String.class), nullable(LocalDateTime.class)))
                     .thenReturn(testBroadcast);
 
             String request = """
@@ -130,7 +131,7 @@ class BroadcastControllerTest {
 
         @Test
         void shouldReturnActiveBroadcasts() throws Exception {
-            when(broadcastService.getActiveBroadcasts(anyString(), anyString()))
+            when(broadcastService.getActiveBroadcasts(nullable(String.class), nullable(String.class)))
                     .thenReturn(List.of(testBroadcast));
 
             mockMvc.perform(get("/api/v1/broadcasts/active")

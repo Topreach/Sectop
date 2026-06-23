@@ -27,21 +27,25 @@ public class RadioController {
      */
     @PostMapping("/broadcast")
     @PreAuthorize("hasAnyAuthority('coordinator', 'admin')")
-    public ResponseEntity<RadioBroadcast> createRadioBroadcast(@RequestBody Map<String, Object> request) {
-        RadioBroadcast broadcast = radioBroadcastService.createRadioBroadcast(
-                (String) request.get("title"),
-                (String) request.get("message"),
-                (String) request.get("language"),
-                (String) request.get("severity"),
-                (String) request.get("broadcastType"),
-                request.get("targetFrequency") != null ? ((Number) request.get("targetFrequency")).doubleValue() : null,
-                (String) request.get("targetState"),
-                (String) request.get("targetLga"),
-                (String) request.get("ttsVoice"),
-                request.get("anonymous") == null || (boolean) request.get("anonymous"),
-                (String) request.get("createdById")
-        );
-        return ResponseEntity.ok(broadcast);
+    public ResponseEntity<?> createRadioBroadcast(@RequestBody Map<String, Object> request) {
+        try {
+            RadioBroadcast broadcast = radioBroadcastService.createRadioBroadcast(
+                    (String) request.get("title"),
+                    (String) request.get("message"),
+                    (String) request.get("language"),
+                    (String) request.get("severity"),
+                    (String) request.get("broadcastType"),
+                    request.get("targetFrequency") != null ? ((Number) request.get("targetFrequency")).doubleValue() : null,
+                    (String) request.get("targetState"),
+                    (String) request.get("targetLga"),
+                    (String) request.get("ttsVoice"),
+                    request.get("anonymous") == null || (boolean) request.get("anonymous"),
+                    (String) request.get("createdById")
+            );
+            return ResponseEntity.ok(broadcast);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**

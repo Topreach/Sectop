@@ -72,8 +72,8 @@ class IncidentControllerTest {
 
         @Test
         void shouldReportIncident() throws Exception {
-            when(incidentService.createIncident(anyString(), anyString(), anyString(), anyDouble(),
-                    anyDouble(), anyDouble(), any(), anyString(), anyBoolean()))
+            when(incidentService.createIncident(nullable(String.class), anyString(), anyString(), anyDouble(),
+                    anyDouble(), nullable(Double.class), any(), anyString(), anyBoolean()))
                     .thenReturn(testIncident);
 
             String request = """
@@ -113,8 +113,8 @@ class IncidentControllerTest {
 
         @Test
         void shouldReturn400WhenCoordinatesInvalid() throws Exception {
-            when(incidentService.createIncident(anyString(), anyString(), anyString(), anyDouble(),
-                    anyDouble(), anyDouble(), any(), anyString(), anyBoolean()))
+            when(incidentService.createIncident(nullable(String.class), anyString(), anyString(), anyDouble(),
+                    anyDouble(), nullable(Double.class), any(), anyString(), anyBoolean()))
                     .thenThrow(new IllegalArgumentException("Invalid coordinates"));
 
             String request = """

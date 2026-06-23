@@ -20,9 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -74,7 +72,7 @@ class EvidenceControllerTest {
         void shouldUploadEvidence() throws Exception {
             Evidence evidence = createSampleEvidence();
             when(evidenceService.storeEvidence(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyLong(), anyString(), anyDouble(), anyDouble())).thenReturn(evidence);
+                    anyString(), anyLong(), anyString(), nullable(Double.class), nullable(Double.class))).thenReturn(evidence);
 
             String request = """
                     {

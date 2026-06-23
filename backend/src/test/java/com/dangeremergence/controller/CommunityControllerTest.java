@@ -6,6 +6,7 @@ import com.dangeremergence.model.CommunityComment;
 import com.dangeremergence.model.CommunityPost;
 import com.dangeremergence.service.CommunityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -59,6 +61,7 @@ class CommunityControllerTest {
     @BeforeEach
     void setUp() {
         testAuth = new UsernamePasswordAuthenticationToken(USER_ID, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(testAuth);
 
         testPost = new CommunityPost();
         testPost.setId(POST_ID);
@@ -76,6 +79,11 @@ class CommunityControllerTest {
         testComment.setUser(null);
         testComment.setContent("Great post!");
         testComment.setCreatedAt(LocalDateTime.now());
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Nested
