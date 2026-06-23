@@ -22,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.io.IOException;
@@ -88,15 +89,20 @@ class CommunityControllerTest {
         );
 
         // Make the mocked JwtAuthenticationFilter call filterChain.doFilter()
-        // so the request chain continues to the controller
+        // so the request chain continues to the controller.
+        // Also set SecurityContextHolder directly since SecurityAutoConfiguration
+        // is excluded (SecurityContextHolderFilter won't be available).
         doAnswer(invocation -> {
             HttpServletRequest request = invocation.getArgument(0);
             HttpServletResponse response = invocation.getArgument(1);
             FilterChain chain = invocation.getArgument(2);
             try {
+                SecurityContextHolder.getContext().setAuthentication(testAuth);
                 chain.doFilter(request, response);
             } catch (ServletException | IOException e) {
                 throw new RuntimeException(e);
+            } finally {
+                SecurityContextHolder.clearContext();
             }
             return null;
         }).when(jwtAuthenticationFilter).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class), any(FilterChain.class));
