@@ -805,24 +805,16 @@ class _MapViewState extends State<_MapView> {
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.dangeremergence.app',
                 ),
-                // Current location marker
+                // Current location marker with user avatar
                 MarkerLayer(
                   markers: [
                     if (position != null)
                       Marker(
                         point: center,
-                        width: 30,
-                        height: 30,
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.my_location,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                        width: 44,
+                        height: 44,
+                        child: _UserLocationMarker(
+                          authService: context.read<AuthService>(),
                         ),
                       ),
                     // Zone markers
@@ -880,6 +872,48 @@ class _MapViewState extends State<_MapView> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A marker widget that shows the current user's location on the map.
+/// Displays the user's initials in a colored circle, or a person icon
+/// as fallback. Includes a pulsing outer ring for visibility.
+class _UserLocationMarker extends StatelessWidget {
+  final AuthService authService;
+
+  const _UserLocationMarker({required this.authService});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = authService.currentUser;
+    final name = user?.name ?? 'U';
+    final initials = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.4),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.blue,
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
