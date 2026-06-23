@@ -51,7 +51,7 @@ public class FcmPushService {
     @Async
     public void notifyAlertToNearbyUsers(SOSAlert alert, double radiusKm) {
         if (fcmServerKey == null || fcmServerKey.isEmpty()) {
-            log.debug("FCM not configured - skipping push notification");
+            log.warn("FCM_SERVER_KEY not configured - SKIPPING ALL push notifications for alert {}. Set FCM_SERVER_KEY environment variable to enable push notifications.", alert.getId());
             return;
         }
 
@@ -66,14 +66,20 @@ public class FcmPushService {
                     alert.getLongitude() + lonDelta
             );
 
+            log.info("FCM: Found {} users with FCM tokens for alert {} (radius={}km)", nearbyUsers.size(), alert.getId(), radiusKm);
+
+            int notifiedCount = 0;
             for (User user : nearbyUsers) {
                 if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
                     sendPushNotification(user.getFcmToken(), alert);
+                    notifiedCount++;
+                } else {
+                    log.debug("FCM: User {} has no FCM token, skipping", user.getId());
                 }
             }
-            log.info("FCM: Notified {} nearby users for alert {}", nearbyUsers.size(), alert.getId());
+            log.info("FCM: Successfully sent push to {} / {} nearby users for alert {}", notifiedCount, nearbyUsers.size(), alert.getId());
         } catch (Exception e) {
-            log.error("FCM push failed for alert {}: {}", alert.getId(), e.getMessage());
+            log.error("FCM push failed for alert {}: {}", alert.getId(), e.getMessage(), e);
         }
     }
 

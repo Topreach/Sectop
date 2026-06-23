@@ -72,11 +72,15 @@ return saved;
 
 @Async
 protected void processNewAlert(SOSAlert alert) {
+    log.info("=== processNewAlert START for alert {} (covert={}, silent={}, type={}) ===",
+        alert.getId(), alert.isCovert(), alert.isSilent(), alert.getAlertType());
+
     // COVERT MODE: If the alert is covert, skip all public broadcasts
     // and only notify trusted recipients via CovertAlertService.
     if (alert.isCovert()) {
         log.info("Covert alert {} — skipping public broadcast, routing to trusted recipients only", alert.getId());
         covertAlertService.processCovertAlert(alert);
+        log.info("=== processNewAlert END for covert alert {} ===", alert.getId());
         return;
     }
 
@@ -85,6 +89,7 @@ protected void processNewAlert(SOSAlert alert) {
     String lgaSlug = alert.getLga().toLowerCase().replace(" ", "_");
     
     String geoTopic = String.format("alerts/%s/%s", stateSlug, lgaSlug);
+    log.info("Step 1: Publishing MQTT to topic: {}", geoTopic);
     mqttService.publish(geoTopic, alert);
 
     // Notify Community Guardians
@@ -94,10 +99,12 @@ protected void processNewAlert(SOSAlert alert) {
     mqttService.publishAlert(alert);
     
     // 2. Trigger Drone Relay if in high-risk area
+    log.info("Step 2: Checking drone relay for LGA: {}, State: {}", alert.getLga(), alert.getState());
     droneService.deployRelayIfNecessary(alert.getLga(), alert.getState(),
         alert.getLatitude(), alert.getLongitude(), alert.getPriority());
 
     // 3. Push via WebSocket/STOMP for real-time delivery to connected clients
+    log.info("Step 3: Pushing via WebSocket/STOMP to /topic/alerts/new");
     try {
         // Push to global alert topic (all connected clients)
         messagingTemplate.convertAndSend("/topic/alerts/new", alert);
@@ -116,19 +123,24 @@ protected void processNewAlert(SOSAlert alert) {
     }
 
     // 4. Publish to Redis pub/sub for cross-server broadcast (all instances)
+    log.info("Step 4: Publishing to Redis pub/sub");
     alertPubSubService.publishAlert(alert);
     alertPubSubService.publishGeoAlert(alert, stateSlug, lgaSlug);
 
     // 5. Send FCM push notifications to nearby users (offline delivery)
+    log.info("Step 5: Sending FCM push notifications (radius=10.0km)");
     fcmPushService.notifyAlertToNearbyUsers(alert, 10.0);
 
     // 6. Send SMS to the alert creator's phone as last-resort confirmation
     User alertUser = alert.getUser();
     if (alertUser.getPhone() != null && !alertUser.getPhone().isEmpty()) {
+        log.info("Step 6: Sending SMS confirmation to {}", alertUser.getPhone());
         smsGatewayService.sendAlertSms(alert, alertUser.getPhone());
+    } else {
+        log.info("Step 6: Skipping SMS - no phone number for user {}", alertUser.getId());
     }
 
-    log.info("Processed new alert: {} for LGA: {}", alert.getId(), alert.getLga());
+    log.info("=== processNewAlert END for alert {} ===", alert.getId());
 }
 
     /**
