@@ -434,6 +434,29 @@ class _DashboardHomeState extends State<_DashboardHome> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              // My Posts - view and manage your own posts
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.person_outline,
+                      label: 'My Posts',
+                      color: const Color(0xFF6A1B9A),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.communityMyPosts),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.favorite_outline,
+                      label: 'My Favorites',
+                      color: const Color(0xFFC62828),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.communityFavorites),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 24),
 
               // Status Cards
