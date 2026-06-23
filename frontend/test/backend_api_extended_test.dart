@@ -465,36 +465,6 @@ void main() {
     });
   });
 
-  group('BackendApi - Radio Broadcast Endpoints', () {
-    test('createRadioBroadcast sends correct body', () async {
-      await api.createRadioBroadcast({
-        'message': 'Emergency broadcast',
-        'targetState': 'Lagos',
-        'language': 'en',
-        'priority': 1,
-      });
-      final request = capturedRequests.last as http.Request;
-      final body = json.decode(request.body);
-      expect(body['message'], 'Emergency broadcast');
-      expect(body['targetState'], 'Lagos');
-    });
-
-    test('getRadioBroadcasts builds correct URL', () async {
-      await api.getRadioBroadcasts();
-      expect(capturedRequests.last.url.toString(), contains('/radio/broadcasts'));
-    });
-
-    test('getRadioBroadcast builds correct URL', () async {
-      await api.getRadioBroadcast('radio_123');
-      expect(capturedRequests.last.url.toString(), contains('/radio/broadcasts/radio_123'));
-    });
-
-    test('retryRadioBroadcast sends correct request', () async {
-      await api.retryRadioBroadcast('radio_123');
-      expect(capturedRequests.last.url.toString(), contains('/radio/broadcasts/radio_123/retry'));
-    });
-  });
-
   group('BackendApi - Evidence Endpoints', () {
     test('uploadEvidence sends correct body', () async {
       await api.uploadEvidence(

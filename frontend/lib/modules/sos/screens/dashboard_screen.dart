@@ -670,28 +670,6 @@ String _formatAlertTime(DateTime time) {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _QuickActionCard(
-                      icon: Icons.radio_outlined,
-                      label: 'Radio',
-                      color: Colors.brown,
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.radioBroadcast),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _QuickActionCard(
-                      icon: Icons.radio,
-                      label: 'Walkie Talkie',
-                      color: const Color(0xFFE65100),
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.walkieTalkieMonitor),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _QuickActionCard(
                       icon: Icons.security_outlined,
                       label: 'Danger Zones',
                       color: const Color(0xFFB71C1C),

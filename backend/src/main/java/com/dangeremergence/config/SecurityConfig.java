@@ -44,8 +44,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/broadcasts/active").authenticated()
                 .requestMatchers("/api/v1/broadcasts/count").authenticated()
                 .requestMatchers("/api/v1/broadcasts/**").hasAuthority("coordinator")
-                .requestMatchers("/api/v1/radio/broadcasts").authenticated()
-                .requestMatchers("/api/v1/radio/**").hasAuthority("coordinator")
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/info").permitAll()
                 .requestMatchers("/actuator/**").hasAuthority("coordinator")

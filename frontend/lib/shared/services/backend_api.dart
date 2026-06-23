@@ -784,30 +784,6 @@ class BackendApi {
   }
 
   // ---------------------------------------------------------------------------
-  // Radio Broadcasts (Emergency Radio Integration)
-  // ---------------------------------------------------------------------------
-
-  /// Create a new radio broadcast (coordinator/admin only).
-  Future<Map<String, dynamic>> createRadioBroadcast(Map<String, dynamic> data) async {
-    return post('/radio/broadcast', body: data);
-  }
-
-  /// Get radio broadcast history.
-  Future<Map<String, dynamic>> getRadioBroadcasts() async {
-    return get('/radio/broadcasts');
-  }
-
-  /// Get radio broadcast by ID.
-  Future<Map<String, dynamic>> getRadioBroadcast(String id) async {
-    return get('/radio/broadcasts/$id');
-  }
-
-  /// Retry a failed radio broadcast (coordinator/admin only).
-  Future<Map<String, dynamic>> retryRadioBroadcast(String id) async {
-    return post('/radio/broadcasts/$id/retry');
-  }
-
-  // ---------------------------------------------------------------------------
   // Auth — Password Reset & Account Deletion (Store Compliance)
   // ---------------------------------------------------------------------------
 

@@ -273,10 +273,6 @@ class SyncManager extends ChangeNotifier {
         return Uri.parse('$base/broadcasts');
       case 'tip_off':
         return Uri.parse('$base/tips');
-      case 'radio_broadcast':
-        return Uri.parse('$base/radio/broadcast');
-      case 'walkie_talkie_scan':
-        return Uri.parse('$base/ai/analyze-audio');
       case 'text':
       case 'alert':
       case 'sos':
