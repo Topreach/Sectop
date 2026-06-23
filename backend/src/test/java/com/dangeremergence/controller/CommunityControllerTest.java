@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = CommunityController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@WithMockUser(username = USER_ID)
+@WithMockUser(username = "user-123")
 class CommunityControllerTest {
 
     @Autowired
