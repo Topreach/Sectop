@@ -107,6 +107,10 @@ public class CommunityController {
             boolean isAnonymous = request.get("isAnonymous") != null
                     && Boolean.TRUE.equals(request.get("isAnonymous"));
 
+            if (caption == null || caption.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Caption is required"));
+            }
+
             var post = communityService.createPost(userId, caption, mediaUrl, mediaType,
                     latitude, longitude, locationName, isAnonymous);
             return ResponseEntity.ok(post);

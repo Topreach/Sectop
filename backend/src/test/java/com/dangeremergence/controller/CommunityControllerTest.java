@@ -106,6 +106,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -121,6 +122,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest());
@@ -132,10 +134,11 @@ class CommunityControllerTest {
 
         @Test
         void shouldReturnFeed() throws Exception {
-            when(communityService.getFeed(anyInt(), anyInt(), anyString()))
+            when(communityService.getFeed(anyInt(), anyInt(), nullable(String.class)))
                     .thenReturn(Map.of("posts", List.of(testPost), "total", 1, "page", 0, "size", 20));
 
             mockMvc.perform(get("/api/v1/community/feed")
+                            .with(authentication(testAuth))
                             .param("page", "0")
                             .param("size", "20"))
                     .andExpect(status().isOk())
@@ -145,10 +148,11 @@ class CommunityControllerTest {
 
         @Test
         void shouldReturnFeedWithDefaultPagination() throws Exception {
-            when(communityService.getFeed(anyInt(), anyInt(), anyString()))
+            when(communityService.getFeed(anyInt(), anyInt(), nullable(String.class)))
                     .thenReturn(Map.of("posts", List.of(), "total", 0, "page", 0, "size", 20));
 
-            mockMvc.perform(get("/api/v1/community/feed"))
+            mockMvc.perform(get("/api/v1/community/feed")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.posts").isArray());
         }
@@ -159,10 +163,11 @@ class CommunityControllerTest {
 
         @Test
         void shouldReturnNearbyPosts() throws Exception {
-            when(communityService.getNearbyFeed(anyDouble(), anyDouble(), anyDouble(), anyInt(), anyInt(), anyString()))
+            when(communityService.getNearbyFeed(anyDouble(), anyDouble(), anyDouble(), anyInt(), anyInt(), nullable(String.class)))
                     .thenReturn(Map.of("posts", List.of(testPost), "total", 1));
 
             mockMvc.perform(get("/api/v1/community/nearby")
+                            .with(authentication(testAuth))
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
                             .param("radiusKm", "5"))
@@ -176,20 +181,22 @@ class CommunityControllerTest {
 
         @Test
         void shouldReturnPostById() throws Exception {
-            when(communityService.getPostById(POST_ID, USER_ID))
+            when(communityService.getPostById(POST_ID, nullable(String.class)))
                     .thenReturn(Map.of("id", POST_ID, "caption", "Test post caption"));
 
-            mockMvc.perform(get("/api/v1/community/posts/" + POST_ID))
+            mockMvc.perform(get("/api/v1/community/posts/" + POST_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(POST_ID));
         }
 
         @Test
         void shouldReturn400WhenPostNotFound() throws Exception {
-            when(communityService.getPostById("nonexistent", USER_ID))
+            when(communityService.getPostById("nonexistent", nullable(String.class)))
                     .thenThrow(new IllegalArgumentException("Post not found"));
 
-            mockMvc.perform(get("/api/v1/community/posts/nonexistent"))
+            mockMvc.perform(get("/api/v1/community/posts/nonexistent")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest());
         }
     }
@@ -199,14 +206,19 @@ class CommunityControllerTest {
 
         @Test
         void shouldDeleteOwnPost() throws Exception {
-            mockMvc.perform(delete("/api/v1/community/posts/" + POST_ID))
+            mockMvc.perform(delete("/api/v1/community/posts/" + POST_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Post deleted successfully"));
         }
 
         @Test
         void shouldReturn400WhenPostNotFound() throws Exception {
-            mockMvc.perform(delete("/api/v1/community/posts/nonexistent"))
+            doThrow(new IllegalArgumentException("Post not found: nonexistent"))
+                    .when(communityService).deletePost(eq("nonexistent"), anyString());
+
+            mockMvc.perform(delete("/api/v1/community/posts/nonexistent")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isBadRequest());
         }
     }
@@ -216,7 +228,8 @@ class CommunityControllerTest {
 
         @Test
         void shouldFlagPost() throws Exception {
-            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/flag"))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/flag")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk());
         }
     }
@@ -228,7 +241,8 @@ class CommunityControllerTest {
         void shouldToggleLike() throws Exception {
             when(communityService.toggleLike(POST_ID, USER_ID)).thenReturn(Map.of("liked", true, "likeCount", 1));
 
-            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/like"))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/like")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.liked").value(true));
         }
@@ -249,6 +263,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/comments")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -267,7 +282,8 @@ class CommunityControllerTest {
 
         @Test
         void shouldDeleteComment() throws Exception {
-            mockMvc.perform(delete("/api/v1/community/comments/" + COMMENT_ID))
+            mockMvc.perform(delete("/api/v1/community/comments/" + COMMENT_ID)
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Comment deleted successfully"));
         }
@@ -280,7 +296,8 @@ class CommunityControllerTest {
         void shouldToggleFavorite() throws Exception {
             when(communityService.toggleFavorite(POST_ID, USER_ID)).thenReturn(Map.of("favorited", true));
 
-            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/favorite"))
+            mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/favorite")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.favorited").value(true));
         }
@@ -290,7 +307,8 @@ class CommunityControllerTest {
             when(communityService.getUserFavorites(USER_ID, USER_ID))
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
-            mockMvc.perform(get("/api/v1/community/my-favorites"))
+            mockMvc.perform(get("/api/v1/community/my-favorites")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(POST_ID));
         }
@@ -310,6 +328,7 @@ class CommunityControllerTest {
                     """;
 
             mockMvc.perform(post("/api/v1/community/posts/" + POST_ID + "/share")
+                            .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
@@ -325,17 +344,19 @@ class CommunityControllerTest {
             when(communityService.getUserPosts(USER_ID, USER_ID))
                     .thenReturn(List.of(Map.of("id", POST_ID)));
 
-            mockMvc.perform(get("/api/v1/community/my-posts"))
+            mockMvc.perform(get("/api/v1/community/my-posts")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(POST_ID));
         }
 
         @Test
         void shouldGetUserPosts() throws Exception {
-            when(communityService.getUserPosts("other-user", USER_ID))
+            when(communityService.getUserPosts("other-user", nullable(String.class)))
                     .thenReturn(List.of());
 
-            mockMvc.perform(get("/api/v1/community/users/other-user/posts"))
+            mockMvc.perform(get("/api/v1/community/users/other-user/posts")
+                            .with(authentication(testAuth)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray());
         }
