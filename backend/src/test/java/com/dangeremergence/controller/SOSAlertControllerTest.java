@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.service.SOSAlertService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,9 @@ class SOSAlertControllerTest {
 
     @MockBean
     private SOSAlertService alertService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private SOSAlert testAlert;
     private static final String ALERT_ID = "alert-123";

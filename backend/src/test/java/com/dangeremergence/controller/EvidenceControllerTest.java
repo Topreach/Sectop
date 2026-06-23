@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.model.Evidence;
 import com.dangeremergence.service.EvidenceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,9 @@ class EvidenceControllerTest {
 
     @MockBean
     private EvidenceService evidenceService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private Authentication testAuth;
 

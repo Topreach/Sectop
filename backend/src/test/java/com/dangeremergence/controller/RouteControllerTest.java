@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.service.RouteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +35,9 @@ class RouteControllerTest {
 
     @MockBean
     private RouteService routeService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private Authentication testAuth;
 

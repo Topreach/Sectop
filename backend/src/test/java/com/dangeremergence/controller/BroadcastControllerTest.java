@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.model.Broadcast;
 import com.dangeremergence.service.BroadcastService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +42,9 @@ class BroadcastControllerTest {
 
     @MockBean
     private BroadcastService broadcastService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private Authentication testAuth;
     private Authentication coordinatorAuth;

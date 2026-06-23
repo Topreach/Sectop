@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.model.Incident;
 import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.model.Zone;
@@ -47,6 +48,9 @@ class ThreatControllerTest {
 
     @MockBean
     private PredictiveService predictiveService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private Incident createSampleIncident() {
         Incident incident = new Incident();

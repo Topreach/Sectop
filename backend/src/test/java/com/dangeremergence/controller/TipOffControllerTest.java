@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.model.TipOff;
 import com.dangeremergence.service.TipOffService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +41,9 @@ class TipOffControllerTest {
 
     @MockBean
     private TipOffService tipOffService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private TipOff testTipOff;
     private static final String TIP_ID = "tip-123";

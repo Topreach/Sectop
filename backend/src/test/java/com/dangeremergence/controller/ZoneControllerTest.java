@@ -1,5 +1,6 @@
 package com.dangeremergence.controller;
 
+import com.dangeremergence.config.JwtAuthenticationFilter;
 import com.dangeremergence.model.Zone;
 import com.dangeremergence.service.ZoneService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,9 @@ class ZoneControllerTest {
 
     @MockBean
     private ZoneService zoneService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private Zone testZone;
     private static final String ZONE_ID = "zone-123";
