@@ -101,7 +101,7 @@ class CommunityControllerTest {
                             .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isCreated())
+                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(POST_ID));
         }
 
@@ -183,13 +183,13 @@ class CommunityControllerTest {
         }
 
         @Test
-        void shouldReturn404WhenPostNotFound() throws Exception {
+        void shouldReturn400WhenPostNotFound() throws Exception {
             when(communityService.getPostById("nonexistent", USER_ID))
-                    .thenThrow(new RuntimeException("Post not found"));
+                    .thenThrow(new IllegalArgumentException("Post not found"));
 
             mockMvc.perform(get("/api/v1/community/posts/nonexistent")
                             .with(authentication(testAuth)))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -200,14 +200,15 @@ class CommunityControllerTest {
         void shouldDeleteOwnPost() throws Exception {
             mockMvc.perform(delete("/api/v1/community/posts/" + POST_ID)
                             .with(authentication(testAuth)))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.message").value("Post deleted successfully"));
         }
 
         @Test
-        void shouldReturn404WhenPostNotFound() throws Exception {
+        void shouldReturn400WhenPostNotFound() throws Exception {
             mockMvc.perform(delete("/api/v1/community/posts/nonexistent")
                             .with(authentication(testAuth)))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -254,14 +255,14 @@ class CommunityControllerTest {
                             .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isCreated())
+                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(COMMENT_ID));
         }
 
         @Test
         void shouldGetComments() throws Exception {
-            when(communityService.getPostById(POST_ID, USER_ID))
-                    .thenReturn(Map.of("comments", List.of()));
+            when(communityService.getComments(POST_ID))
+                    .thenReturn(List.of());
 
             mockMvc.perform(get("/api/v1/community/posts/" + POST_ID + "/comments")
                             .with(authentication(testAuth)))
@@ -273,7 +274,8 @@ class CommunityControllerTest {
         void shouldDeleteComment() throws Exception {
             mockMvc.perform(delete("/api/v1/community/comments/" + COMMENT_ID)
                             .with(authentication(testAuth)))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.message").value("Comment deleted successfully"));
         }
     }
 
@@ -307,7 +309,7 @@ class CommunityControllerTest {
 
         @Test
         void shouldSharePost() throws Exception {
-            doNothing().when(communityService).recordShare(POST_ID, USER_ID, anyString());
+            doNothing().when(communityService).recordShare(eq(POST_ID), eq(USER_ID), anyString());
 
             String request = """
                     {

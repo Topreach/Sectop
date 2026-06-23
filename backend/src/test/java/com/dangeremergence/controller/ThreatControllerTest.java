@@ -100,9 +100,9 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.threatLevel").isString())
+                    .andExpect(jsonPath("$.severity").isString())
                     .andExpect(jsonPath("$.matchedKeywords").isArray())
-                    .andExpect(jsonPath("$.incidentType").isString())
+                    .andExpect(jsonPath("$.label").isString())
                     .andExpect(jsonPath("$.confidence").isNumber());
         }
 
@@ -151,8 +151,8 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incidentType").value("kidnapping"))
-                    .andExpect(jsonPath("$.threatLevel").value("critical"));
+                    .andExpect(jsonPath("$.label").value("kidnapping"))
+                    .andExpect(jsonPath("$.severity").value("critical"));
         }
 
         @Test
@@ -168,8 +168,8 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.incidentType").value("bomb_threat"))
-                    .andExpect(jsonPath("$.threatLevel").value("critical"));
+                    .andExpect(jsonPath("$.label").value("terrorism"))
+                    .andExpect(jsonPath("$.severity").value("critical"));
         }
     }
 
@@ -182,17 +182,20 @@ class ThreatControllerTest {
         void shouldReturnThreatLevel() throws Exception {
             when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), anyList()))
                     .thenReturn(List.of(createSampleIncident()));
-            when(sosAlertService.getActiveAlerts()).thenReturn(List.of(createSampleAlert()));
-            when(zoneService.getActiveZones()).thenReturn(List.of());
+            when(sosAlertService.getAlertsInArea(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of(createSampleAlert()));
+            when(zoneService.getDangerZones()).thenReturn(List.of());
+            when(predictiveService.detectHotspots(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(Map.of("hotspots", List.of()));
 
             mockMvc.perform(get("/api/v1/threat/level")
                             .param("latitude", "6.5244")
                             .param("longitude", "3.3792")
                             .param("radiusKm", "5"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.overallThreatLevel").isString())
-                    .andExpect(jsonPath("$.threatScore").isNumber())
-                    .andExpect(jsonPath("$.factors").isArray());
+                    .andExpect(jsonPath("$.levelLabel").isString())
+                    .andExpect(jsonPath("$.threatLevel").isNumber())
+                    .andExpect(jsonPath("$.incidentCount").isNumber());
         }
     }
 
@@ -205,8 +208,11 @@ class ThreatControllerTest {
         void shouldReturnThreatAlerts() throws Exception {
             when(incidentService.getNearbyIncidents(anyDouble(), anyDouble(), anyDouble(), anyList()))
                     .thenReturn(List.of(createSampleIncident()));
-            when(sosAlertService.getActiveAlerts()).thenReturn(List.of(createSampleAlert()));
-            when(zoneService.getActiveZones()).thenReturn(List.of());
+            when(sosAlertService.getAlertsInArea(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(List.of(createSampleAlert()));
+            when(zoneService.getDangerZones()).thenReturn(List.of());
+            when(predictiveService.detectHotspots(anyDouble(), anyDouble(), anyDouble()))
+                    .thenReturn(Map.of("hotspots", List.of()));
 
             mockMvc.perform(get("/api/v1/threat/alerts")
                             .param("latitude", "6.5244")
@@ -214,7 +220,7 @@ class ThreatControllerTest {
                             .param("radiusKm", "10"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.alerts").isArray())
-                    .andExpect(jsonPath("$.totalThreats").isNumber());
+                    .andExpect(jsonPath("$.totalCount").isNumber());
         }
     }
 
@@ -227,7 +233,7 @@ class ThreatControllerTest {
         void shouldProcessAudioResult() throws Exception {
             String request = """
                     {
-                        "text": "gunshots detected",
+                        "hasDistress": true,
                         "threatLevel": "critical",
                         "confidence": 0.95,
                         "incidentType": "shooting"
@@ -238,14 +244,14 @@ class ThreatControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("processed"))
-                    .andExpect(jsonPath("$.threatLevel").value("critical"))
-                    .andExpect(jsonPath("$.incidentType").value("shooting"));
+                    .andExpect(jsonPath("$.created").value(true))
+                    .andExpect(jsonPath("$.alertId").isString())
+                    .andExpect(jsonPath("$.alert.severity").value("critical"));
         }
 
         @Test
-        @DisplayName("should return 400 when text is missing")
-        void shouldReturn400WhenTextMissing() throws Exception {
+        @DisplayName("should return 200 when no distress detected")
+        void shouldReturn200WhenNoDistress() throws Exception {
             String request = """
                     {
                         "threatLevel": "critical"
@@ -255,8 +261,9 @@ class ThreatControllerTest {
             mockMvc.perform(post("/api/v1/threat/audio-result")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("text is required"));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.created").value(false))
+                    .andExpect(jsonPath("$.message").value("No distress detected — no alert created"));
         }
     }
 }

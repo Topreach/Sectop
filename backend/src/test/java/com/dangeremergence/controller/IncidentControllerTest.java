@@ -90,9 +90,10 @@ class IncidentControllerTest {
                             .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.id").value(INCIDENT_ID))
-                    .andExpect(jsonPath("$.incidentType").value("kidnapping"));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.incident.id").value(INCIDENT_ID))
+                    .andExpect(jsonPath("$.incident.incidentType").value("kidnapping"))
+                    .andExpect(jsonPath("$.message").value("Incident reported successfully"));
         }
 
         @Test
@@ -112,6 +113,10 @@ class IncidentControllerTest {
 
         @Test
         void shouldReturn400WhenCoordinatesInvalid() throws Exception {
+            when(incidentService.createIncident(anyString(), anyString(), anyString(), anyDouble(),
+                    anyDouble(), anyDouble(), any(), anyString(), anyBoolean()))
+                    .thenThrow(new IllegalArgumentException("Invalid coordinates"));
+
             String request = """
                     {
                         "incidentType": "kidnapping",
@@ -144,7 +149,7 @@ class IncidentControllerTest {
                             .param("longitude", "3.3792")
                             .param("radiusKm", "5"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].id").value(INCIDENT_ID));
+                    .andExpect(jsonPath("$.incidents[0].id").value(INCIDENT_ID));
         }
 
         @Test

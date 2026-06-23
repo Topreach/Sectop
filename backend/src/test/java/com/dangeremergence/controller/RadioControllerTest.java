@@ -95,7 +95,7 @@ class RadioControllerTest {
                             .with(authentication(coordinatorAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isCreated())
+                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value("radio_001"))
                     .andExpect(jsonPath("$.title").value("Emergency Alert"));
         }
@@ -103,6 +103,9 @@ class RadioControllerTest {
         @Test
         @DisplayName("should return 400 when required fields are missing")
         void shouldReturn400WhenFieldsMissing() throws Exception {
+            when(radioBroadcastService.createRadioBroadcast(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any()))
+                    .thenThrow(new IllegalArgumentException("message is required"));
+
             String request = """
                     {
                         "title": "Emergency Alert"

@@ -470,7 +470,7 @@ class AuthControllerTest {
 
             mockMvc.perform(get("/api/v1/auth/responders"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].userId").value(USER_ID));
+                    .andExpect(jsonPath("$[0].id").value(USER_ID));
         }
     }
 

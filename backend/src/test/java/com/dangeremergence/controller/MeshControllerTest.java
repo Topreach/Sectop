@@ -127,10 +127,12 @@ class MeshControllerTest {
         @DisplayName("should broadcast a message to the mesh network")
         void shouldBroadcastMessage() throws Exception {
             when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+            when(hashOperations.size(anyString())).thenReturn(3L);
+            when(hashOperations.keys(anyString())).thenReturn(Set.of("device_002", "device_003", "device_004"));
 
             String request = """
                     {
-                        "senderDeviceId": "device_001",
+                        "sourceDeviceId": "device_001",
                         "message": "Emergency! Need help at location A",
                         "ttl": 5,
                         "priority": 1
@@ -147,8 +149,8 @@ class MeshControllerTest {
         }
 
         @Test
-        @DisplayName("should return 400 when senderDeviceId is missing")
-        void shouldReturn400WhenSenderMissing() throws Exception {
+        @DisplayName("should return 400 when sourceDeviceId is missing")
+        void shouldReturn400WhenSourceMissing() throws Exception {
             String request = """
                     {
                         "message": "Emergency!"
@@ -159,7 +161,7 @@ class MeshControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("senderDeviceId and message are required"));
+                    .andExpect(jsonPath("$.error").value("sourceDeviceId is required"));
         }
     }
 

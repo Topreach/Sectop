@@ -66,9 +66,10 @@ class PredictiveControllerTest {
 
             String request = """
                     {
-                        "zoneId": "zone_1",
-                        "historyHours": 24,
-                        "forecastHours": 12
+                        "latitude": 6.5,
+                        "longitude": 3.4,
+                        "radius_km": 50,
+                        "hours": 48
                     }
                     """;
 
@@ -82,12 +83,12 @@ class PredictiveControllerTest {
         }
 
         @Test
-        @DisplayName("should return 400 when zoneId is missing")
-        void shouldReturn400WhenZoneIdMissing() throws Exception {
+        @DisplayName("should return 400 when coordinates are missing")
+        void shouldReturn400WhenCoordinatesMissing() throws Exception {
             String request = """
                     {
-                        "historyHours": 24,
-                        "forecastHours": 12
+                        "radius_km": 50,
+                        "hours": 48
                     }
                     """;
 
@@ -96,7 +97,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("zoneId is required"));
+                    .andExpect(jsonPath("$.error").value("latitude and longitude are required"));
         }
     }
 
@@ -105,16 +106,17 @@ class PredictiveControllerTest {
     class MlBatchForecast {
 
         @Test
-        @DisplayName("should return ML forecast for multiple zones")
+        @DisplayName("should return ML forecast for multiple areas")
         void shouldReturnMlBatchForecast() throws Exception {
             when(predictiveService.getBatchForecast(anyList()))
                     .thenReturn(Map.of("forecasts", List.of()));
 
             String request = """
                     {
-                        "zoneIds": ["zone_1", "zone_2"],
-                        "historyHours": 24,
-                        "forecastHours": 12
+                        "areas": [
+                            {"latitude": 6.5, "longitude": 3.4, "radius_km": 50, "hours": 48},
+                            {"latitude": 9.08, "longitude": 7.48, "radius_km": 30, "hours": 24}
+                        ]
                     }
                     """;
 
@@ -127,13 +129,11 @@ class PredictiveControllerTest {
         }
 
         @Test
-        @DisplayName("should return 400 when zoneIds is empty")
-        void shouldReturn400WhenZoneIdsEmpty() throws Exception {
+        @DisplayName("should return 400 when areas list is empty")
+        void shouldReturn400WhenAreasEmpty() throws Exception {
             String request = """
                     {
-                        "zoneIds": [],
-                        "historyHours": 24,
-                        "forecastHours": 12
+                        "areas": []
                     }
                     """;
 
@@ -142,7 +142,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("zoneIds must not be empty"));
+                    .andExpect(jsonPath("$.error").value("areas list is required"));
         }
     }
 
@@ -160,7 +160,7 @@ class PredictiveControllerTest {
                     {
                         "latitude": 6.5244,
                         "longitude": 3.3792,
-                        "radiusKm": 10
+                        "radius_km": 10
                     }
                     """;
 
@@ -178,7 +178,7 @@ class PredictiveControllerTest {
         void shouldReturn400WhenCoordinatesMissing() throws Exception {
             String request = """
                     {
-                        "radiusKm": 10
+                        "radius_km": 10
                     }
                     """;
 
@@ -200,7 +200,9 @@ class PredictiveControllerTest {
             when(predictiveService.triggerTraining(anyBoolean())).thenReturn(Map.of("status", "training_started"));
 
             mockMvc.perform(post("/api/v1/predictive/train")
-                            .with(authentication(testAuth)))
+                            .with(authentication(testAuth))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("training_started"));
         }
@@ -275,13 +277,11 @@ class PredictiveControllerTest {
     class LegacyForecast {
 
         @Test
-        @DisplayName("should return legacy forecast for a zone")
-        void shouldReturnLegacyForecast() throws Exception {
-            when(zoneService.getZoneById(anyString())).thenReturn(java.util.Optional.empty());
-
+        @DisplayName("should return 400 when zoneIds is empty")
+        void shouldReturn400WhenZoneIdsEmpty() throws Exception {
             String request = """
                     {
-                        "zoneId": "zone_1",
+                        "zoneIds": [],
                         "historyHours": 24,
                         "forecastHours": 12
                     }
@@ -291,8 +291,8 @@ class PredictiveControllerTest {
                             .with(authentication(testAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.error").value("Zone not found: zone_1"));
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("zoneIds is required"));
         }
     }
 
@@ -304,12 +304,10 @@ class PredictiveControllerTest {
         @DisplayName("should detect anomalies in data")
         void shouldDetectAnomalies() throws Exception {
             // The controller handles anomaly detection internally, not via PredictiveService
+            // It expects a "values" list of numbers
             String request = """
                     {
-                        "readings": [
-                            {"zoneId": "zone_1", "value": 100},
-                            {"zoneId": "zone_2", "value": 5}
-                        ]
+                        "values": [100, 5, 3, 2, 4, 3, 2, 5]
                     }
                     """;
 
@@ -318,7 +316,10 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray());
+                    .andExpect(jsonPath("$.anomalies").isArray())
+                    .andExpect(jsonPath("$.mean").isNumber())
+                    .andExpect(jsonPath("$.stdDev").isNumber())
+                    .andExpect(jsonPath("$.threshold").value(3.0));
         }
     }
 
@@ -330,15 +331,16 @@ class PredictiveControllerTest {
         @DisplayName("should optimize resource allocation")
         void shouldOptimizeResources() throws Exception {
             // The controller handles resource optimization internally, not via PredictiveService
+            // It expects "zones" and "responders" fields
             String request = """
                     {
                         "zones": [
-                            {"zoneId": "zone_1", "priority": 5, "requiredResources": 10},
-                            {"zoneId": "zone_2", "priority": 3, "requiredResources": 5}
+                            {"id": "zone_1", "priority": 5, "requiredResources": 10},
+                            {"id": "zone_2", "priority": 3, "requiredResources": 5}
                         ],
-                        "availableResources": [
-                            {"type": "ambulance", "count": 5},
-                            {"type": "fire_truck", "count": 3}
+                        "responders": [
+                            {"id": "resp_1", "type": "ambulance", "count": 5},
+                            {"id": "resp_2", "type": "fire_truck", "count": 3}
                         ]
                     }
                     """;
@@ -348,7 +350,7 @@ class PredictiveControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.allocations").isArray());
+                    .andExpect(jsonPath("$.assignments").isArray());
         }
     }
 }

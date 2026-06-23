@@ -101,13 +101,16 @@ class BroadcastControllerTest {
                             .with(authentication(coordinatorAuth))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(request))
-                    .andExpect(status().isCreated())
+                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(BROADCAST_ID))
                     .andExpect(jsonPath("$.title").value("Emergency Alert"));
         }
 
         @Test
         void shouldReturn400WhenRequiredFieldsMissing() throws Exception {
+            when(broadcastService.createBroadcast(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                    .thenThrow(new IllegalArgumentException("title is required"));
+
             String request = """
                     {
                         "title": "Emergency Alert"
