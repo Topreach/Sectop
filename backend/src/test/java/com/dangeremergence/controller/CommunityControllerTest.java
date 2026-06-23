@@ -93,7 +93,11 @@ class CommunityControllerTest {
             HttpServletRequest request = invocation.getArgument(0);
             HttpServletResponse response = invocation.getArgument(1);
             FilterChain chain = invocation.getArgument(2);
-            chain.doFilter(request, response);
+            try {
+                chain.doFilter(request, response);
+            } catch (ServletException | IOException e) {
+                throw new RuntimeException(e);
+            }
             return null;
         }).when(jwtAuthenticationFilter).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class), any(FilterChain.class));
     }
