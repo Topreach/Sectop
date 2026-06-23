@@ -1,5 +1,3 @@
-package com.dangeremergence.controller;
-
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.ZoneService;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -25,6 +24,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@WebMvcTest(value = PredictiveController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(value = PredictiveController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class PredictiveControllerTest {

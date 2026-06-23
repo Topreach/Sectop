@@ -1,5 +1,3 @@
-package com.dangeremergence.controller;
-
 import com.dangeremergence.model.Broadcast;
 import com.dangeremergence.service.BroadcastService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -28,6 +27,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@WebMvcTest(value = BroadcastController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(value = BroadcastController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class BroadcastControllerTest {
