@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.Incident;
 import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.model.Zone;

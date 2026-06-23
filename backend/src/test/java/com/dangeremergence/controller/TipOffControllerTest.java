@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.TipOff;
 import com.dangeremergence.service.TipOffService;
 import com.fasterxml.jackson.databind.ObjectMapper;

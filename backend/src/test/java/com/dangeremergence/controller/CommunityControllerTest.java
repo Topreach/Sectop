@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.CommunityComment;
 import com.dangeremergence.model.CommunityPost;
 import com.dangeremergence.service.CommunityService;

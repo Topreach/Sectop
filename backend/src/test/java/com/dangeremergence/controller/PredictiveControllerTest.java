@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.service.PredictiveService;
 import com.dangeremergence.service.ZoneService;
 import org.junit.jupiter.api.BeforeEach;

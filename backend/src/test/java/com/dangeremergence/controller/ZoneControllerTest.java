@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.Zone;
 import com.dangeremergence.service.ZoneService;
 import com.fasterxml.jackson.databind.ObjectMapper;

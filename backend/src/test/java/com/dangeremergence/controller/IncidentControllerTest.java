@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.Incident;
 import com.dangeremergence.service.IncidentService;
 import com.fasterxml.jackson.databind.ObjectMapper;

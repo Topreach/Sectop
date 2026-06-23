@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.RadioBroadcast;
 import com.dangeremergence.service.RadioBroadcastService;
 import org.junit.jupiter.api.BeforeEach;

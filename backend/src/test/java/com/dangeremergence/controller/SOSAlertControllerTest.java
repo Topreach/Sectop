@@ -1,3 +1,5 @@
+package com.dangeremergence.controller;
+
 import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.service.SOSAlertService;
 import com.fasterxml.jackson.databind.ObjectMapper;
