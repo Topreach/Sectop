@@ -388,8 +388,10 @@ class SOSService extends ChangeNotifier {
       await _meshManager.sendViaLoRa(alert.toMap());
     } catch (e) {
       debugPrint('LoRa SOS send failed: $e');
-    /// Start periodic location tracking for active SOS.
+    }
   }
+
+  /// Start periodic location tracking for active SOS.
 
   /// Start periodic location tracking for active SOS.
   void _startLocationTracking(String alertId) {

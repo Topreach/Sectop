@@ -332,9 +332,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> with 
         'Download it here so we can stay connected during emergencies:\n\n'
         'https://sectop.app/download\n\n'
         'Stay safe!';
-    await SharePlus.instance.share(
-      ShareParams(text: message),
-    );
+    await Share.share(message);
   }
 
   /// Share the app download link generically (no specific contact).
@@ -345,9 +343,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> with 
         'Get real-time alerts, share your location, and notify loved ones instantly.\n\n'
         '📲 Download: https://sectop.app/download\n\n'
         'Stay safe!';
-    await SharePlus.instance.share(
-      ShareParams(text: message),
-    );
+    await Share.share(message);
   }
 
   void _showAddEditContact({Map<String, String>? initialData, int? index}) {

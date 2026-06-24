@@ -205,30 +205,30 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> with FeatureGateMixin
       _routeResult = null;
     });
   }
-Future<void> _planRoute() async {
-  if (_fromLat == null || _fromLng == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please select a starting location')),
-    );
-    return;
-  }
-  if (_toLat == null || _toLng == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please select a destination location')),
-    );
-    return;
-  }
 
-  // Check feature access — route planning costs 2 points
-  final hasAccess = await checkFeatureAccess('route_plan', 'Route Planning');
-  if (!hasAccess) return;
+  Future<void> _planRoute() async {
+    if (_fromLat == null || _fromLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a starting location')),
+      );
+      return;
+    }
+    if (_toLat == null || _toLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a destination location')),
+      );
+      return;
+    }
 
-  setState(() {
-    _isLoading = true;
-    _error = null;
-  });
+    // Check feature access — route planning costs 2 points
+    final hasAccess = await checkFeatureAccess('route_plan', 'Route Planning');
+    if (!hasAccess) return;
 
-  final routeData = <String, dynamic>{
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     final routeData = <String, dynamic>{
       'userId': '', // Will be populated from auth
       'fromLat': _fromLat,

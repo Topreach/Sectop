@@ -482,7 +482,6 @@ String _formatAlertTime(DateTime time) {
   if (diff.inDays < 7) return '${diff.inDays}d ago';
   return '${time.day}/${time.month}/${time.year}';
 }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1763,7 +1762,6 @@ else
 ),
 );
 }
-  }
 }
 
 class _SummaryCard extends StatelessWidget {

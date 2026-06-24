@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import '../../../../core/themes.dart';
+import '../../../core/themes.dart';
 import '../services/community_service.dart';
 
 /// Screen for creating a new community post with media.

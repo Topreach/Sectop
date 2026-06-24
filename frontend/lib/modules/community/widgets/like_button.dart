@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../core/themes.dart';
+import '../../../core/themes.dart';
 
 /// Animated like button for community posts.
 ///

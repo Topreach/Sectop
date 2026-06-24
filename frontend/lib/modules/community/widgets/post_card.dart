@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/themes.dart';
-import '../../../../core/routes.dart';
+import '../../../core/themes.dart';
+import '../../../core/routes.dart';
 import '../models/community_post.dart';
 import '../services/community_service.dart';
 import 'media_player_widget.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../core/themes.dart';
+import '../../../core/themes.dart';
 import '../services/community_service.dart';
 import '../models/community_post.dart';
 import '../widgets/post_card.dart';

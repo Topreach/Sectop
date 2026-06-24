@@ -82,15 +82,21 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> with Featur
       final position = mapService.currentPosition ??
           await mapService.getCurrentLocation();
       if (position != null) {
-        setState(() {
-          _latitude = position.latitude;
-          _longitude = position.longitude;
-          // Try to resolve GPS coordinates to a location name
+        // Resolve location BEFORE setState (setState callback is sync)
+        String? locationName;
+        try {
           final resolved = await GlobalLocationService.reverseGeocode(
             position.latitude,
             position.longitude,
           );
-          _locationName = resolved?['displayName'] as String?;
+          locationName = resolved?['displayName'] as String?;
+        } catch (_) {
+          // Location resolution is best-effort
+        }
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+          _locationName = locationName;
         });
       }
     } catch (e) {

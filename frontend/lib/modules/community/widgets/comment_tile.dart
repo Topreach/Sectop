@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/themes.dart';
+import '../../../core/themes.dart';
 import '../models/community_comment.dart';
 
 /// A single comment tile displayed in the post detail screen.
