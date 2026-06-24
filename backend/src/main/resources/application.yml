@@ -88,6 +88,14 @@ sms:
     sender-id: ${TERMII_SENDER_ID:Alert}
     api-url: https://api.termii.com/api/sms/send
 
+  # Abuse Prevention: rate limits to prevent unexpected SMS charges
+  # These limits apply per-user for alert SMS and per-phone for notification SMS
+  abuse:
+    # Minimum minutes between SMS to the same user (rate limiting)
+    rate-limit-minutes: 5
+    # Maximum SMS per user per calendar day (daily cap)
+    daily-cap: 5
+
 # Paystack Payment Gateway Configuration
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:}

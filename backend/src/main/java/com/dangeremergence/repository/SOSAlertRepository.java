@@ -14,6 +14,8 @@ public interface SOSAlertRepository extends JpaRepository<SOSAlert, String> {
 
     List<SOSAlert> findByUserIdOrderByCreatedAtDesc(String userId);
 
+    List<SOSAlert> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, SOSAlert.AlertStatus status);
+
     List<SOSAlert> findByStatusOrderByPriorityDescCreatedAtDesc(SOSAlert.AlertStatus status);
 
     @Query("SELECT a FROM SOSAlert a WHERE a.status = :status AND a.createdAt > :since ORDER BY a.priority DESC, a.createdAt DESC")
