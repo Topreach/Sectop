@@ -21,8 +21,8 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Copy the built jar
 COPY --from=build /app/target/*.jar app.jar
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
+# Create logs and secrets directories
+RUN mkdir -p /app/logs /etc/secrets && chown -R appuser:appgroup /app /etc/secrets
 
 USER appuser
 

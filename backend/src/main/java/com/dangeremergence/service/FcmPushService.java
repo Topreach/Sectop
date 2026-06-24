@@ -5,12 +5,14 @@ import com.dangeremergence.model.SOSAlert;
 import com.dangeremergence.model.User;
 import com.dangeremergence.model.Zone;
 import com.dangeremergence.repository.UserRepository;
+import com.google.auth.oauth2.GoogleCredentials;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.io.FileInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -22,11 +24,16 @@ import java.util.Map;
 /**
  * Firebase Cloud Messaging (FCM) push notification service.
  *
+ * Uses FCM HTTP v1 API with OAuth2 authentication via a Firebase Admin SDK
+ * service account JSON file.
+ *
  * Sends instant push notifications to offline users when an SOS alert
  * is created in their area. This ensures delivery even when the user
  * is not connected to WebSocket.
  *
- * Requires FCM server key configured in environment variables.
+ * Requires:
+ *   - FCM_SERVICE_ACCOUNT_PATH: path to Firebase Admin SDK JSON file
+ *   - FCM_PROJECT_ID: your Firebase project ID (e.g., "volunteercoin")
  */
 @Service
 @RequiredArgsConstructor
@@ -35,23 +42,58 @@ public class FcmPushService {
 
     private final UserRepository userRepository;
 
-    @Value("${fcm.server-key:}")
-    private String fcmServerKey;
+    @Value("${fcm.service-account-path:/etc/secrets/firebase-service-account.json}")
+    private String serviceAccountPath;
 
-    @Value("${fcm.api-url:https://fcm.googleapis.com/fcm/send}")
+    @Value("${fcm.api-url:https://fcm.googleapis.com/v1/projects/volunteercoin/messages:send}")
     private String fcmApiUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
+    /** Cache the access token to avoid re-authenticating on every request */
+    private volatile String cachedAccessToken;
+    private volatile long tokenExpiryTime;
+
+    /**
+     * Obtains a valid OAuth2 access token using the Firebase service account JSON file.
+     * The token is cached and auto-refreshed when expired.
+     */
+    private synchronized String getAccessToken() {
+        long now = System.currentTimeMillis();
+        if (cachedAccessToken != null && now < tokenExpiryTime - 60000) {
+            return cachedAccessToken;
+        }
+
+        try {
+            GoogleCredentials credentials;
+            try (FileInputStream fis = new FileInputStream(serviceAccountPath)) {
+                credentials = GoogleCredentials.fromStream(fis)
+                        .createScoped(List.of("https://www.googleapis.com/auth/firebase.messaging"));
+            }
+
+            credentials.refreshIfExpired();
+            cachedAccessToken = credentials.getAccessToken().getTokenValue();
+            // Tokens typically last 1 hour (3600 seconds), refresh 5 min early
+            tokenExpiryTime = now + 3300_000L;
+            log.info("FCM: Obtained new OAuth2 access token");
+            return cachedAccessToken;
+        } catch (Exception e) {
+            log.error("FCM: Failed to obtain OAuth2 access token from service account: {}", e.getMessage());
+            return null;
+        }
+    }
+
     /**
      * Send push notification for a new SOS alert to all nearby users.
      */
     @Async
     public void notifyAlertToNearbyUsers(SOSAlert alert, double radiusKm) {
-        if (fcmServerKey == null || fcmServerKey.isEmpty()) {
-            log.warn("FCM_SERVER_KEY not configured - SKIPPING ALL push notifications for alert {}. Set FCM_SERVER_KEY environment variable to enable push notifications.", alert.getId());
+        String accessToken = getAccessToken();
+        if (accessToken == null) {
+            log.warn("FCM: No access token available - SKIPPING ALL push notifications for alert {}. "
+                    + "Set FCM_SERVICE_ACCOUNT_PATH and FCM_PROJECT_ID environment variables.", alert.getId());
             return;
         }
 
@@ -71,7 +113,7 @@ public class FcmPushService {
             int notifiedCount = 0;
             for (User user : nearbyUsers) {
                 if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
-                    sendPushNotification(user.getFcmToken(), alert);
+                    sendPushNotification(user.getFcmToken(), alert, accessToken);
                     notifiedCount++;
                 } else {
                     log.debug("FCM: User {} has no FCM token, skipping", user.getId());
@@ -88,12 +130,13 @@ public class FcmPushService {
      */
     @Async
     public void notifyUser(SOSAlert alert, String userId) {
-        if (fcmServerKey == null || fcmServerKey.isEmpty()) return;
+        String accessToken = getAccessToken();
+        if (accessToken == null) return;
 
         try {
             User user = userRepository.findById(userId).orElse(null);
             if (user != null && user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
-                sendPushNotification(user.getFcmToken(), alert);
+                sendPushNotification(user.getFcmToken(), alert, accessToken);
             }
         } catch (Exception e) {
             log.error("FCM notify user failed: {}", e.getMessage());
@@ -109,7 +152,8 @@ public class FcmPushService {
             double latitude, double longitude, double radiusKm,
             String title, String body, String type,
             String severity, Map<String, String> extraData) {
-        if (fcmServerKey == null || fcmServerKey.isEmpty()) {
+        String accessToken = getAccessToken();
+        if (accessToken == null) {
             log.debug("FCM not configured - skipping threat push notification");
             return;
         }
@@ -127,138 +171,21 @@ public class FcmPushService {
             for (User user : nearbyUsers) {
                 if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
                     sendThreatPushNotification(user.getFcmToken(), title, body, type, severity,
-                            latitude, longitude, extraData);
+                            latitude, longitude, extraData, accessToken);
                 }
             }
             log.info("FCM: Notified {} nearby users for threat alert '{}'", nearbyUsers.size(), title);
         } catch (Exception e) {
-            log.error("FCM threat push failed: {}", e.getMessage());
+            log.error("FCM threat notification failed: {}", e.getMessage(), e);
         }
     }
 
     /**
-     * Send push notification for a new verified incident to nearby users.
-     */
-    @Async
-    public void notifyIncidentToNearbyUsers(Incident incident) {
-        String title = String.format("⚠️ %s Reported Nearby",
-                incident.getIncidentType().substring(0, 1).toUpperCase()
-                        + incident.getIncidentType().substring(1));
-        String body = incident.getDescription() != null
-                ? incident.getDescription().substring(0, Math.min(incident.getDescription().length(), 150))
-                : "A " + incident.getIncidentType() + " incident has been reported in your area";
-        String severity = incident.getSeverity() != null ? incident.getSeverity().name().toLowerCase() : "medium";
-
-        Map<String, String> extraData = new java.util.HashMap<>();
-        extraData.put("incidentId", incident.getId());
-        extraData.put("incidentType", incident.getIncidentType());
-
-        notifyThreatAlertToNearbyUsers(
-                incident.getLatitude(), incident.getLongitude(), 20.0,
-                title, body, "incident", severity, extraData);
-    }
-
-    /**
-     * Send a discreet push notification for a covert SOS alert to a trusted recipient.
+     * Build and send an FCM HTTP v1 message for an SOS alert.
      *
-     * Unlike standard SOS notifications, covert notifications:
-     * - Use a neutral title (no "🚨 SOS" emoji)
-     * - Have no sound/vibration
-     * - Use a low-priority channel
-     * - Only include essential data payload (no public broadcast indicators)
-     *
-     * This is used by CovertAlertService to notify emergency contacts and
-     * verified responders without alerting the kidnapper who may also have the app.
+     * Uses the FCM v1 API format: { "message": { "token": "...", "notification": {...}, "data": {...} } }
      */
-    @Async
-    public void sendCovertNotification(User recipient, SOSAlert alert) {
-        if (fcmServerKey == null || fcmServerKey.isEmpty()) {
-            log.debug("FCM not configured - skipping covert notification");
-            return;
-        }
-
-        try {
-            String fcmToken = recipient.getFcmToken();
-            if (fcmToken == null || fcmToken.isEmpty()) {
-                log.debug("No FCM token for user {} - skipping covert notification", recipient.getId());
-                return;
-            }
-
-            String json = String.format("""
-                {
-                  "to": "%s",
-                  "priority": "normal",
-                  "notification": {
-                    "title": "Alert from Emergency Contact",
-                    "body": "A contact needs your assistance. Open the app for details.",
-                    "sound": "default",
-                    "priority": "low",
-                    "channelId": "covert_alerts"
-                  },
-                  "data": {
-                    "type": "covert_sos",
-                    "alertId": "%s",
-                    "alertType": "%s",
-                    "latitude": "%s",
-                    "longitude": "%s",
-                    "priority": "%d",
-                    "timestamp": "%d",
-                    "covert": "true"
-                  }
-                }
-                """,
-                escapeJson(fcmToken),
-                escapeJson(alert.getId()),
-                escapeJson(alert.getAlertType()),
-                alert.getLatitude(),
-                alert.getLongitude(),
-                alert.getPriority(),
-                System.currentTimeMillis()
-            );
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(fcmApiUrl))
-                    .header("Authorization", "key=" + fcmServerKey)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .timeout(Duration.ofSeconds(5))
-                    .build();
-
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        if (response.statusCode() == 200) {
-                            log.debug("Covert FCM notification sent to user {}", recipient.getId());
-                        } else {
-                            log.warn("Covert FCM push returned status: {} for user {}",
-                                    response.statusCode(), recipient.getId());
-                        }
-                    });
-        } catch (Exception e) {
-            log.warn("Covert FCM send failed for user {}: {}", recipient.getId(), e.getMessage());
-        }
-    }
-
-    /**
-     * Send push notification for a new danger zone to nearby users.
-     */
-    @Async
-    public void notifyDangerZoneToNearbyUsers(Zone zone) {
-        String title = String.format("🚨 Danger Zone: %s", zone.getName());
-        String body = zone.getDescription() != null
-                ? zone.getDescription().substring(0, Math.min(zone.getDescription().length(), 150))
-                : "A danger zone has been created in your area";
-        String severity = zone.getSeverity() != null ? zone.getSeverity() : "medium";
-
-        Map<String, String> extraData = new java.util.HashMap<>();
-        extraData.put("zoneId", zone.getId());
-        extraData.put("zoneName", zone.getName());
-
-        notifyThreatAlertToNearbyUsers(
-                zone.getLatitude(), zone.getLongitude(), zone.getRadius() != null ? zone.getRadius() : 5.0,
-                title, body, "danger_zone", severity, extraData);
-    }
-
-    private void sendPushNotification(String fcmToken, SOSAlert alert) {
+    private void sendPushNotification(String fcmToken, SOSAlert alert, String accessToken) {
         try {
             String priority = alert.getPriority() >= 9 ? "high" : "normal";
             String body = alert.getDescription() != null
@@ -267,31 +194,46 @@ public class FcmPushService {
 
             String json = String.format("""
                 {
-                  "to": "%s",
-                  "priority": "%s",
-                  "notification": {
-                    "title": "🚨 SOS Alert - %s",
-                    "body": "%s",
-                    "sound": "alarm",
-                    "priority": "%s",
-                    "channelId": "sos_alerts"
-                  },
-                  "data": {
-                    "type": "sos_alert",
-                    "alertId": "%s",
-                    "alertType": "%s",
-                    "latitude": "%s",
-                    "longitude": "%s",
-                    "priority": "%d",
-                    "timestamp": "%d"
+                  "message": {
+                    "token": "%s",
+                    "notification": {
+                      "title": "🚨 SOS Alert - %s",
+                      "body": "%s"
+                    },
+                    "android": {
+                      "priority": "%s",
+                      "notification": {
+                        "sound": "alarm",
+                        "channel_id": "sos_alerts",
+                        "priority": "%s"
+                      }
+                    },
+                    "apns": {
+                      "payload": {
+                        "aps": {
+                          "sound": "alarm",
+                          "priority": %d
+                        }
+                      }
+                    },
+                    "data": {
+                      "type": "sos_alert",
+                      "alertId": "%s",
+                      "alertType": "%s",
+                      "latitude": "%s",
+                      "longitude": "%s",
+                      "priority": "%d",
+                      "timestamp": "%d"
+                    }
                   }
                 }
                 """,
                 escapeJson(fcmToken),
-                priority,
                 escapeJson(alert.getAlertType()),
                 escapeJson(body),
                 priority,
+                priority,
+                "high".equals(priority) ? 10 : 5,
                 escapeJson(alert.getId()),
                 escapeJson(alert.getAlertType()),
                 alert.getLatitude(),
@@ -302,7 +244,7 @@ public class FcmPushService {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(fcmApiUrl))
-                    .header("Authorization", "key=" + fcmServerKey)
+                    .header("Authorization", "Bearer " + accessToken)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .timeout(Duration.ofSeconds(5))
@@ -311,20 +253,23 @@ public class FcmPushService {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
-                            log.debug("FCM push sent successfully");
+                            log.debug("FCM v1 push sent successfully");
                         } else {
-                            log.warn("FCM push returned status: {}", response.statusCode());
+                            log.warn("FCM v1 push returned status {}: {}", response.statusCode(), response.body());
                         }
                     });
         } catch (Exception e) {
-            log.warn("FCM send failed: {}", e.getMessage());
+            log.warn("FCM v1 send failed: {}", e.getMessage());
         }
     }
 
+    /**
+     * Build and send an FCM HTTP v1 message for a threat alert.
+     */
     private void sendThreatPushNotification(
             String fcmToken, String title, String body, String type,
             String severity, double latitude, double longitude,
-            Map<String, String> extraData) {
+            Map<String, String> extraData, String accessToken) {
         try {
             String priority = "high".equals(severity) || "critical".equals(severity) ? "high" : "normal";
 
@@ -346,29 +291,35 @@ public class FcmPushService {
 
             String json = String.format("""
                 {
-                  "to": "%s",
-                  "priority": "%s",
-                  "notification": {
-                    "title": "%s",
-                    "body": "%s",
-                    "sound": "default",
-                    "priority": "%s",
-                    "channelId": "threat_alerts"
-                  },
-                  "data": %s
+                  "message": {
+                    "token": "%s",
+                    "notification": {
+                      "title": "%s",
+                      "body": "%s"
+                    },
+                    "android": {
+                      "priority": "%s",
+                      "notification": {
+                        "sound": "default",
+                        "channel_id": "threat_alerts",
+                        "priority": "%s"
+                      }
+                    },
+                    "data": %s
+                  }
                 }
                 """,
                 escapeJson(fcmToken),
-                priority,
                 escapeJson(title),
                 escapeJson(body),
+                priority,
                 priority,
                 dataJson.toString()
             );
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(fcmApiUrl))
-                    .header("Authorization", "key=" + fcmServerKey)
+                    .header("Authorization", "Bearer " + accessToken)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .timeout(Duration.ofSeconds(5))
@@ -377,13 +328,13 @@ public class FcmPushService {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
-                            log.debug("FCM threat push sent successfully");
+                            log.debug("FCM v1 threat push sent successfully");
                         } else {
-                            log.warn("FCM threat push returned status: {}", response.statusCode());
+                            log.warn("FCM v1 threat push returned status {}: {}", response.statusCode(), response.body());
                         }
                     });
         } catch (Exception e) {
-            log.warn("FCM threat send failed: {}", e.getMessage());
+            log.warn("FCM v1 threat send failed: {}", e.getMessage());
         }
     }
 

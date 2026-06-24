@@ -71,10 +71,13 @@ spring:
       fail-on-unknown-properties: false
     default-property-inclusion: non_null
 
-# FCM Push Notification Configuration
+# FCM Push Notification Configuration (Firebase Cloud Messaging HTTP v1 API)
+# Uses OAuth2 with a Firebase Admin SDK service account JSON file.
+# Download the JSON file from Firebase Console -> Project Settings -> Service Accounts
+# Then place it on your server and set FCM_SERVICE_ACCOUNT_PATH to its location.
 fcm:
-  server-key: ${FCM_SERVER_KEY:}
-  api-url: https://fcm.googleapis.com/fcm/send
+  service-account-path: ${FCM_SERVICE_ACCOUNT_PATH:/etc/secrets/firebase-service-account.json}
+  api-url: https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID:volunteercoin}/messages:send
 
 # SMS Gateway Configuration (Twilio)
 sms:

@@ -48,6 +48,9 @@ ml_service/venv/
 .vscode/
 *.iml
 *.swp
+
+# Firebase service account (DO NOT COMMIT)
+volunteercoin-firebase-adminsdk-*.json
 *.swo
 
 # OS

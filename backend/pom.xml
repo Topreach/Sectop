@@ -85,6 +85,13 @@
             <version>1.5.5.Final</version>
         </dependency>
 
+        <!-- Google Auth Library (for FCM HTTP v1 API OAuth2) -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.23.0</version>
+        </dependency>
+
         <!-- MQTT for IoT communication -->
         <dependency>
             <groupId>org.eclipse.paho</groupId>
