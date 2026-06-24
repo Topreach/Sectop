@@ -79,13 +79,14 @@ fcm:
   service-account-path: ${FCM_SERVICE_ACCOUNT_PATH:/etc/secrets/firebase-service-account.json}
   api-url: https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID:volunteercoin}/messages:send
 
-# SMS Gateway Configuration (Twilio)
+# SMS Gateway Configuration (Termii - Nigerian SMS Provider)
+# Termii is cheaper than Twilio for Nigerian numbers (~₦2-4/SMS, no monthly fees)
+# Sign up at https://termii.com and get your API key from the dashboard
 sms:
-  twilio:
-    account-sid: ${TWILIO_ACCOUNT_SID:}
-    auth-token: ${TWILIO_AUTH_TOKEN:}
-    from-number: ${TWILIO_FROM_NUMBER:}
-    api-url: https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json
+  termii:
+    api-key: ${TERMII_API_KEY:}
+    sender-id: ${TERMII_SENDER_ID:Alert}
+    api-url: https://api.termii.com/api/sms/send
 
 # Paystack Payment Gateway Configuration
 paystack:

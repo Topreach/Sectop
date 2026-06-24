@@ -12,36 +12,35 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Base64;
 
 /**
  * SMS Gateway Service for last-resort delivery of critical alerts.
  *
  * When a user has no data connection (no WebSocket, no FCM), this service
- * sends an SMS alert via Twilio API as a fallback. This ensures that
+ * sends an SMS alert via Termii API as a fallback. This ensures that
  * even in areas with poor internet connectivity, critical SOS alerts
  * are delivered via the cellular network (SMS).
  *
+ * Termii is a Nigerian SMS provider with competitive pricing (~₦2-4/SMS)
+ * and no monthly fees. Sign up at https://termii.com
+ *
  * Delivery chain:
  *   SOSAlertService -> SmsGatewayService.sendAlertSms()
- *   -> Twilio REST API -> SMS to responder/citizen phone
+ *   -> Termii REST API -> SMS to responder/citizen phone
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SmsGatewayService {
 
-    @Value("${sms.twilio.account-sid:}")
-    private String twilioAccountSid;
+    @Value("${sms.termii.api-key:}")
+    private String termiiApiKey;
 
-    @Value("${sms.twilio.auth-token:}")
-    private String twilioAuthToken;
+    @Value("${sms.termii.sender-id:}")
+    private String termiiSenderId;
 
-    @Value("${sms.twilio.from-number:}")
-    private String twilioFromNumber;
-
-    @Value("${sms.twilio.api-url:https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json}")
-    private String twilioApiUrl;
+    @Value("${sms.termii.api-url:https://api.termii.com/api/sms/send}")
+    private String termiiApiUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -110,45 +109,73 @@ public class SmsGatewayService {
                 ? alert.getDescription().substring(0, Math.min(alert.getDescription().length(), 100))
                 : "";
 
-        return String.format("🚨 DANGER EMERGENCE: %s ALERT%s. %s. Priority: %d/10. Reply STOP to opt out.",
+        return String.format("🚨 DANGER EMERGENCE: %s ALERT%s. %s. Priority: %d/10.",
                 alertType.toUpperCase(), location, description, alert.getPriority());
     }
 
     private void sendSms(String to, String body) throws Exception {
-        String url = String.format(twilioApiUrl, twilioAccountSid);
-        String auth = twilioAccountSid + ":" + twilioAuthToken;
-        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+        // Ensure phone number is in international format (remove leading 0, add 234)
+        String formattedTo = formatPhoneNumber(to);
 
-        String formData = "To=" + java.net.URLEncoder.encode(to, "UTF-8")
-                + "&From=" + java.net.URLEncoder.encode(twilioFromNumber, "UTF-8")
-                + "&Body=" + java.net.URLEncoder.encode(body, "UTF-8");
+        // Build JSON payload for Termii API
+        String jsonPayload = String.format(
+                "{\"api_key\":\"%s\",\"to\":\"%s\",\"from\":\"%s\",\"sms\":\"%s\",\"type\":\"plain\",\"channel\":\"generic\"}",
+                termiiApiKey,
+                formattedTo,
+                termiiSenderId,
+                escapeJson(body)
+        );
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Authorization", "Basic " + encodedAuth)
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(formData))
+                .uri(URI.create(termiiApiUrl))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .timeout(Duration.ofSeconds(10))
                 .build();
 
         httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(response -> {
-                    if (response.statusCode() == 201) {
-                        log.debug("Twilio SMS sent successfully");
+                    if (response.statusCode() == 200) {
+                        log.debug("Termii SMS sent successfully");
                     } else {
-                        log.warn("Twilio SMS returned status: {}", response.statusCode());
+                        log.warn("Termii SMS returned status: {} body: {}",
+                                response.statusCode(), response.body());
                     }
                 });
     }
 
+    /**
+     * Format phone number to international format for Termii.
+     * Handles: 08012345678 -> 2348012345678, +2348012345678 -> 2348012345678
+     */
+    private String formatPhoneNumber(String phone) {
+        if (phone == null) return "";
+        String cleaned = phone.replaceAll("[^0-9]", "");
+        if (cleaned.startsWith("234") && cleaned.length() == 13) {
+            return cleaned;
+        } else if (cleaned.startsWith("0") && cleaned.length() == 11) {
+            return "234" + cleaned.substring(1);
+        }
+        return cleaned;
+    }
+
     private boolean isConfigured() {
-        return twilioAccountSid != null && !twilioAccountSid.isEmpty()
-                && twilioAuthToken != null && !twilioAuthToken.isEmpty()
-                && twilioFromNumber != null && !twilioFromNumber.isEmpty();
+        return termiiApiKey != null && !termiiApiKey.isEmpty()
+                && termiiSenderId != null && !termiiSenderId.isEmpty();
     }
 
     private String maskPhone(String phone) {
         if (phone == null || phone.length() < 6) return "****";
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 3);
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) return "";
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }
