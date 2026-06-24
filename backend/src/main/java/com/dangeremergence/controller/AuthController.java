@@ -327,7 +327,7 @@ public class AuthController {
             User user = userOpt.get();
             user.setFcmToken(fcmToken);
             userService.updateUser(user);
-            log.info("FCM token registered for user: {}", userId);
+            LOGGER.info("FCM token registered for user: {}", userId);
             return ResponseEntity.ok(Map.of("message", "FCM token registered successfully"));
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found"));

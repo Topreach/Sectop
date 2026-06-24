@@ -144,6 +144,98 @@ public class FcmPushService {
     }
 
     /**
+     * Send a discreet FCM push notification for a covert SOS alert.
+     * Uses a silent/private notification style so the alert is not obvious
+     * to anyone else who might see the recipient's phone screen.
+     */
+    @Async
+    public void sendCovertNotification(User user, SOSAlert alert) {
+        String accessToken = getAccessToken();
+        if (accessToken == null) return;
+
+        try {
+            if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
+                String priority = alert.getPriority() >= 9 ? "high" : "normal";
+                String body = alert.getDescription() != null
+                        ? alert.getDescription().substring(0, Math.min(alert.getDescription().length(), 200))
+                        : "Covert SOS Alert: " + alert.getAlertType();
+
+                String json = String.format("""
+                    {
+                      "message": {
+                        "token": "%s",
+                        "notification": {
+                          "title": "🔇 Covert SOS - %s",
+                          "body": "%s"
+                        },
+                        "android": {
+                          "priority": "%s",
+                          "notification": {
+                            "sound": "default",
+                            "channel_id": "covert_alerts",
+                            "priority": "%s",
+                            "visibility": "private"
+                          }
+                        },
+                        "apns": {
+                          "payload": {
+                            "aps": {
+                              "sound": "default",
+                              "priority": %d,
+                              "content-available": 1
+                            }
+                          }
+                        },
+                        "data": {
+                          "type": "covert_sos",
+                          "alertId": "%s",
+                          "alertType": "%s",
+                          "latitude": "%s",
+                          "longitude": "%s",
+                          "priority": "%d",
+                          "timestamp": "%d",
+                          "covert": "true"
+                        }
+                      }
+                    }
+                    """,
+                    escapeJson(user.getFcmToken()),
+                    escapeJson(alert.getAlertType()),
+                    escapeJson(body),
+                    priority,
+                    priority,
+                    "high".equals(priority) ? 10 : 5,
+                    escapeJson(alert.getId()),
+                    escapeJson(alert.getAlertType()),
+                    alert.getLatitude(),
+                    alert.getLongitude(),
+                    alert.getPriority(),
+                    System.currentTimeMillis()
+                );
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(fcmApiUrl))
+                        .header("Authorization", "Bearer " + accessToken)
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(json))
+                        .timeout(Duration.ofSeconds(5))
+                        .build();
+
+                httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                        .thenAccept(response -> {
+                            if (response.statusCode() == 200) {
+                                log.debug("FCM covert notification sent to user {}", user.getId());
+                            } else {
+                                log.warn("FCM covert notification returned status {}: {}", response.statusCode(), response.body());
+                            }
+                        });
+            }
+        } catch (Exception e) {
+            log.warn("FCM covert notification failed for user {}: {}", user.getId(), e.getMessage());
+        }
+    }
+
+    /**
      * Send push notification for a threat intelligence alert (incident, danger zone, etc.)
      * to all users near the given coordinates.
      */
