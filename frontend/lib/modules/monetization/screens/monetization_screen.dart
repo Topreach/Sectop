@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/themes.dart';
 import '../services/monetization_service.dart';
 import '../widgets/points_balance_widget.dart';
@@ -18,6 +19,7 @@ class _MonetizationScreenState extends State<MonetizationScreen> {
   List<Map<String, dynamic>> _plans = [];
   bool _loading = true;
   bool _earningPoints = false;
+  bool _processingPayment = false;
 
   @override
   void initState() {
@@ -394,12 +396,13 @@ class _MonetizationScreenState extends State<MonetizationScreen> {
                       ),
                     )),
                 const SizedBox(height: 16),
+                // Monthly subscribe button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: isCurrentPlan
+                    onPressed: isCurrentPlan || _processingPayment
                         ? null
-                        : () => _handleSubscribe(planId),
+                        : () => _handleSubscribe(planId, 1),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isPremium ? AppTheme.primaryColor : Colors.grey.shade300,
                       foregroundColor: isPremium ? Colors.white : Colors.black87,
@@ -409,11 +412,35 @@ class _MonetizationScreenState extends State<MonetizationScreen> {
                       ),
                     ),
                     child: Text(
-                      isCurrentPlan ? 'Current Plan' : 'Subscribe',
+                      isCurrentPlan ? 'Current Plan' : 'Subscribe - ${_formatPrice(price, currency)}/$period',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
+                // Annual subscribe button (if available)
+                if (annualPrice != null && !isCurrentPlan) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _processingPayment
+                          ? null
+                          : () => _handleSubscribe(planId, 12),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.green.shade700,
+                        side: BorderSide(color: Colors.green.shade700),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Subscribe - ${_formatPrice(annualPrice, currency)}/year (Save ${((1 - annualPrice / (price * 12)) * 100).round()}%)',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -443,55 +470,151 @@ class _MonetizationScreenState extends State<MonetizationScreen> {
     );
   }
 
-  Future<void> _handleSubscribe(String planId) async {
-    // In production, this would initiate Google Play / App Store billing
-    // For now, show a confirmation dialog
-    final confirmed = await showDialog<bool>(
+  /// Handle subscription button press.
+  /// Opens a dialog asking for email, then initiates Paystack payment.
+  Future<void> _handleSubscribe(String planId, int durationMonths) async {
+    // Ask for email address for Paystack payment
+    final emailController = TextEditingController();
+    final email = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Subscribe'),
-        content: Text('Subscribe to the $planId plan?\n\n'
-            'In production, this would open Google Play or App Store billing.'),
+        title: const Text('Enter Your Email'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'You will be redirected to Paystack to complete your payment securely.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email Address',
+                hintText: 'your@email.com',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.email),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Subscribe'),
+            onPressed: () {
+              final email = emailController.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid email address')),
+                );
+                return;
+              }
+              Navigator.pop(ctx, email);
+            },
+            child: const Text('Proceed to Payment'),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      // Stub: In production, verify with platform SDK
-      final result = await _monetizationService.subscribe(
+    if (email == null || email.isEmpty) return;
+
+    setState(() => _processingPayment = true);
+
+    try {
+      // Initialize Paystack payment
+      final result = await _monetizationService.initializePaystackPayment(
         tier: planId,
-        platform: 'google_play',
-        platformSubscriptionId: 'stub_${planId}_${DateTime.now().millisecondsSinceEpoch}',
-        durationMonths: 1,
+        email: email,
+        durationMonths: durationMonths,
       );
 
       if (!mounted) return;
 
-      if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Subscribed to $planId!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadData();
+      if (result['success'] == true && result['authorization_url'] != null) {
+        final authUrl = result['authorization_url'] as String;
+        final reference = result['reference'] as String;
+
+        // Open Paystack checkout page in browser
+        final uri = Uri.parse(authUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+          // After returning from Paystack, verify the payment
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Verifying payment... Please wait.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+
+          // Poll for verification (Paystack redirects back, but we verify server-side)
+          await Future.delayed(const Duration(seconds: 3));
+
+          final verifyResult = await _monetizationService.verifyPaystackPayment(
+            reference: reference,
+          );
+
+          if (!mounted) return;
+
+          if (verifyResult['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Subscribed to $planId successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            _loadData();
+          } else {
+            // Payment might still be processing (webhook may not have fired yet)
+            // Show a message telling the user their subscription will be activated shortly
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  verifyResult['message'] as String? ??
+                      'Payment received! Your subscription will be activated shortly.',
+                ),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+            // Reload status to check if webhook already activated
+            await Future.delayed(const Duration(seconds: 5));
+            if (mounted) _loadData();
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open payment page. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } else {
+        final message = result['message'] as String? ?? 'Payment initialization failed';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] as String? ?? 'Subscription failed'),
+            content: Text(message),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingPayment = false);
     }
   }
 

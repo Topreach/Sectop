@@ -266,6 +266,7 @@ public class MonetizationService {
         sub.setTier(tier);
         sub.setPlatform(platform);
         sub.setPlatformSubscriptionId(platformSubscriptionId);
+        sub.setPaystackReference(null);
         sub.setSubscriptionStart(LocalDateTime.now());
         sub.setSubscriptionEnd(LocalDateTime.now().plusMonths(durationMonths));
         sub.setAutoRenew(true);
@@ -290,6 +291,47 @@ public class MonetizationService {
         }
 
         LOGGER.info("User {} activated {} subscription for {} months", userId, tier, durationMonths);
+        return sub;
+    }
+
+    /**
+     * Activate a subscription with a Paystack payment reference.
+     * This is called after successful Paystack payment verification (webhook or callback).
+     */
+    @Transactional
+    public UserSubscription activateSubscriptionWithReference(String userId, SubscriptionTier tier,
+                                                               String platform, String platformSubscriptionId,
+                                                               int durationMonths, String paystackReference) {
+        UserSubscription sub = getOrCreateSubscription(userId);
+        sub.setTier(tier);
+        sub.setPlatform(platform);
+        sub.setPlatformSubscriptionId(platformSubscriptionId);
+        sub.setPaystackReference(paystackReference);
+        sub.setSubscriptionStart(LocalDateTime.now());
+        sub.setSubscriptionEnd(LocalDateTime.now().plusMonths(durationMonths));
+        sub.setAutoRenew(true);
+        sub = subscriptionRepository.save(sub);
+
+        // Award subscription bonus points
+        int bonusPoints = switch (tier) {
+            case premium -> 500;
+            case family -> 1000;
+            default -> 0;
+        };
+        if (bonusPoints > 0) {
+            sub.setPointsBalance(sub.getPointsBalance() + bonusPoints);
+            subscriptionRepository.save(sub);
+
+            PointTransaction tx = PointTransaction.builder()
+                    .userId(userId)
+                    .amount(bonusPoints)
+                    .transactionType("subscription_bonus")
+                    .build();
+            transactionRepository.save(tx);
+        }
+
+        LOGGER.info("User {} activated {} subscription via Paystack ref {} for {} months",
+                userId, tier, paystackReference, durationMonths);
         return sub;
     }
 

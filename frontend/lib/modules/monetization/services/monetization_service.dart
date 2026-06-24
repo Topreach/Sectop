@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../../shared/services/backend_api.dart';
 
 /// Service for interacting with the monetization backend API.
-/// Handles subscription status, points earning/spending, and feature access checks.
+/// Handles subscription status, points earning/spending, feature access checks,
+/// and Paystack payment integration.
 class MonetizationService {
   static final MonetizationService _instance = MonetizationService._();
   factory MonetizationService() => _instance;
@@ -56,10 +57,45 @@ class MonetizationService {
   }
 
   // ---------------------------------------------------------------------------
+  // Paystack Payment Integration
+  // ---------------------------------------------------------------------------
+
+  /// Initialize a Paystack payment for a subscription.
+  /// Returns the authorization URL that the user should open in a browser.
+  Future<Map<String, dynamic>> initializePaystackPayment({
+    required String tier,
+    required String email,
+    int durationMonths = 1,
+  }) async {
+    try {
+      return await _api.post('/monetization/initialize-payment', body: {
+        'tier': tier,
+        'email': email,
+        'durationMonths': durationMonths,
+      });
+    } catch (e) {
+      debugPrint('MonetizationService.initializePaystackPayment error: $e');
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Verify a Paystack payment after the user returns from the checkout page.
+  Future<Map<String, dynamic>> verifyPaystackPayment({
+    required String reference,
+  }) async {
+    try {
+      return await _api.get('/monetization/verify-paystack-payment?reference=$reference');
+    } catch (e) {
+      debugPrint('MonetizationService.verifyPaystackPayment error: $e');
+      return {'success': false, 'message': 'Payment verification failed'};
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Subscription
   // ---------------------------------------------------------------------------
 
-  /// Activate a subscription.
+  /// Activate a subscription (for Google Play / Apple App Store direct activation).
   Future<Map<String, dynamic>> subscribe({
     required String tier,
     required String platform,

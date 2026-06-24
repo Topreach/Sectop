@@ -27,7 +27,7 @@ spring:
   
   datasource:
     url: ${JDBC_DATABASE_URL:jdbc:postgresql://localhost:5432/danger_emergence}
-    username: ${DB_USERNAME}
+    username: ${DB_USERNAME:${DB_USER:postgres}}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -83,6 +83,12 @@ sms:
     auth-token: ${TWILIO_AUTH_TOKEN:}
     from-number: ${TWILIO_FROM_NUMBER:}
     api-url: https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json
+
+# Paystack Payment Gateway Configuration
+paystack:
+  secret-key: ${PAYSTACK_SECRET_KEY:}
+  api-url: https://api.paystack.co
+  callback-url: ${APP_BASE_URL:https://sectop.resultscaleai.com}/payment/callback
 
 # ML Service Configuration
 ml:

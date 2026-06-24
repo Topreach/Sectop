@@ -55,10 +55,13 @@ public class UserSubscription {
     private boolean autoRenew = true;
 
     @Column(length = 20)
-    private String platform; // google_play, apple_app_store
+    private String platform; // google_play, apple_app_store, paystack
 
     @Column(name = "platform_subscription_id", length = 255)
     private String platformSubscriptionId;
+
+    @Column(name = "paystack_reference", length = 100)
+    private String paystackReference;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
