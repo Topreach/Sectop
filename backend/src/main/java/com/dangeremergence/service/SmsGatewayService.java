@@ -253,6 +253,11 @@ public class SmsGatewayService {
     // ========================================================================
 
     private String buildSmsMessage(SOSAlert alert) {
+        // Include the user's name so the recipient knows who is in danger
+        String userName = alert.getUser() != null && alert.getUser().getName() != null
+                ? alert.getUser().getName()
+                : "Someone";
+
         String alertType = alert.getAlertType() != null ? alert.getAlertType() : "EMERGENCY";
         String location = "";
         if (alert.getLatitude() != null && alert.getLongitude() != null) {
@@ -262,8 +267,8 @@ public class SmsGatewayService {
                 ? alert.getDescription().substring(0, Math.min(alert.getDescription().length(), 100))
                 : "";
 
-        return String.format("🚨 DANGER EMERGENCE: %s ALERT%s. %s. Priority: %d/10.",
-                alertType.toUpperCase(), location, description, alert.getPriority());
+        return String.format("🚨 %s needs help! %s ALERT%s. %s. Priority: %d/10.",
+                userName, alertType.toUpperCase(), location, description, alert.getPriority());
     }
 
     private void sendSms(String to, String body) throws Exception {
