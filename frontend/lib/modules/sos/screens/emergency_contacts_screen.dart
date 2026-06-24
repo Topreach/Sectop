@@ -527,6 +527,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> with 
                         ),
                       ),
                     ],
+                  ),
                 ),
                 // Share App section — prominent card for generating app download link
                 Container(
