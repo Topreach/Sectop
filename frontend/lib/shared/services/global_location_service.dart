@@ -22,15 +22,15 @@ class GlobalLocationService {
       final locations = await locationFromAddress(query);
       return locations.map((loc) {
         return {
-          'name': _buildShortName(loc),
+          'name': '${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}',
           'latitude': loc.latitude,
           'longitude': loc.longitude,
-          'displayName': _buildDisplayName(loc),
-          'street': loc.street ?? '',
-          'city': loc.locality ?? '',
-          'state': loc.administrativeArea ?? '',
-          'country': loc.country ?? '',
-          'postalCode': loc.postalCode ?? '',
+          'displayName': '${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}',
+          'street': '',
+          'city': '',
+          'state': '',
+          'country': '',
+          'postalCode': '',
         };
       }).toList();
     } catch (e) {
@@ -76,7 +76,7 @@ class GlobalLocationService {
       parts.add(p.administrativeArea!);
     }
     if (p.country != null && p.country!.isNotEmpty) parts.add(p.country!);
-    return parts.isNotEmpty ? parts.join(', ') : '$latitude, $longitude';
+    return parts.isNotEmpty ? parts.join(', ') : 'Unknown location';
   }
 
   /// Build a short name (city or town).

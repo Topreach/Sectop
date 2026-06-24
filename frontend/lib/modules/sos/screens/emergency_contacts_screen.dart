@@ -88,8 +88,9 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> with 
         final phone = _contacts[i]['phone'] ?? '';
         final matched = _appUsers[phone];
         if (matched != null && matched['id'] != null) {
-          if (_contacts[i]['userId'] != matched['id']) {
-            _contacts[i]['userId'] = matched['id'];
+          final matchedId = matched['id'] as String;
+          if (_contacts[i]['userId'] != matchedId) {
+            _contacts[i]['userId'] = matchedId;
             changed = true;
           }
         }
