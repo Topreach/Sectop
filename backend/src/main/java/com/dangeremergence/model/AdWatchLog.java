@@ -14,16 +14,16 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Audit trail for all points earned and spent by users.
- * Maps to the {@code point_transactions} table.
+ * Logs each ad watch for audit and daily limit enforcement.
+ * Maps to the {@code ad_watch_logs} table.
  */
 @Entity
-@Table(name = "point_transactions")
+@Table(name = "ad_watch_logs")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PointTransaction {
+public class AdWatchLog {
 
     @Id
     @Column(length = 36)
@@ -32,25 +32,24 @@ public class PointTransaction {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
-    @Column(nullable = false)
-    private Integer amount;
+    @Column(name = "points_earned", nullable = false)
+    @Builder.Default
+    private Integer pointsEarned = 10;
 
-    @Column(name = "transaction_type", length = 50, nullable = false)
-    private String transactionType;
+    @Column(name = "ad_provider", length = 50, nullable = false)
+    @Builder.Default
+    private String adProvider = "unknown";
 
-    @Column(name = "reference_id", length = 255)
-    private String referenceId;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "watched_at", nullable = false, updatable = false)
+    private LocalDateTime watchedAt;
 
     @PrePersist
     protected void onCreate() {
         if (id == null) {
             id = UUID.randomUUID().toString();
         }
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+        if (watchedAt == null) {
+            watchedAt = LocalDateTime.now();
         }
     }
 }
