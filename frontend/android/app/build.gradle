@@ -79,13 +79,17 @@ android {
         }
     }
 
-    // Produce a single universal APK that works on all architectures
+    // Produce per-ABI APKs for smaller download size.
+    // arm64-v8a covers ~95% of modern Android devices.
+    // armeabi-v7a is included for older device compatibility.
+    // x86_64 is excluded (no Android devices use it).
+    // Universal APK is disabled to avoid 170MB+ bloat.
     splits {
         abi {
             enable true
             reset()
-            include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
-            universalApk true
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk false
         }
     }
 

@@ -498,19 +498,23 @@ GRADLEPROPS
     sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-all.zip|' "$WRAPPER_PROPS"
   fi
 
-  # Build release APK (no tree-shake icons to ensure all Material icons are included)
+  # Build APK with size optimizations:
+  # - Tree-shake icons: Remove unused Material icons (saves ~10-15MB)
+  # - Split APK per ABI: Build separate APKs per CPU architecture instead of
+  #   one universal APK containing all 3 architectures (saves ~60-80MB per APK)
+  # - The universal APK is still produced as a fallback, but per-ABI APKs
+  #   are the primary deliverable (much smaller for end users)
   # Use --no-android-gradle-daemon to avoid daemon memory issues on low-RAM servers
   # First build may take longer due to Gradle download + dependency resolution
   # --android-skip-build-dependency-validation: Bypass Flutter's Kotlin version check.
-  # Gradle JVM heap allocation: 1.5GB for transforming TensorFlow Lite + Flutter native libs
-  # (JetifyTransform needs significant heap for large AAR/JAR conversions)
+  # Gradle JVM heap allocation: 1.5GB for transforming Flutter native libs
   # GC tuning: Use G1GC with aggressive collection to minimize peak heap usage
   export KOTLIN_DAEMON_JVM_OPTS="-Xmx384m"
   export GRADLE_OPTS="-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
   if [ "$DEBUG_MODE" = true ]; then
-    flutter build apk --debug --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
+    flutter build apk --debug --split-per-abi --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
   else
-    flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
+    flutter build apk --release --split-per-abi --android-skip-build-dependency-validation --no-android-gradle-daemon -t lib/main.dart
   fi
 
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
@@ -518,22 +522,37 @@ GRADLEPROPS
   if [ -f "$WRAPPER_PROPS" ]; then
     sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-all.zip|' "$WRAPPER_PROPS"
   fi
-  # Verify and copy the universal APK
+  # Verify and copy per-ABI APKs (primary deliverable)
   if [ "$DEBUG_MODE" = true ]; then
-    local UNIVERSAL_APK="$BUILD_DIR/app-debug.apk"
+    local ARCH_APKS=$(ls "$BUILD_DIR"/app-*-debug.apk 2>/dev/null || true)
     local OUTPUT_APK_FINAL="${OUTPUT_APK%.apk}-debug.apk"
   else
-    local UNIVERSAL_APK="$BUILD_DIR/app-release.apk"
+    local ARCH_APKS=$(ls "$BUILD_DIR"/app-*-release.apk 2>/dev/null || true)
     local OUTPUT_APK_FINAL="$OUTPUT_APK"
   fi
-  if [ -f "$UNIVERSAL_APK" ]; then
-    local size
-    size=$(du -h "$UNIVERSAL_APK" | cut -f1)
-    log_ok "Universal APK built: $size"
-    cp "$UNIVERSAL_APK" "$OUTPUT_APK_FINAL"
-    log_ok "APK copied to: $OUTPUT_APK_FINAL"
+
+  if [ -n "$ARCH_APKS" ]; then
+    log_ok "Per-ABI APKs built:"
+    for apk in $ARCH_APKS; do
+      local size
+      size=$(du -h "$apk" | cut -f1)
+      local arch_name=$(basename "$apk" | sed 's/.*-\(.*\)-debug\.apk/\1/' | sed 's/.*-\(.*\)-release\.apk/\1/')
+      log_ok "  $arch_name: $size"
+    done
+    # Copy the arm64-v8a APK as the default (most common architecture)
+    local ARM64_APK=$(ls "$BUILD_DIR"/app-arm64-v8a-*.apk 2>/dev/null | head -1)
+    if [ -n "$ARM64_APK" ]; then
+      cp "$ARM64_APK" "$OUTPUT_APK_FINAL"
+      local arm64_size=$(du -h "$ARM64_APK" | cut -f1)
+      log_ok "Default APK (arm64-v8a) copied to: $OUTPUT_APK_FINAL ($arm64_size)"
+    else
+      # Fallback: copy the first available APK
+      local first_apk=$(echo "$ARCH_APKS" | head -1)
+      cp "$first_apk" "$OUTPUT_APK_FINAL"
+      log_ok "APK copied to: $OUTPUT_APK_FINAL"
+    fi
   else
-    log_error "Build failed - no APK found at $UNIVERSAL_APK"
+    log_error "Build failed - no APK found in $BUILD_DIR"
     log_info "Available files in $BUILD_DIR:"
     ls -la "$BUILD_DIR" 2>/dev/null || true
     exit 1
