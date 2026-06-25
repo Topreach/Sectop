@@ -13,6 +13,9 @@ frontend/android/local.properties
 frontend/android/key.properties
 frontend/android/app/src/main/res/values/secrets.xml
 
+# Firebase Android config (DO NOT COMMIT — contains API keys)
+frontend/android/app/google-services.json
+
 # Release keystore (DO NOT COMMIT)
 frontend/android/keystore.properties
 frontend/android/release-keystore.jks
