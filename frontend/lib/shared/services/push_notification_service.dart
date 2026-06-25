@@ -55,14 +55,17 @@ class PushNotificationService {
 
     try {
       // Step 1: Initialize Firebase
-      await Firebase.initializeApp(
-        options: Firebase.app().options, // Uses google-services.json
-      );
+      // On Android, Firebase.initializeApp() reads google-services.json automatically.
+      // We do NOT pass Firebase.app().options here because that would require
+      // Firebase to already be initialized (circular dependency).
+      await Firebase.initializeApp();
       _firebaseInitialized = true;
       debugPrint('PushNotificationService: Firebase initialized');
     } catch (e) {
       debugPrint('PushNotificationService: Firebase init failed: $e');
-      // Non-fatal — app works without push notifications
+      // Non-fatal — app works without push notifications.
+      // If google-services.json has placeholder values (YOUR_PROJECT_ID etc.),
+      // Firebase will fail to initialize but the app continues.
       _initialized = true;
       return;
     }
