@@ -12,6 +12,7 @@ frontend/android/.gradle/
 frontend/android/local.properties
 frontend/android/key.properties
 frontend/android/app/src/main/res/values/secrets.xml
+frontend/android/app/google-services.json
 
 # Firebase Android config (DO NOT COMMIT — contains API keys)
 frontend/android/app/google-services.json

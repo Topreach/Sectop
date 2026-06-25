@@ -421,7 +421,7 @@ android.enableJetifier=false
 org.gradle.caching=true
 org.gradle.configureondemand=false
 # Memory settings for low-RAM build servers
-org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m
+org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
 kotlin.daemon.jvmargs=-Xmx384m
 org.gradle.parallel=false
 org.gradle.daemon=false
@@ -459,19 +459,23 @@ GRADLEPROPS
   # non-existent Gradle version (e.g. 8.17.0 on github.com).
   #
   # We work around this by:
-  #   1. Pre-downloading the correct Gradle 9.1.0 distribution so the wrapper
+  #   1. Pre-downloading the correct Gradle 8.13 distribution so the wrapper
   #      finds it cached and skips the download even if the URL is wrong.
   #   2. Fixing the wrapper URL after Flutter overwrites it, so subsequent
   #      Gradle invocations use the correct URL.
   #
-  # Step 1: Pre-cache Gradle 9.1.0 if not already cached
-  local GRADLE_CACHE_DIR="$HOME/.gradle/wrapper/dists/gradle-9.1.0-all"
+  # NOTE: Gradle 9.x removed the `configurations.all` API that google_mobile_ads
+  # 5.3.1 depends on, causing build failures. We use Gradle 8.13 which is
+  # compatible with AGP 8.11.1 and all current plugins.
+  #
+  # Step 1: Pre-cache Gradle 8.13 if not already cached
+  local GRADLE_CACHE_DIR="$HOME/.gradle/wrapper/dists/gradle-8.13-all"
   if [ ! -d "$GRADLE_CACHE_DIR" ]; then
-    log_info "Pre-caching Gradle 9.1.0 distribution..."
+    log_info "Pre-caching Gradle 8.13 distribution..."
     mkdir -p "$GRADLE_CACHE_DIR" 2>/dev/null || true
-    # Download Gradle 9.1.0 from the official distribution server
-    GRADLE_URL="https://services.gradle.org/distributions/gradle-9.1.0-all.zip"
-    GRADLE_ZIP="/tmp/gradle-9.1.0-all.zip"
+    # Download Gradle 8.13 from the official distribution server
+    GRADLE_URL="https://services.gradle.org/distributions/gradle-8.13-all.zip"
+    GRADLE_ZIP="/tmp/gradle-8.13-all.zip"
     if command -v curl &>/dev/null; then
       curl -fsSL "$GRADLE_URL" -o "$GRADLE_ZIP" || true
     elif command -v wget &>/dev/null; then
@@ -480,18 +484,18 @@ GRADLEPROPS
     if [ -f "$GRADLE_ZIP" ] && [ -s "$GRADLE_ZIP" ]; then
       unzip -qo "$GRADLE_ZIP" -d "$GRADLE_CACHE_DIR/" 2>/dev/null || true
       rm -f "$GRADLE_ZIP"
-      log_ok "Gradle 9.1.0 pre-cached successfully"
+      log_ok "Gradle 8.13 pre-cached successfully"
     else
-      log_warn "Could not pre-download Gradle 9.1.0 (will try via wrapper)"
+      log_warn "Could not pre-download Gradle 8.13 (will try via wrapper)"
     fi
   else
-    log_info "Gradle 9.1.0 already cached"
+    log_info "Gradle 8.13 already cached"
   fi
 
   # Step 2: Fix the wrapper URL (in case Flutter's Gradle plugin overwrote it)
   local WRAPPER_PROPS="$FRONTEND_DIR/android/gradle/wrapper/gradle-wrapper.properties"
   if [ -f "$WRAPPER_PROPS" ]; then
-    sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip|' "$WRAPPER_PROPS"
+    sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-all.zip|' "$WRAPPER_PROPS"
   fi
 
   # Build release APK (no tree-shake icons to ensure all Material icons are included)
@@ -512,7 +516,7 @@ GRADLEPROPS
   # Step 3: After Flutter build (which may have overwritten the wrapper), restore
   # the correct URL so any post-build Gradle tasks use the right version.
   if [ -f "$WRAPPER_PROPS" ]; then
-    sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip|' "$WRAPPER_PROPS"
+    sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-all.zip|' "$WRAPPER_PROPS"
   fi
   # Verify and copy the universal APK
   if [ "$DEBUG_MODE" = true ]; then
